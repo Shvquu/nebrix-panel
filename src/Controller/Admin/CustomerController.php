@@ -174,6 +174,8 @@ final class CustomerController extends Controller
         try {
             $this->customers->setStatus($customer, (string) $data['status'], $data['reason'], $this->user($request)->id, $request->clientIp());
             $this->flash($request, 'success', $data['status'] === 'active' ? 'Account activated.' : 'Account suspended and signed out.');
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }
@@ -291,6 +293,8 @@ final class CustomerController extends Controller
         try {
             $this->customers->closeAndAnonymize($customer, $this->user($request)->id, $request->clientIp());
             $this->flash($request, 'success', 'The account has been closed and personal data removed.');
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

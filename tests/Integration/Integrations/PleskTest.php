@@ -55,7 +55,7 @@ final class PleskTest extends IntegrationTestCase
         self::assertSame('nebrix-user-' . $user->id, $this->plesk->customers[$customerId]['external_id']);
         self::assertSame($result->credentials['password'], $this->plesk->customers[$customerId]['password']);
         $webspace = $this->plesk->webspaces[array_key_first($this->plesk->webspaces)];
-        self::assertSame(['example-shop.de', $customerId, 'Web S', '203.0.113.61', 'nx' . $first->id], [$webspace['name'], $webspace['owner_id'], $webspace['plan'], $webspace['ip'], $webspace['ftp_login']]);
+        self::assertSame(['example-shop.de', $customerId, 'Web S', '203.0.113.61', 'nxw' . $first->id], [$webspace['name'], $webspace['owner_id'], $webspace['plan'], $webspace['ip'], $webspace['ftp_login']]);
         self::assertSame($result->credentials['ftp_password'], $webspace['ftp_password']);
         self::assertSame('https://203.0.113.60:8443', $result->credentials['panel_url']);
 

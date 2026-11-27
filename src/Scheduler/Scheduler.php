@@ -92,7 +92,7 @@ class Scheduler
             'referrals.process' => [60, function (): string {
                 $result = $this->referrals->process();
 
-                return sprintf('%d referral(s) qualified, %d rewarded, %d reset after a refund', $result['qualified'], $result['rewarded'], $result['reset']);
+                return sprintf('%d referral(s) qualified, %d rewarded, %d reset after a refund, %d reward(s) reversed', $result['qualified'], $result['rewarded'], $result['reset'], $result['reversed']);
             }],
             'tax.recheck_vat_ids' => [60, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],

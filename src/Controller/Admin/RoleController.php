@@ -36,7 +36,30 @@ final class RoleController extends Controller
             'granted' => $this->roles->permissions($id),
             'groups' => Permission::grouped(),
             'locked' => $role['slug'] === Role::SUPER_ADMIN,
+            'read_only' => $role['slug'] !== Role::SUPER_ADMIN && !$this->mayManage($request, $id),
         ]);
+    }
+
+    /**
+     * Super administrators manage every role. Others only roles below them:
+     * not their own role and no role with permissions they do not hold.
+     */
+    private function mayManage(Request $request, int $roleId): bool
+    {
+        $actor = $this->user($request);
+        if ($actor->isSuperAdmin()) {
+            return true;
+        }
+
+        return $roleId !== $actor->roleId
+            && array_diff($this->gate->permissionsForRole($roleId), $this->gate->permissionsForRole($actor->roleId)) === [];
+    }
+
+    private function ensureMayManage(Request $request, int $roleId): void
+    {
+        if (!$this->mayManage($request, $roleId)) {
+            throw HttpException::forbidden('You can only change roles that have fewer permissions than your own.');
+        }
     }
 
     public function store(Request $request): Response
@@ -60,12 +83,19 @@ final class RoleController extends Controller
             throw HttpException::forbidden('The super administrator role always has every permission.');
         }
 
+        $this->ensureMayManage($request, $id);
+
         $data = $this->validate($request, ['name' => 'required|string|max:100', 'description' => 'nullable|string|max:255', 'permissions' => 'nullable|array']);
         if ($this->roles->nameExists((string) $data['name'], $id)) {
             throw ValidationException::withMessages(['name' => 'A role with this name already exists.']);
         }
 
         $permissions = array_values(array_filter((array) ($data['permissions'] ?? []), 'is_string'));
+        // Only permissions the editor holds can be handed out (no escalation through roles).
+        $actor = $this->user($request);
+        if (!$actor->isSuperAdmin() && array_diff(array_intersect($permissions, Permission::all()), $this->gate->permissionsForRole($actor->roleId)) !== []) {
+            throw HttpException::forbidden('You can only grant permissions you hold yourself.');
+        }
         $before = $this->roles->permissions($id);
         $this->roles->updateDetails($id, (string) $data['name'], $data['description']);
         $this->roles->syncPermissions($id, $permissions);
@@ -84,6 +114,7 @@ final class RoleController extends Controller
     public function delete(Request $request, int $id): Response
     {
         $role = $this->find($id);
+        $this->ensureMayManage($request, $id);
         if ((int) $role['is_system'] === 1) {
             throw HttpException::forbidden('System roles cannot be deleted.');
         }

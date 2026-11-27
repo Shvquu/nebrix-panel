@@ -43,9 +43,11 @@
                     <button class="btn btn-primary" type="submit">{{ 'Mark as active'|t }}</button></form>
             {% endif %}
             {% if service.status not in ['terminated', 'cancelled'] %}
+                {% if can('invoices.manage') %}
                 <hr>
                 <form method="post" action="/admin/services/{{ service.id }}/action" class="filters" novalidate>{{ csrf_field() }}<input type="hidden" name="action" value="due_date">
                     {{ f.input('next_due_at', 'Next due date', service.nextDueAt ? service.nextDueAt|slice(0, 10) : '', 'date') }}<button class="btn btn-outline" type="submit">{{ 'Update'|t }}</button></form>
+                {% endif %}
                 <hr>
                 <form method="post" action="/admin/services/{{ service.id }}/action" novalidate data-confirm="{{ 'Terminate this service? Remote data will be deleted.'|t }}">{{ csrf_field() }}<input type="hidden" name="action" value="terminate">
                     {{ f.input('reason', 'Termination reason', '', 'text') }}

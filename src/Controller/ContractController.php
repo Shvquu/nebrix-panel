@@ -82,8 +82,8 @@ final class ContractController extends Controller
         $user = $request->attribute('user');
         $user = $user instanceof User ? $user : null;
 
-        // Per client network (an IPv6 /64 counts as one client).
-        if (!$this->limiter->attempt('contract-declaration:' . self::clientNetwork($request->clientIp()), 10, 3600)) {
+        // Per client network (an IPv6 /48 counts as one client).
+        if (!$this->limiter->attempt('contract-declaration:' . RateLimiter::network($request->clientIp(), 48), 10, 3600)) {
             throw HttpException::tooManyRequests();
         }
         $data = $this->validate($request, [
@@ -119,13 +119,15 @@ final class ContractController extends Controller
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
+        $mailReceipt = true;
         if ($user === null) {
             $this->captcha->verify($request);
-            // The receipt is e-mailed to the address entered: limit how often
-            // a guest can make the panel write to the same address.
-            if (!$this->limiter->attempt('contract-declaration-to:' . hash('sha256', mb_strtolower(trim((string) $data['email']))), 3, 86400)) {
-                throw HttpException::tooManyRequests();
-            }
+            // The receipt is e-mailed to the address entered. Per address (3 per day) and in
+            // total (100 per hour) the panel writes only a limited number of such mails; above
+            // that the declaration is still recorded and confirmed on the page (the cancellation
+            // must stay possible), only the e-mail is skipped.
+            $mailReceipt = $this->limiter->attempt('contract-declaration-to:' . hash('sha256', mb_strtolower(trim((string) $data['email']))), 3, 86400)
+                && $this->limiter->attempt('contract-declaration-mail:all', 100, 3600);
         }
 
         $declaration = $this->cancellations->submit([
@@ -137,10 +139,10 @@ final class ContractController extends Controller
             'reason' => $data['reason'] !== null ? (string) $data['reason'] : null,
             'requested_date' => $requested,
             'service_id' => $data['service_id'] !== null ? (int) $data['service_id'] : null,
-        ], $user, $request->clientIp());
+        ], $user, $request->clientIp(), $mailReceipt);
 
         // Shown directly (no redirect) so the customer can save or print the confirmation.
-        $response = $this->render($request, 'contract/received.twig', ['declaration' => $declaration, 'withdrawal' => $withdrawal]);
+        $response = $this->render($request, 'contract/received.twig', ['declaration' => $declaration, 'withdrawal' => $withdrawal, 'mailed' => $mailReceipt, 'mailed_to' => $user !== null ? $user->email : (string) $data['email']]);
         $response->setHeader('Cache-Control', 'no-store');
 
         return $response;
@@ -160,17 +162,6 @@ final class ContractController extends Controller
         }
 
         return $list;
-    }
-
-    /** The client's address; for IPv6 its /64 network. */
-    private static function clientNetwork(?string $ip): string
-    {
-        $packed = $ip !== null ? @inet_pton($ip) : false;
-        if ($packed === false || strlen($packed) !== 16) {
-            return (string) $ip;
-        }
-
-        return bin2hex(substr($packed, 0, 8)) . '::/64';
     }
 
     private function today(): string

@@ -117,7 +117,7 @@ final class ReferralTest extends FeatureTestCase
         // Paid by bank transfer: qualified, but rewarded only after the holding period.
         $this->later('+2 hours');
         $this->pay($order['invoice_id'], 'manual', 'bank-1');
-        self::assertSame(['qualified' => 1, 'rewarded' => 0, 'reset' => 0], $this->referrals->process());
+        self::assertSame(['qualified' => 1, 'rewarded' => 0, 'reset' => 0, 'reversed' => 0], $this->referrals->process());
         self::assertSame($order['invoice_id'], (int) $this->db->fetchValue('SELECT `invoice_id` FROM `nx_referrals` WHERE `referred_id` = ?', [$referred->id]));
         $this->later('+13 days');
         $this->referrals->process();
@@ -135,7 +135,7 @@ final class ReferralTest extends FeatureTestCase
 
         // Processing again changes nothing.
         $this->later('+1 day');
-        self::assertSame(['qualified' => 0, 'rewarded' => 0, 'reset' => 0], $this->referrals->process());
+        self::assertSame(['qualified' => 0, 'rewarded' => 0, 'reset' => 0, 'reversed' => 0], $this->referrals->process());
         self::assertSame(1000, $this->credit($referrer));
 
         // The referrer's page: link, statistics – but not who registered.
@@ -204,11 +204,27 @@ final class ReferralTest extends FeatureTestCase
 
         // A suspended referred account waits until staff decide.
         $this->db->update('nx_users', ['status' => User::STATUS_SUSPENDED], ['id' => $second->id]);
+        // A chargeback on a qualifying payment: the referral never qualifies.
+        $disputed = $this->referred($referrer);
+        $paid = $this->order($disputed, 1000);
+        $this->pay($paid['invoice_id'], 'manual', 'bank-dispute');
+        $this->app->container()->get(PaymentService::class)->recordDispute('manual', 'dp_1', 'bank-dispute', null, null);
+        $this->referrals->process();
+        self::assertSame(ReferralService::PENDING, $this->referralStatus($disputed), 'Disputed payments do not qualify.');
+
         $this->clock()->freeze(new DateTimeImmutable('2026-08-01 00:30:00'));
         self::assertSame(0, $this->referrals->process()['rewarded']);
         $this->db->update('nx_users', ['status' => User::STATUS_ACTIVE], ['id' => $second->id]);
         self::assertSame(1, $this->referrals->process()['rewarded']);
         self::assertSame(2000, $this->credit($referrer));
+
+        // Refunded after the reward: the reward is taken back.
+        $invoice = (int) $this->db->fetchValue('SELECT `invoice_id` FROM `nx_referrals` WHERE `referred_id` = ?', [$first->id]);
+        $total = (int) $this->db->fetchValue('SELECT `total` FROM `nx_invoices` WHERE `id` = ?', [$invoice]);
+        $reference = (string) $this->db->fetchValue("SELECT `reference` FROM `nx_transactions` WHERE `invoice_id` = ? AND `type` = 'payment'", [$invoice]);
+        $this->app->container()->get(PaymentService::class)->recordRefund('manual', 'refund-late', $reference, $total, 'EUR');
+        self::assertSame(1, $this->referrals->process()['reversed']);
+        self::assertSame([ReferralService::REJECTED, 1000], [$this->referralStatus($first), $this->credit($referrer)]);
     }
 
     public function testSelfReferralsAreHeldForReviewAndStaffDecide(): void

@@ -20,15 +20,18 @@ use Nebrix\Tests\Support\FakePlesk;
  */
 final class PackageChangeTest extends IntegrationTestCase
 {
+    private int $serviceId = 0;
+
     public function testProxmoxVmChangesCpuMemoryAndOnlyGrowsTheDisk(): void
     {
         $id = $this->createIntegration('proxmox', ['base_url' => 'https://203.0.113.10:8006', 'token_id' => 'nebrix@pve!panel', 'verify_tls' => true], ['token_secret' => '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0']);
         $json = static fn (mixed $data): Response => new Response(200, [], json_encode(['data' => $data], JSON_THROW_ON_ERROR));
         $this->http
-            ->on('GET', '/api2/json/nodes/pve1/qemu/10001/config', fn (): Response => $json(['scsi0' => 'local-lvm:vm-10001-disk-0,size=40G', 'net0' => 'virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,rate=50']))
+            ->on('GET', '/api2/json/nodes/pve1/qemu/10001/config', fn (): Response => $json(['description' => 'nebrix-service-' . $this->serviceId, 'scsi0' => 'local-lvm:vm-10001-disk-0,size=40G', 'net0' => 'virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,rate=50']))
             ->on('POST', '/api2/json/nodes/pve1/qemu/10001/config', fn (): Response => $json(null))
             ->on('PUT', '/api2/json/nodes/pve1/qemu/10001/resize', fn (): Response => $json(null));
         $service = $this->createService($this->createUser(), 'vps', $id, ['cores' => 2, 'memory_mb' => 2048, 'disk_gb' => 40, 'rate_mbps' => 50]);
+        $this->serviceId = $service->id;
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 10001, 'type' => 'qemu']);
         $service = $this->reload($service->id);
         $proxmox = $this->app->container()->get(ProxmoxProvisioner::class);

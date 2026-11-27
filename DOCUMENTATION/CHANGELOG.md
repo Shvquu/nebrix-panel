@@ -56,6 +56,9 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Support PIN** for identity checks by phone or chat (encrypted, verified by staff without seeing it, renewable).
 - Account closure now also removes the VIES holder name (previously kept).
 
+### Security (review of the whole code base)
+- Fixes from an independent four-part review (see SECURITY.md): renewal withdraws an unpaid upgrade, serialized orders for coupon limits, coupons only follow package changes to valid products, negative credit after chargebacks suspends services and blocks orders, disputed/refunded referral payments, login lockout per account and IPv6 network, role managers limited to their own permissions, public cancellation forms without mail bombing, Proxmox/TeamSpeak ownership checks before every action, upgrade chargebacks, tax country locked after the first paid invoice, due dates need `invoices.manage`, hidden status components, login timing, daily 2FA limit, no internal error texts for clients, suspension revokes API tokens, webhook rate limits and PayPal prechecks, credentials re-entry on endpoint change, strict loopback check for relaxed TLS, Proxmox backup storage kept on package changes, Plesk FTP prefix `nxw`, Docker port bound to `127.0.0.1`.
+
 ### Changed (admin design)
 - The admin area uses the design of the customer portal: sidebar with icons and grouped sections (only those the role may use), customer search in the top bar, shortcuts to the status page and the customer area, avatar with role, dashboard with hero, quick actions and key figure cards; dark/light mode and phone layout.
 

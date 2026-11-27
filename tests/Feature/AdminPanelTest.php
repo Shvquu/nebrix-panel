@@ -104,7 +104,11 @@ final class AdminPanelTest extends FeatureTestCase
         $this->post('/admin/settings/email', ['mail__host' => 'smtp.example.com'] + $local);
         $settings->flush();
         self::assertTrue($settings->bool('mail.verify_tls'), 'Not relaxed for a remote server.');
+        // A new host needs the password again (the stored one is not sent to another server).
         $this->post('/admin/settings/email', ['mail__host' => '127.0.0.1'] + $local);
+        $settings->flush();
+        self::assertSame('smtp.example.com', $settings->string('mail.host'));
+        $this->post('/admin/settings/email', ['mail__host' => '127.0.0.1', 'mail__password' => 'super-secret-smtp'] + $local);
         $settings->flush();
         self::assertFalse($settings->bool('mail.verify_tls'));
         self::assertSame('127.0.0.1', $settings->string('mail.host'));

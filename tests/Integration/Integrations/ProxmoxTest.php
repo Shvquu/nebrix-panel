@@ -240,6 +240,7 @@ final class ProxmoxTest extends IntegrationTestCase
         $owner = $this->createUser();
         $service = $this->createService($owner, 'vps', $this->integrationId, []);
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 10500, 'type' => 'qemu']);
+        $this->guests[10500] = ['name' => 'vm10500', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id];
         $this->http
             ->on('GET', '/api2/json/nodes/pve1/qemu/10500/status/current', ['data' => ['status' => 'running', 'cpu' => 0.125, 'mem' => 1024, 'maxmem' => 4096, 'uptime' => 3600]])
             ->on('POST', '/api2/json/nodes/pve1/qemu/10500/status/reboot', ['data' => 'UPID:pve1:00000001:00000002:6553F00D:qmreboot:10500:nebrix@pve!panel:']);
@@ -248,6 +249,16 @@ final class ProxmoxTest extends IntegrationTestCase
         $status = $provisioner->status($this->reload($service->id));
         self::assertSame('running', $status['state']);
         self::assertSame(12.5, $status['cpu_percent']);
+
+        // A reused VMID (the guest belongs to someone else now) is never acted on.
+        $this->guests[10500]['description'] = 'nebrix-service-999999';
+        try {
+            $provisioner->status($this->reload($service->id));
+            self::fail('A foreign guest was accepted.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('could not be verified', $exception->getMessage());
+        }
+        $this->guests[10500]['description'] = 'nebrix-service-' . $service->id;
 
         $provisioner->perform($this->reload($service->id), 'reboot');
         self::assertCount(1, $this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/status/reboot'));

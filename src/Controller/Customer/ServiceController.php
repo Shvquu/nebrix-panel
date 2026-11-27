@@ -147,6 +147,8 @@ final class ServiceController extends Controller
         try {
             $this->container->get(\Nebrix\Contract\CancellationService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
             $this->flash($request, 'success', 'The cancellation has been taken back. The service will be renewed as usual.');
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (\RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

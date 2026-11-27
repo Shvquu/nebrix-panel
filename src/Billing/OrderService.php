@@ -62,6 +62,10 @@ class OrderService
             throw new OrderException('Your account is not allowed to place orders. Please contact support.');
         }
 
+        if ((int) $this->db->fetchValue('SELECT `credit_balance` FROM `nx_users` WHERE `id` = ?', [$user->id]) < 0) {
+            throw new OrderException('Your account has a negative balance. Please settle it before placing new orders.');
+        }
+
         $category = ProductCategory::get((string) $product['category']);
         $options = Validator::validate($input, array_map(static fn (array $o): string => $o['rules'], $category['options']), array_map(static fn (array $o): string => $o['label'], $category['options']));
         // Secret options (e.g. a domain transfer auth code) are never stored in plaintext.
@@ -81,6 +85,10 @@ class OrderService
         $couponCode = $couponCode !== null && trim($couponCode) !== '' ? $couponCode : null;
 
         $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $groupDiscount, $taxRate, $ip, $couponCode): array {
+            // One order per customer at a time: the coupon checks below (uses per customer, new
+            // customers only) then see every order of this customer that committed before.
+            // Must be the first statement of the transaction (before any consistent read).
+            $this->db->fetchValue('SELECT `id` FROM `nx_users` WHERE `id` = ? FOR UPDATE', [$user->id]);
             if (!$this->products->reserveStock((int) $product['id'])) {
                 throw new OrderException('This product is sold out.');
             }

@@ -213,8 +213,15 @@ class Mailer
     public static function isLoopback(string $host): bool
     {
         $host = strtolower(trim($host, '[] '));
+        if ($host === 'localhost') {
+            return true;
+        }
+        // Only literal loopback addresses – a name such as "127.mail.example.net" is not local.
+        if (filter_var($host, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
 
-        return $host === 'localhost' || $host === '::1' || str_starts_with($host, '127.');
+        return \Nebrix\Http\IpRange::contains('127.0.0.0/8', $host) || \Nebrix\Http\IpRange::contains('::1/128', $host);
     }
 
     /**

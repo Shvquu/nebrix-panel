@@ -51,6 +51,13 @@ final class ProfileController extends Controller
             'auto_pay_credit' => 'bool',
         ]);
         $data['auto_pay_credit'] = $data['auto_pay_credit'] ? 1 : 0;
+        // The country decides the VAT on invoices. After the first paid invoice it can only be
+        // changed by our staff (who check the new address), so it cannot be switched around an invoice.
+        $currentCountry = (string) ($user->attributes['country'] ?? '');
+        if ($currentCountry !== '' && strtoupper((string) ($data['country'] ?? '')) !== strtoupper($currentCountry)
+            && $this->container->get(\Nebrix\Database\Connection::class)->fetchValue("SELECT `id` FROM `nx_invoices` WHERE `user_id` = ? AND `status` IN ('paid', 'refunded') LIMIT 1", [$user->id]) !== null) {
+            throw \Nebrix\Security\ValidationException::withMessages(['country' => 'Your country determines the VAT on your invoices. Please contact our support to change it.']);
+        }
         // Business customers receive e-invoices, which require the full address (XRechnung BR-DE-8/9).
         if (trim((string) ($data['company'] ?? '')) !== '' || trim((string) ($data['vat_id'] ?? '')) !== '') {
             $missing = [];

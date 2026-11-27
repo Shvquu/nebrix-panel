@@ -102,7 +102,7 @@ class StatusService
     public function overview(): array
     {
         $now = $this->clock->nowString();
-        $incidents = $this->incidents('i.`is_published` = 1 AND (i.`resolved_at` IS NULL OR i.`resolved_at` >= ?)', [$this->clock->now()->modify('-14 days')->format('Y-m-d H:i:s')]);
+        $incidents = $this->incidents('i.`is_published` = 1 AND (i.`resolved_at` IS NULL OR i.`resolved_at` >= ?)', [$this->clock->now()->modify('-14 days')->format('Y-m-d H:i:s')], 100, true);
         $active = [];
         $upcoming = [];
         $history = [];
@@ -440,7 +440,7 @@ class StatusService
      * @param list<mixed> $params
      * @return list<array<string, mixed>>
      */
-    private function incidents(string $where, array $params, int $limit = 100): array
+    private function incidents(string $where, array $params, int $limit = 100, bool $publicOnly = false): array
     {
         $rows = $this->db->fetchAll(
             'SELECT i.* FROM `nx_status_incidents` i WHERE ' . $where . ' ORDER BY i.`starts_at` DESC, i.`id` DESC LIMIT ' . max(1, $limit),
@@ -451,7 +451,9 @@ class StatusService
         }
         $ids = implode(',', array_map(static fn (array $r): int => (int) $r['id'], $rows));
         $components = [];
-        foreach ($this->db->fetchAll('SELECT ic.`incident_id`, c.`id`, c.`name` FROM `nx_status_incident_components` ic JOIN `nx_status_components` c ON c.`id` = ic.`component_id` WHERE ic.`incident_id` IN (' . $ids . ') ORDER BY c.`sort_order`, c.`name`') as $link) {
+        // The public page never names hidden (internal) components.
+        $visible = $publicOnly ? ' AND c.`is_visible` = 1' : '';
+        foreach ($this->db->fetchAll('SELECT ic.`incident_id`, c.`id`, c.`name` FROM `nx_status_incident_components` ic JOIN `nx_status_components` c ON c.`id` = ic.`component_id` WHERE ic.`incident_id` IN (' . $ids . ')' . $visible . ' ORDER BY c.`sort_order`, c.`name`') as $link) {
             $components[(int) $link['incident_id']][] = ['id' => (int) $link['id'], 'name' => (string) $link['name']];
         }
         $updates = [];

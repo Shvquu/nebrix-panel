@@ -146,6 +146,13 @@ final class StatusPageTest extends FeatureTestCase
         self::assertSame('operational', json_decode($this->get('/status.json')->body(), true)['status']);
         self::assertNull($this->lastMail('status_incident'), 'Drafts send no mails.');
 
+        // Hidden (internal) components are never named publicly, even when an incident affects them.
+        $internal = $status->saveComponent(null, ['name' => 'Backup NAS internal', 'description' => null, 'group_name' => null, 'status' => 'operational', 'integration_id' => null, 'is_visible' => false, 'sort_order' => 0], $admin->id, null);
+        $status->create(['type' => 'incident', 'title' => 'Storage problems', 'impact' => 'minor', 'status' => 'investigating', 'starts_at' => $this->clock()->nowString(), 'ends_at' => null, 'is_published' => true, 'component_ids' => [$internal], 'message' => 'x'], $admin->id, null, false);
+        self::assertStringContainsString('Storage problems', $this->get('/status')->body());
+        self::assertStringNotContainsString('Backup NAS internal', $this->get('/status')->body());
+        self::assertStringNotContainsString('Backup NAS internal', $this->get('/status.json')->body());
+
         // Finance staff cannot manage the status page.
         $this->actingAs($this->createUser(Role::FINANCE));
         self::assertSame(403, $this->get('/admin/status')->status());

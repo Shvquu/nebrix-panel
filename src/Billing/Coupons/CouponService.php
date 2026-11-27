@@ -63,7 +63,7 @@ class CouponService
         $code = self::normalize($code);
         $coupon = self::isValidCode($code) ? $this->db->fetchOne('SELECT * FROM `nx_coupons` WHERE `code` = ?', [$code]) : null;
 
-        return $this->check($coupon, $product, $user, $base, $setupFee);
+        return $this->check($coupon, $product, $user, $base, $setupFee, false);
     }
 
     /**
@@ -79,7 +79,7 @@ class CouponService
         $code = self::normalize($code);
         $coupon = self::isValidCode($code) ? $this->db->fetchOne('SELECT * FROM `nx_coupons` WHERE `code` = ? FOR UPDATE', [$code]) : null;
 
-        return $this->check($coupon, $product, $user, $base, $setupFee);
+        return $this->check($coupon, $product, $user, $base, $setupFee, true);
     }
 
     /** Records the use (same transaction as the order). */
@@ -155,8 +155,11 @@ class CouponService
      * @param array<string, mixed> $product
      * @return array{coupon: array<string, mixed>, first: int, recurring: int}
      */
-    private function check(?array $coupon, array $product, User $user, int $base, int $setupFee): array
+    private function check(?array $coupon, array $product, User $user, int $base, int $setupFee, bool $locking): array
     {
+        // Inside the order transaction the counts are locking reads: they see the latest
+        // committed rows, not the transaction's snapshot.
+        $lock = $locking ? ' FOR UPDATE' : '';
         if ($coupon === null || !(bool) $coupon['is_active']) {
             throw new CouponException('This coupon code is not valid.');
         }
@@ -175,12 +178,12 @@ class CouponService
             || ($coupon['type'] === self::FIXED && strtoupper((string) $coupon['currency']) !== strtoupper((string) $product['currency']))) {
             throw new CouponException('This coupon code is not valid for this product.');
         }
-        $used = (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_coupon_redemptions` WHERE `coupon_id` = ? AND `user_id` = ?', [$coupon['id'], $user->id]);
+        $used = (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_coupon_redemptions` WHERE `coupon_id` = ? AND `user_id` = ?' . $lock, [$coupon['id'], $user->id]);
         if ($used >= max(1, (int) $coupon['max_uses_per_customer'])) {
             throw new CouponException('You have already used this coupon code.');
         }
         if ((bool) $coupon['new_customers_only']
-            && (int) $this->db->fetchValue("SELECT COUNT(*) FROM `nx_orders` WHERE `user_id` = ? AND `status` <> 'cancelled'", [$user->id]) > 0) {
+            && (int) $this->db->fetchValue("SELECT COUNT(*) FROM `nx_orders` WHERE `user_id` = ? AND `status` <> 'cancelled'" . $lock, [$user->id]) > 0) {
             throw new CouponException('This coupon code is only valid for new customers.');
         }
 

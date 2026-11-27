@@ -192,6 +192,21 @@ class PaymentService
             if (in_array($invoice['status'], [InvoiceRepository::STATUS_PAID, InvoiceRepository::STATUS_REFUNDED], true) && $amount > 0) {
                 $balance = $this->credit->adjust($userId, -$amount, $label, 'invoice', (string) $invoiceId, null, true);
                 $this->event($gateway, 'credit.reversed', $reference, $invoiceId, $userId, $amount, (string) $invoice['currency'], ['balance_after' => $balance]);
+                if ($balance < 0) {
+                    // The credit was already spent on other invoices: the account is in debt.
+                    // Its services are suspended until the balance is settled and staff reactivate them.
+                    $suspended = [];
+                    foreach ($this->db->fetchAll("SELECT `id` FROM `nx_services` WHERE `user_id` = ? AND `status` = 'active'", [$userId]) as $row) {
+                        $service = $this->services->find((int) $row['id']);
+                        if ($service !== null) {
+                            $this->serviceManager->suspend($service, $label . ' – negative credit balance', null);
+                            $suspended[] = $service->id;
+                        }
+                    }
+                    if ($suspended !== []) {
+                        $this->event($gateway, 'services.reversed', $reference, $invoiceId, $userId, null, null, ['suspended' => $suspended, 'cancelled' => [], 'review' => [], 'reason' => 'negative_credit']);
+                    }
+                }
             }
 
             return;
@@ -202,7 +217,8 @@ class PaymentService
         }
 
         $serviceIds = [];
-        if ($invoice['type'] === InvoiceRepository::TYPE_RENEWAL && $invoice['service_id'] !== null) {
+        // Renewal or upgrade: the service the money was for.
+        if (in_array($invoice['type'], [InvoiceRepository::TYPE_RENEWAL, InvoiceRepository::TYPE_UPGRADE], true) && $invoice['service_id'] !== null) {
             $serviceIds[] = (int) $invoice['service_id'];
         } elseif ($invoice['type'] === InvoiceRepository::TYPE_ORDER && $invoice['order_id'] !== null) {
             $orderId = (int) $invoice['order_id'];

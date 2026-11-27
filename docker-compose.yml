@@ -12,7 +12,9 @@ services:
       DB_HOST: db
       LOG_PATH: php://stderr
     ports:
-      - "${APP_PORT:-8080}:8080"
+      # Only reachable from this machine by default: put a TLS reverse proxy in front.
+      # Set APP_BIND=0.0.0.0 to expose the plain-HTTP port on all interfaces.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
     depends_on:
       db:
         condition: service_healthy

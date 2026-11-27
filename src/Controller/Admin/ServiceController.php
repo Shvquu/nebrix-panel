@@ -227,6 +227,10 @@ final class ServiceController extends Controller
             'next_due_at' => 'nullable|date',
         ]);
         $actor = $this->user($request)->id;
+        if ($data['action'] === 'due_date') {
+            // Moving the due date gives (or takes) paid time – a billing decision.
+            $this->authorize($request, Permission::INVOICES_MANAGE);
+        }
 
         try {
             switch ($data['action']) {
@@ -267,6 +271,8 @@ final class ServiceController extends Controller
                     $message = 'Due date updated.';
             }
             $this->flash($request, 'success', $message);
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

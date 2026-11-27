@@ -264,17 +264,19 @@ class ReferralService
     /**
      * Scheduler task: qualifies, rewards and rechecks referrals.
      *
-     * @return array{qualified: int, rewarded: int, reset: int}
+     * @return array{qualified: int, rewarded: int, reset: int, reversed: int}
      */
     public function process(): array
     {
-        $result = ['qualified' => 0, 'rewarded' => 0, 'reset' => 0];
+        $result = ['qualified' => 0, 'rewarded' => 0, 'reset' => 0, 'reversed' => 0];
         // The sign-up address is only needed for the review; it is kept as long as the login history.
         $retention = max(7, $this->settings->int('system.login_history_retention_days'));
         $this->db->run(
             'UPDATE `nx_referrals` SET `signup_ip` = NULL WHERE `signup_ip` IS NOT NULL AND `created_at` < ?',
             [$this->clock->now()->modify('-' . $retention . ' days')->format('Y-m-d H:i:s')],
         );
+        // Also while the feature is switched off: credited rewards must follow their payment.
+        $result['reversed'] = $this->reverseLostRewards();
         if (!$this->enabled()) {
             return $result;
         }
@@ -313,6 +315,52 @@ class ReferralService
     }
 
     /**
+     * The qualifying payment still stands: paid, nothing refunded, no chargeback.
+     *
+     * @param array<string, mixed> $invoice
+     */
+    private function paymentStands(array $invoice): bool
+    {
+        return $invoice['status'] === InvoiceRepository::STATUS_PAID
+            && (int) $invoice['amount_refunded'] === 0
+            && $this->db->fetchValue("SELECT `id` FROM `nx_payment_events` WHERE `invoice_id` = ? AND `event_type` = 'payment.disputed' LIMIT 1", [(int) $invoice['id']]) === null;
+    }
+
+    /**
+     * Rewards whose qualifying payment was refunded, cancelled or charged
+     * back afterwards are taken back from the credit balances.
+     */
+    private function reverseLostRewards(): int
+    {
+        $reversed = 0;
+        $candidates = $this->db->fetchAll(
+            "SELECT r.`id` FROM `nx_referrals` r JOIN `nx_invoices` i ON i.`id` = r.`invoice_id`
+              WHERE r.`status` = 'rewarded' AND (i.`status` <> 'paid' OR i.`amount_refunded` > 0
+                    OR EXISTS (SELECT 1 FROM `nx_payment_events` e WHERE e.`invoice_id` = i.`id` AND e.`event_type` = 'payment.disputed'))
+              LIMIT 200",
+        );
+        foreach ($candidates as $candidate) {
+            $this->db->transaction(function () use ($candidate, &$reversed): void {
+                $row = $this->db->fetchOne('SELECT * FROM `nx_referrals` WHERE `id` = ? FOR UPDATE', [$candidate['id']]);
+                if ($row === null || $row['status'] !== self::REWARDED) {
+                    return;
+                }
+                if ((int) $row['reward'] > 0) {
+                    $this->credit->adjust((int) $row['referrer_id'], -(int) $row['reward'], 'Referral reward reversed', 'referral', (string) $row['id'], null, true);
+                }
+                if ((int) $row['welcome'] > 0) {
+                    $this->credit->adjust((int) $row['referred_id'], -(int) $row['welcome'], 'Referral welcome credit reversed', 'referral', (string) $row['id'], null, true);
+                }
+                $this->db->update('nx_referrals', ['status' => self::REJECTED, 'note' => 'Reward reversed: the qualifying payment was refunded or charged back.'], ['id' => $row['id']]);
+                $reversed++;
+            });
+            $this->audit->log(null, 'referral.reward_reversed', 'referral', (int) $candidate['id']);
+        }
+
+        return $reversed;
+    }
+
+    /**
      * @param array<string, mixed> $referral
      */
     private function qualifyingInvoice(array $referral, string $currency, int $minimum): ?int
@@ -324,6 +372,7 @@ class ReferralService
                 AND (? = 0 OR (i.`currency` = ? AND i.`subtotal` >= ?))
                 AND EXISTS (SELECT 1 FROM `nx_transactions` t WHERE t.`invoice_id` = i.`id` AND t.`type` = 'payment' AND t.`status` = 'completed'
                                AND t.`amount` > 0 AND t.`gateway` NOT IN ({$excluded}))
+                AND NOT EXISTS (SELECT 1 FROM `nx_payment_events` e WHERE e.`invoice_id` = i.`id` AND e.`event_type` = 'payment.disputed')
               ORDER BY i.`paid_at`, i.`id` LIMIT 1",
             [
                 $referral['referred_id'], InvoiceRepository::TYPE_ORDER, InvoiceRepository::TYPE_RENEWAL, InvoiceRepository::STATUS_PAID,
@@ -350,8 +399,8 @@ class ReferralService
                 return ['waiting', 0];
             }
             // The qualifying payment must still stand; otherwise the referral waits for another one.
-            $invoice = $this->db->fetchOne('SELECT `status`, `amount_refunded` FROM `nx_invoices` WHERE `id` = ?', [$row['invoice_id']]);
-            if ($invoice === null || $invoice['status'] !== InvoiceRepository::STATUS_PAID || (int) $invoice['amount_refunded'] > 0) {
+            $invoice = $this->db->fetchOne('SELECT `id`, `status`, `amount_refunded` FROM `nx_invoices` WHERE `id` = ?', [$row['invoice_id']]);
+            if ($invoice === null || !$this->paymentStands($invoice)) {
                 $this->db->run(
                     "UPDATE `nx_referrals` SET `status` = 'pending', `invoice_id` = NULL, `qualified_at` = NULL, `note` = 'The qualifying payment was refunded or cancelled.' WHERE `id` = ?",
                     [$row['id']],

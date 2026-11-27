@@ -156,6 +156,18 @@ class InvoiceService
             if ($this->invoices->openRenewalFor($service->id) !== null) {
                 return null;
             }
+            // An upgrade still waiting for payment was priced up to the old due date only. It is
+            // withdrawn, so a renewal at the old price can never extend the larger package; the
+            // customer requests it again after the renewal (priced for the new period).
+            $pendingUpgrade = $this->db->fetchOne(
+                "SELECT c.`id`, c.`invoice_id` FROM `nx_service_changes` c JOIN `nx_invoices` i ON i.`id` = c.`invoice_id`
+                  WHERE c.`service_id` = ? AND c.`status` = 'pending_payment' AND i.`status` = 'unpaid' FOR UPDATE",
+                [$service->id],
+            );
+            if ($pendingUpgrade !== null) {
+                $this->cancel((int) $pendingUpgrade['invoice_id']);
+                $this->db->update('nx_service_changes', ['error' => 'A renewal invoice was issued before the upgrade was paid; please request the upgrade again.'], ['id' => $pendingUpgrade['id']]);
+            }
 
             $user = $this->users->find($service->userId) ?? throw new RuntimeException('Customer not found.');
             $periodStart = new \DateTimeImmutable($service->nextDueAt, new \DateTimeZone('UTC'));

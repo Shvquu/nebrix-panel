@@ -25,6 +25,22 @@ class RateLimiter
     /**
      * Registers a hit and returns the number of hits in the current window.
      */
+    /**
+     * Key part for a client address: IPv4 as is, IPv6 by network (a single
+     * customer usually holds a whole /64 or larger), so rotating addresses
+     * within one allocation does not escape a limit.
+     */
+    public static function network(?string $ip, int $ipv6PrefixBits = 64): string
+    {
+        $packed = $ip !== null ? @inet_pton($ip) : false;
+        if ($packed === false || strlen($packed) !== 16) {
+            return (string) $ip;
+        }
+        $bytes = intdiv(max(8, min(128, $ipv6PrefixBits)), 8);
+
+        return bin2hex(substr($packed, 0, $bytes)) . '::/' . ($bytes * 8);
+    }
+
     public function hit(string $key, int $decaySeconds): int
     {
         $now = $this->clock->now();

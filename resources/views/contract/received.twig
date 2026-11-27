@@ -2,7 +2,11 @@
 {% block title %}{{ 'Declaration received'|t }}{% endblock %}
 {% block content %}
 <h1>{{ (withdrawal ? 'Withdrawal received' : 'Cancellation received')|t }}</h1>
+{% if mailed is not defined or mailed %}
 <div class="alert alert-success">{{ 'Your declaration has been received. A confirmation has been sent to your e-mail address. Please save or print this page for your records.'|t }}</div>
+{% else %}
+<div class="alert alert-success">{{ 'Your declaration has been received. Please save or print this page – it is your confirmation (no e-mail could be sent to this address right now).'|t }}</div>
+{% endif %}
 <dl class="details">
     <dt>{{ 'Reference'|t }}</dt><dd class="mono">{{ declaration.reference }}</dd>
     <dt>{{ 'Received on'|t }}</dt><dd>{{ declaration.received_at }} UTC</dd>

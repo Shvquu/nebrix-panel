@@ -3,10 +3,12 @@
 {% block title %}{{ role.name }}{% endblock %}
 {% block content %}
 <div class="page-header"><div><h1>{{ role.name }}</h1><p class="muted"><a href="/admin/roles">&larr; {{ 'Roles'|t }}</a></p></div>
-    {% if not role.is_system %}<form method="post" action="/admin/roles/{{ role.id }}/delete" data-confirm="{{ 'Delete this role?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Delete role'|t }}</button></form>{% endif %}
+    {% if not role.is_system and not read_only %}<form method="post" action="/admin/roles/{{ role.id }}/delete" data-confirm="{{ 'Delete this role?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Delete role'|t }}</button></form>{% endif %}
 </div>
 {% if locked %}
     <div class="alert alert-info">{{ 'The super administrator role always holds every permission and cannot be restricted.'|t }}</div>
+{% elseif read_only %}
+    <div class="alert alert-info">{{ 'You can only change roles that have fewer permissions than your own.'|t }}</div>
 {% else %}
 <form method="post" action="/admin/roles/{{ role.id }}" novalidate>
     {{ csrf_field() }}

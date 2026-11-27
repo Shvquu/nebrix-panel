@@ -92,6 +92,9 @@ class CustomerService
         $this->users->update($user->id, ['status' => $status]);
         if ($status === User::STATUS_SUSPENDED) {
             $this->sessions->destroyForUser($user->id);
+            // API tokens end as well: a suspension is often the answer to a leaked token, which
+            // must not work again once the account is reactivated.
+            $this->apiTokens->revokeAllForUser($user->id, $actorId, $ip);
         }
 
         $this->audit->log($actorId, $status === User::STATUS_SUSPENDED ? 'account.suspended' : 'account.activated', 'user', $user->id, ['reason' => $reason], $ip);

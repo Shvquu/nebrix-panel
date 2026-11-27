@@ -59,6 +59,8 @@ final class InvoiceController extends Controller
         $documents = $this->container->get(\Nebrix\Billing\Documents\InvoiceDocuments::class);
         try {
             $content = $type === 'pdf' ? $documents->pdf((int) $invoice['id']) : $documents->xml((int) $invoice['id']);
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (\RuntimeException $exception) {
             throw new HttpException(503, $exception->getMessage());
         }
@@ -87,6 +89,8 @@ final class InvoiceController extends Controller
             $this->invoiceService->cancel($id);
             $this->audit($request, 'invoice.cancelled', 'invoice', $id);
             $this->flash($request, 'success', 'Invoice cancelled.');
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

@@ -205,6 +205,7 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
     {
         $service = $this->createService($this->createUser(), 'vps', $this->integrationId, ['template_vmid' => 9000]);
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 10600, 'type' => 'qemu', 'step' => 'done']);
+        $this->guests[10600] = ['name' => 'vm10600', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id, 'type' => 'qemu'];
         $this->db->update('nx_services', ['status' => 'active'], ['id' => $service->id]);
         $sessions = $this->app->container()->get(\Nebrix\RemoteConsole\ConsoleSessions::class);
         $user = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($service->userId);
@@ -243,6 +244,7 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
     {
         $service = $this->createService($this->createUser(), 'vps', $this->integrationId, ['template_vmid' => 9000]);
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 10500, 'type' => 'qemu', 'step' => 'done']);
+        $this->guests[10500] = ['name' => 'vm10500', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id, 'type' => 'qemu'];
         $this->db->update('nx_services', ['status' => 'active'], ['id' => $service->id]);
         $runner = $this->app->container()->get(ServiceActionRunner::class);
         $repository = $this->app->container()->get(ServiceRepository::class);

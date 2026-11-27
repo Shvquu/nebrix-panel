@@ -1488,4 +1488,12 @@ return [
     'Hello :name' => 'Hallo :name',
     'Search customers' => 'Kunden suchen',
     'Search customers (name, e-mail, number) …' => 'Kunden suchen (Name, E-Mail, Nummer) …',
+    'Your country determines the VAT on your invoices. Please contact our support to change it.' => 'Ihr Land bestimmt die Umsatzsteuer auf Ihren Rechnungen. Bitte wenden Sie sich an unseren Support, um es zu ändern.',
+    'Your account has a negative balance. Please settle it before placing new orders.' => 'Ihr Kundenkonto hat einen negativen Saldo. Bitte gleichen Sie ihn aus, bevor Sie neue Bestellungen aufgeben.',
+    'Too many invalid codes. Two-factor sign-in is locked for 24 hours. Please contact support if you need access sooner.' => 'Zu viele ungültige Codes. Die Anmeldung mit zweitem Faktor ist für 24 Stunden gesperrt. Wenden Sie sich an den Support, wenn Sie früher Zugang benötigen.',
+    'You can only change roles that have fewer permissions than your own.' => 'Sie können nur Rollen ändern, die weniger Rechte haben als Ihre eigene.',
+    'You can only grant permissions you hold yourself.' => 'Sie können nur Rechte vergeben, die Sie selbst haben.',
+    'Your declaration has been received. Please save or print this page – it is your confirmation (no e-mail could be sent to this address right now).' => 'Ihre Erklärung ist eingegangen. Bitte speichern oder drucken Sie diese Seite – sie ist Ihre Bestätigung (an diese Adresse konnte gerade keine E-Mail gesendet werden).',
+    'The document is temporarily unavailable. Please try again later or contact support.' => 'Das Dokument ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut oder wenden Sie sich an den Support.',
+    'The address or user has changed: please enter this credential again.' => 'Adresse oder Benutzer wurden geändert: Bitte geben Sie diese Zugangsdaten erneut ein.',
 ];

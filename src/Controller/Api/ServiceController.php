@@ -212,6 +212,8 @@ final class ServiceController extends ApiController
         $service = $this->find($request, $id);
         try {
             $this->container->get(\Nebrix\Contract\CancellationService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (\RuntimeException $exception) {
             throw ApiException::conflict($exception->getMessage());
         }

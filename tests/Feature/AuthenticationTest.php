@@ -125,8 +125,8 @@ final class AuthenticationTest extends FeatureTestCase
 
         $limiter = $this->app->container()->get(\Nebrix\Security\RateLimiter::class);
         self::assertSame(3, $limiter->attempts('login:ip:' . $this->clientIp), 'Failed guesses from the IP keep counting after the attacker signs in to their own account.');
-        self::assertSame(2, $limiter->attempts('login:account:' . $victimB->email));
-        self::assertSame(0, $limiter->attempts('login:account:' . $attacker->email));
+        self::assertSame(2, $limiter->attempts('login:user:' . $victimB->id));
+        self::assertSame(0, $limiter->attempts('login:user:' . $attacker->id));
     }
 
     public function testRegistrationProbingIsRateLimited(): void

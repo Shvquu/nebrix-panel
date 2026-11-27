@@ -96,6 +96,7 @@ final class ServiceChangeTest extends FeatureTestCase
             'config' => $product['provisioning_config'] + ['ip_pool_id' => 7, '_options' => ['hostname' => 'web01']],
         ]);
         $services->mergeRemote($id, ['node' => 'pve1', 'vmid' => 20001, 'type' => 'lxc', 'step' => 'done']);
+        $this->guest['description'] = 'nebrix-service-' . $id;
 
         return $services->find($id) ?? throw new \RuntimeException('Service missing.');
     }
@@ -163,29 +164,53 @@ final class ServiceChangeTest extends FeatureTestCase
         self::assertSame(2000, (int) $this->db->fetchValue('SELECT `subtotal` FROM `nx_invoices` WHERE `id` = ?', [$renewal]));
     }
 
-    public function testRenewalPaidWhileTheUpgradeWaitsIsInvoicedAfterwards(): void
+    public function testARenewalWithdrawsAnUnpaidUpgrade(): void
     {
         $small = $this->product('LXC S', 1000, ['cores' => 1, 'memory_mb' => 1024, 'swap_mb' => 512, 'disk_gb' => 10]);
         $medium = $this->product('LXC M', 2000, ['cores' => 2, 'memory_mb' => 2048, 'swap_mb' => 512, 'disk_gb' => 10]);
         $customer = $this->createUser();
         $service = $this->service($customer, $small, 1000);
-        $result = $this->app->container()->get(ServiceChangeService::class)->request($service, $customer, $medium, $customer->id, null);
-        $payments = $this->app->container()->get(PaymentService::class);
+        $changes = $this->app->container()->get(ServiceChangeService::class);
+        $result = $changes->request($service, $customer, $medium, $customer->id, null);
 
-        // The renewal (old price) is created and paid before the upgrade invoice.
+        // The renewal (old price) is issued before the upgrade invoice is paid: the upgrade is withdrawn,
+        // so the renewal at the old price can never carry the larger package into the next period.
         $this->clock()->freeze(new DateTimeImmutable('2026-07-10 00:00:00'));
         $renewal = (int) $this->app->container()->get(InvoiceService::class)->createRenewal($this->app->container()->get(ServiceRepository::class)->find($service->id) ?? $service);
-        $payments->recordPayment('manual', 'bank-renewal', $renewal, (int) $this->db->fetchValue('SELECT `total` FROM `nx_invoices` WHERE `id` = ?', [$renewal]), 'EUR');
-        $payments->recordPayment('manual', 'bank-upgrade', (int) $result['invoice_id'], (int) $this->db->fetchValue('SELECT `total` FROM `nx_invoices` WHERE `id` = ?', [$result['invoice_id']]), 'EUR');
-        $this->runChangeJobs();
+        self::assertSame(1000, (int) $this->db->fetchValue('SELECT `subtotal` FROM `nx_invoices` WHERE `id` = ?', [$renewal]));
+        self::assertSame(['cancelled', 'cancelled'], [$this->change($service->id)['status'], (string) $this->db->fetchValue('SELECT `status` FROM `nx_invoices` WHERE `id` = ?', [$result['invoice_id']])]);
+        self::assertStringContainsString('request the upgrade again', (string) $this->change($service->id)['error']);
+        self::assertFalse($this->app->container()->get(PaymentService::class)->recordPayment('manual', 'bank-late', (int) $result['invoice_id'], 1, 'EUR')->isSuccessful(), 'The cancelled upgrade invoice cannot be paid.');
 
-        // The extra month (16 July – 16 August) is invoiced with the difference of 10.00 €.
-        $followUp = (array) $this->db->fetchOne("SELECT * FROM `nx_invoices` WHERE `service_id` = ? AND `type` = 'upgrade' AND `id` <> ? ORDER BY `id` DESC LIMIT 1", [$service->id, $result['invoice_id']]);
-        self::assertSame([1000, 'unpaid'], [(int) $followUp['subtotal'], $followUp['status']]);
-        self::assertStringContainsString('already paid', (string) $this->db->fetchValue('SELECT `description` FROM `nx_invoice_items` WHERE `invoice_id` = ?', [$followUp['id']]));
-        $payments->recordPayment('manual', 'bank-followup', (int) $followUp['id'], (int) $followUp['total'], 'EUR');
-        $this->runChangeJobs();
-        self::assertSame('completed', $this->change($service->id)['status']);
+        // Once the renewal is paid, the upgrade can be requested again – priced until the new due date.
+        $this->app->container()->get(PaymentService::class)->recordPayment('manual', 'bank-renewal', $renewal, (int) $this->db->fetchValue('SELECT `total` FROM `nx_invoices` WHERE `id` = ?', [$renewal]), 'EUR');
+        $again = $changes->request($this->app->container()->get(ServiceRepository::class)->find($service->id) ?? $service, $customer, $medium, $customer->id, null);
+        self::assertSame('pending_payment', $again['status']);
+        self::assertGreaterThan(1000, (int) $this->db->fetchValue('SELECT `subtotal` FROM `nx_invoices` WHERE `id` = ?', [$again['invoice_id']]), 'Six days of this period plus the whole next one.');
+    }
+
+    public function testPermanentCouponsOnlyFollowToProductsTheyAreValidFor(): void
+    {
+        $small = $this->product('LXC S', 1000, ['cores' => 1, 'memory_mb' => 1024, 'swap_mb' => 512, 'disk_gb' => 10]);
+        $large = $this->product('LXC XL', 4000, ['cores' => 8, 'memory_mb' => 8192, 'swap_mb' => 512, 'disk_gb' => 80]);
+        $this->app->container()->get(\Nebrix\Billing\Coupons\CouponService::class)->save(null, [
+            'code' => 'HALFS', 'type' => 'percent', 'value' => 5000, 'duration' => 'forever', 'product_ids' => [$small], 'max_uses_per_customer' => 1, 'is_active' => true,
+        ], $this->createUser(\Nebrix\Auth\Role::ADMIN)->id);
+        $customer = $this->createUser();
+        $result = $this->app->container()->get(\Nebrix\Billing\OrderService::class)->place($customer, $small, ['hostname' => 'web01'], '127.0.0.1', 'HALFS');
+        $this->db->update('nx_orders', ['status' => 'paid'], ['id' => $result['order_id']]);
+        $this->app->container()->get(\Nebrix\Provisioning\ProvisioningService::class)->fulfilOrder($result['order_id']);
+        $serviceId = (int) $this->db->fetchValue('SELECT s.`id` FROM `nx_services` s JOIN `nx_order_items` i ON i.`id` = s.`order_item_id` WHERE i.`order_id` = ?', [$result['order_id']]);
+        $this->db->update('nx_services', ['status' => 'active', 'next_due_at' => '2026-07-16 00:00:00'], ['id' => $serviceId]);
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($serviceId, ['node' => 'pve1', 'vmid' => 20001, 'type' => 'lxc', 'step' => 'done']);
+        $this->guest['description'] = 'nebrix-service-' . $serviceId;
+        $service = $this->app->container()->get(ServiceRepository::class)->find($serviceId);
+        self::assertNotNull($service);
+        self::assertSame(500, $service->recurringAmount, 'Half price for the small package.');
+
+        // The coupon is only valid for "LXC S": the larger package costs its full price.
+        $options = $this->app->container()->get(ServiceChangeService::class)->options($service, $customer);
+        self::assertSame([[$large, 'upgrade', 4000]], array_map(static fn (array $t): array => [(int) $t['product']['id'], $t['direction'], (int) $t['recurring']], $options['targets']));
     }
 
     public function testDowngradeTakesEffectAtTheEndOfThePaidPeriod(): void

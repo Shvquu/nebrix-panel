@@ -73,8 +73,11 @@ class AuthService
     {
         $ip = $request->clientIp();
         $login = mb_strtolower(trim($login));
-        $accountKey = 'login:account:' . $login;
-        $ipKey = 'login:ip:' . $ip;
+        // The database compares e-mail addresses case- and accent-insensitively, so the
+        // account counter is keyed on the account found – not on the spelling that was typed.
+        $user = $login !== '' ? $this->users->findByLogin($login) : null;
+        $accountKey = $user !== null ? 'login:user:' . $user->id : 'login:account:' . $login;
+        $ipKey = 'login:ip:' . RateLimiter::network($ip);
         $maxAttempts = max(3, $this->settings->int('auth.max_login_attempts'));
         $lockoutSeconds = max(60, $this->settings->int('auth.lockout_minutes') * 60);
 
@@ -89,7 +92,6 @@ class AuthService
             throw new AuthenticationException(sprintf('Too many failed sign-in attempts. Please try again in %d minute(s).', max(1, $minutes)));
         }
 
-        $user = $login !== '' ? $this->users->findByLogin($login) : null;
         $valid = $this->hasher->verify($password, $user?->passwordHash);
 
         if ($user === null || !$valid) {
@@ -164,6 +166,15 @@ class AuthService
             throw new AuthenticationException('Your sign-in has expired. Please sign in again.');
         }
 
+        // Besides the short window, at most 20 wrong codes per day: someone who knows the
+        // password cannot try codes indefinitely by signing in again and again.
+        $dayKey = 'two_factor:day:' . $user->id;
+        if ($this->limiter->tooManyAttempts($dayKey, 20)) {
+            $this->clearTwoFactorChallenge($session);
+            $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), false, 'two_factor_locked');
+
+            throw new AuthenticationException('Too many invalid codes. Two-factor sign-in is locked for 24 hours. Please contact support if you need access sooner.');
+        }
         $key = 'two_factor:' . $user->id;
         if (!$this->limiter->attempt($key, self::TWO_FACTOR_MAX_ATTEMPTS, self::TWO_FACTOR_WINDOW_SECONDS)) {
             $this->clearTwoFactorChallenge($session);
@@ -173,12 +184,14 @@ class AuthService
         }
 
         if (!$this->twoFactor->verify($user, $code)) {
+            $this->limiter->hit($dayKey, 86400);
             $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), false, 'two_factor_invalid');
 
             throw new AuthenticationException('The authentication code is invalid.');
         }
 
         $this->limiter->clear($key);
+        $this->limiter->clear($dayKey);
         $this->clearTwoFactorChallenge($session);
         $this->completeLogin($request, $user);
     }

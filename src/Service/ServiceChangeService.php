@@ -316,7 +316,6 @@ class ServiceChangeService
 
             return $open !== null && $change['direction'] === self::UPGRADE ? (int) $open['id'] : null;
         });
-        $this->invoiceAlreadyPaidPeriods($change, $service);
         if ($renewalToReplace !== null) {
             try {
                 $this->invoices->cancel($renewalToReplace);
@@ -342,38 +341,6 @@ class ServiceChangeService
                 'service_url' => rtrim($this->config->string('app.url'), '/') . '/services/' . $service->id,
             ]);
         }
-    }
-
-    /**
-     * A renewal paid after the upgrade invoice was issued extended the paid
-     * time at the old price: the difference for that time is invoiced.
-     *
-     * @param array<string, mixed> $change
-     */
-    private function invoiceAlreadyPaidPeriods(array $change, Service $before): void
-    {
-        if ($change['direction'] !== self::UPGRADE || $change['invoice_id'] === null) {
-            return;
-        }
-        $invoicedEnd = $this->db->fetchValue('SELECT MAX(`period_end`) FROM `nx_invoice_items` WHERE `invoice_id` = ?', [(int) $change['invoice_id']]);
-        $service = $this->services->find($before->id);
-        if (!is_string($invoicedEnd) || $service === null || $service->nextDueAt === null || $service->nextDueAt <= $invoicedEnd) {
-            return;
-        }
-        $from = new DateTimeImmutable($invoicedEnd, new DateTimeZone('UTC'));
-        $to = $this->periodEnd($service);
-        $net = $this->share($service, (int) $change['new_recurring'] - (int) $change['old_recurring'], $from, $to);
-        $owner = $this->users->find($service->userId);
-        $product = $this->products->find((int) $change['to_product_id']);
-        if ($net <= 0 || $owner === null || $product === null) {
-            return;
-        }
-        $language = (string) ($owner->attribute('language') ?? 'en');
-        $this->invoices->createUpgrade($service, $owner, $product, $net, $this->translator->translateTo($language, 'Upgrade :service: difference for the period already paid (:start to :end)', [
-            'service' => $service->name,
-            'start' => Translator::date($language, $from),
-            'end' => Translator::date($language, $to),
-        ]), $from, $to);
     }
 
     /**
@@ -552,9 +519,11 @@ class ServiceChangeService
     {
         $recurring = $this->recurringPrice($service, $product, $owner);
         $difference = $recurring - $service->recurringAmount;
-        $direction = $difference > 0 ? self::UPGRADE : self::DOWNGRADE;
-        $charge = $direction === self::UPGRADE ? $this->prorate($service, $difference) : 0;
         $current = $service->productId !== null ? $this->products->find($service->productId) : null;
+        // A more expensive product (list price) is an upgrade even when discounts make the
+        // difference zero: it applies at once, never "free at the end of the period".
+        $direction = $difference > 0 || ($current !== null && (int) $product['price'] > (int) $current['price']) ? self::UPGRADE : self::DOWNGRADE;
+        $charge = $direction === self::UPGRADE ? $this->prorate($service, max(0, $difference)) : 0;
 
         $blocker = null;
         if ($product['stock'] !== null && (int) $product['stock'] <= 0) {
@@ -595,11 +564,13 @@ class ServiceChangeService
         $base = $price - Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
         if ($service->orderItemId !== null) {
             $coupon = $this->db->fetchOne(
-                "SELECT c.`type`, c.`value`, c.`currency` FROM `nx_order_items` oi JOIN `nx_orders` o ON o.`id` = oi.`order_id`
+                "SELECT c.`type`, c.`value`, c.`currency`, c.`product_ids` FROM `nx_order_items` oi JOIN `nx_orders` o ON o.`id` = oi.`order_id`
                    JOIN `nx_coupons` c ON c.`id` = o.`coupon_id` WHERE oi.`id` = ? AND c.`duration` = 'forever'",
                 [$service->orderItemId],
             );
-            if ($coupon !== null) {
+            // The coupon only follows the service to products it is valid for.
+            $allowed = array_filter(array_map('intval', explode(',', (string) ($coupon['product_ids'] ?? ''))));
+            if ($coupon !== null && ($allowed === [] || in_array((int) $product['id'], $allowed, true))) {
                 $base -= $coupon['type'] === 'percent'
                     ? Money::discount($base, (int) $coupon['value'])
                     : (strtoupper((string) $coupon['currency']) === strtoupper($service->currency) ? min((int) $coupon['value'], $base) : 0);

@@ -37,6 +37,7 @@ class PayPalGateway implements PaymentGateway
         private readonly PaymentService $payments,
         private readonly WebhookEventRepository $webhooks,
         private readonly LoggerInterface $logger,
+        private readonly \Nebrix\Security\RateLimiter $limiter,
     ) {
     }
 
@@ -208,6 +209,15 @@ class PayPalGateway implements PaymentGateway
         foreach (['paypal-auth-algo', 'paypal-cert-url', 'paypal-transmission-id', 'paypal-transmission-sig', 'paypal-transmission-time'] as $name) {
             $headers[$name] = (string) $request->header($name);
         }
+        // Cheap checks first: requests that cannot come from PayPal never cause a call to PayPal.
+        $certHost = strtolower((string) parse_url($headers['paypal-cert-url'], PHP_URL_HOST));
+        if (!str_starts_with($headers['paypal-cert-url'], 'https://')
+            || !in_array($certHost, ['api.paypal.com', 'api.sandbox.paypal.com', 'api-m.paypal.com', 'api-m.sandbox.paypal.com'], true)
+            || in_array('', [$headers['paypal-auth-algo'], $headers['paypal-transmission-id'], $headers['paypal-transmission-sig'], $headers['paypal-transmission-time']], true)) {
+            $this->logInvalid((string) $event['id'], (string) $event['event_type']);
+
+            return Response::json(['error' => 'invalid signature'], 400);
+        }
 
         try {
             $verified = $this->client()->verifyWebhookSignature($headers, $this->settings->string('payments.paypal.webhook_id'), $payload);
@@ -217,7 +227,7 @@ class PayPalGateway implements PaymentGateway
             return Response::json(['error' => 'verification unavailable'], 503);
         }
         if (!$verified) {
-            $this->payments->event('paypal', 'webhook.invalid_signature', (string) $event['id'], null, null, null, null, ['type' => $event['event_type']]);
+            $this->logInvalid((string) $event['id'], (string) $event['event_type']);
 
             return Response::json(['error' => 'invalid signature'], 400);
         }
@@ -335,5 +345,13 @@ class PayPalGateway implements PaymentGateway
         }
 
         return HealthResult::healthy($message);
+    }
+
+    /** Records forged requests in the payment event log, at most 30 per hour (no log flooding). */
+    private function logInvalid(string $eventId, string $type): void
+    {
+        if ($this->limiter->attempt('webhook-invalid-log:paypal', 30, 3600)) {
+            $this->payments->event('paypal', 'webhook.invalid_signature', mb_substr($eventId, 0, 191), null, null, null, null, ['type' => mb_substr($type, 0, 100)]);
+        }
     }
 }

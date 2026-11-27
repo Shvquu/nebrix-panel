@@ -73,7 +73,7 @@ class CancellationService
      * @param array{kind: string, name: string, email: string, customer_reference?: ?string, contract?: ?string, reason?: ?string, requested_date?: ?string, service_id?: ?int} $data
      * @return array<string, mixed> the stored declaration
      */
-    public function submit(array $data, ?User $user, ?string $ip): array
+    public function submit(array $data, ?User $user, ?string $ip, bool $mailEnteredAddress = true): array
     {
         if (!in_array($data['kind'], self::KINDS, true)) {
             throw new \InvalidArgumentException('Unknown declaration type.');
@@ -104,7 +104,7 @@ class CancellationService
         $this->audit->log($user?->id, 'contract.' . $data['kind'] . '_received', 'cancellation', $id, ['service' => $service?->id], $ip);
 
         $declaration = $this->find($id) ?? throw new RuntimeException('Declaration not stored.');
-        $this->confirmReceipt($declaration, $user);
+        $this->confirmReceipt($declaration, $user, $mailEnteredAddress);
 
         if ($service !== null && $data['kind'] === self::ORDINARY && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true)) {
             $this->schedule($id, $service, $this->effectiveDate($service, $declaration['requested_date']), null);
@@ -352,11 +352,15 @@ class CancellationService
      *
      * @param array<string, mixed> $declaration
      */
-    private function confirmReceipt(array $declaration, ?User $user): void
+    private function confirmReceipt(array $declaration, ?User $user, bool $mailEnteredAddress): void
     {
-        $recipients = [(string) $declaration['email'] => (string) $declaration['name']];
-        if ($user !== null && !isset($recipients[$user->email])) {
+        // Signed-in customers get the receipt at their account address only: the form
+        // must not let anyone make the panel write to arbitrary addresses.
+        $recipients = [];
+        if ($user !== null) {
             $recipients[$user->email] = $user->displayName();
+        } elseif ($mailEnteredAddress) {
+            $recipients[(string) $declaration['email']] = (string) $declaration['name'];
         }
         foreach ($recipients as $email => $name) {
             // Account language, else the language of the form the declaration was made in.

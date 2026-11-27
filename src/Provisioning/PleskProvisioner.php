@@ -78,7 +78,8 @@ final class PleskProvisioner implements Provisioner, OrderPrecheck, PackageChang
         $this->services->mergeRemote($service->id, ['customer_id' => $customerId, 'domain' => $domain]);
 
         // 2. Subscription for the domain.
-        $ftpLogin = 'nx' . $service->id;
+        // "nxw" keeps FTP users apart from customer logins ("nx" + customer number).
+        $ftpLogin = 'nxw' . $service->id;
         if (($credentials['ftp_password'] ?? '') === '') {
             $credentials += ['ftp_user' => $ftpLogin, 'ftp_password' => ProxmoxProvisioner::generatePassword(20)];
             $this->services->setCredentials($service->id, $credentials);

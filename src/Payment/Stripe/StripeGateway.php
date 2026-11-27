@@ -38,6 +38,7 @@ class StripeGateway implements PaymentGateway
         private readonly PaymentService $payments,
         private readonly WebhookEventRepository $webhooks,
         private readonly LoggerInterface $logger,
+        private readonly \Nebrix\Security\RateLimiter $limiter,
     ) {
     }
 
@@ -162,7 +163,10 @@ class StripeGateway implements PaymentGateway
         try {
             $event = Webhook::constructEvent($payload, (string) $request->header('Stripe-Signature'), $secret);
         } catch (SignatureVerificationException|\UnexpectedValueException) {
-            $this->payments->event('stripe', 'webhook.invalid_signature', null, null, null, null, null);
+            // At most 30 entries per hour: forged requests cannot flood the payment event log.
+            if ($this->limiter->attempt('webhook-invalid-log:stripe', 30, 3600)) {
+                $this->payments->event('stripe', 'webhook.invalid_signature', null, null, null, null, null);
+            }
 
             return Response::json(['error' => 'invalid signature'], 400);
         }

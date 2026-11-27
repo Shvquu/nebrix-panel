@@ -58,6 +58,8 @@ final class OrderController extends Controller
             $this->orderService->cancel($id);
             $this->audit($request, 'order.cancelled', 'order', $id);
             $this->flash($request, 'success', 'Order cancelled.');
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

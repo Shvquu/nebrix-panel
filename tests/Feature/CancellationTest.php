@@ -265,9 +265,23 @@ final class CancellationTest extends FeatureTestCase
         for ($i = 0; $i < 3; $i++) {
             self::assertSame(200, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'Victim@example.test', 'contract' => 'Contract ' . $i])->status());
         }
-        self::assertSame(429, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'victim@example.test', 'contract' => 'Spam'])->status());
+        // The fourth declaration to the same address is recorded and confirmed on the page, without another mail.
+        $mails = fn (): int => (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'mail.send'");
+        $before = $mails();
+        $fourth = $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'victim@example.test', 'contract' => 'Spam']);
+        self::assertSame(200, $fourth->status());
+        self::assertStringContainsString('no e-mail could be sent', $fourth->body());
+        self::assertSame($before, $mails());
         self::assertSame(200, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'other@example.test', 'contract' => 'Root server'])->status());
-        self::assertSame(4, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations'));
+        self::assertSame($before + 1, $mails());
+        self::assertSame(5, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations'));
+
+        // Signed-in customers: the receipt goes to the account address only, never to an address typed in.
+        $customer = $this->createUser();
+        $this->actingAs($customer);
+        $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'someone-else@example.test', 'contract' => 'Something']);
+        self::assertSame($customer->email, $this->lastMail('cancellation_received')['to'] ?? null);
+        self::assertSame($before + 2, $mails());
     }
 
     public function testGuestsSeeTheFormsAndReceiptInTheirBrowserLanguage(): void

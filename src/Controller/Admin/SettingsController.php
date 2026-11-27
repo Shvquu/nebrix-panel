@@ -98,6 +98,14 @@ final class SettingsController extends Controller
             throw \Nebrix\Security\ValidationException::withMessages(['mail__verify_tls' => 'Certificate verification can only be switched off for a mail server on this machine (localhost or 127.0.0.1).']);
         }
 
+        // The stored SMTP password is only sent to the server and account it was entered for.
+        if ($group === 'mail' && $request->string('mail__password') === ''
+            && (mb_strtolower(trim($request->string('mail__host'))) !== mb_strtolower($this->settings->string('mail.host'))
+                || trim($request->string('mail__username')) !== $this->settings->string('mail.username'))
+            && (string) $this->settings->get('mail.password') !== '') {
+            throw \Nebrix\Security\ValidationException::withMessages(['mail__password' => 'The address or user has changed: please enter this credential again.']);
+        }
+
         // Invoices and correction documents share the unique number column.
         if ($group === 'billing') {
             $credit = mb_strtoupper(trim($request->string('billing__credit_note_prefix')));
@@ -126,6 +134,8 @@ final class SettingsController extends Controller
 
         try {
             $path = $this->assets->store($request->file('file') ?? [], $kind);
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             throw ValidationException::withMessages(['file' => $exception->getMessage()]);
         }
@@ -174,6 +184,8 @@ final class SettingsController extends Controller
                 $this->flash($request, 'success', 'SMTP connection and authentication successful.');
             }
             $this->audit($request, 'settings.smtp_tested', 'settings', 'mail', ['result' => 'ok']);
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->audit($request, 'settings.smtp_tested', 'settings', 'mail', ['result' => 'failed']);
             $this->flash($request, 'error', $exception->getMessage());

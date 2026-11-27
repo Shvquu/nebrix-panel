@@ -70,8 +70,12 @@ final class InvoiceController extends ApiController
         $documents = $this->container->get(\Nebrix\Billing\Documents\InvoiceDocuments::class);
         try {
             $content = $type === 'pdf' ? $documents->pdf((int) $invoice['id']) : $documents->xml((int) $invoice['id']);
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (\RuntimeException $exception) {
-            throw new ApiException(503, 'document_unavailable', $exception->getMessage());
+            $this->container->get(\Psr\Log\LoggerInterface::class)->error('Invoice document unavailable', ['invoice' => $invoice['id'], 'message' => $exception->getMessage()]);
+
+            throw new ApiException(503, 'document_unavailable', 'The document is temporarily unavailable. Please try again later or contact support.');
         }
 
         return \Nebrix\Http\DocumentResponse::make($content, $documents->filename($invoice) . '.' . $type, $type === 'pdf' ? 'application/pdf' : 'application/xml');

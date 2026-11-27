@@ -277,10 +277,27 @@ final class IntegrationController extends Controller
             throw ValidationException::withMessages(['config_port_max' => 'The last port must be greater than the first port.']);
         }
 
+        // Stored credentials are only ever sent to the address and account they were entered
+        // for: when the address or the user changes, every credential must be entered again
+        // (otherwise changing the URL would hand them to another server).
+        $endpointChanged = false;
+        if ($id !== null) {
+            $existing = $this->integrations->find($id);
+            foreach (['base_url', 'host', 'username', 'admin_user', 'token_id', 'query_user', 'query_port'] as $key) {
+                if ($existing !== null && array_key_exists($key, $config) && (string) $config[$key] !== (string) $existing->config($key, '')) {
+                    $endpointChanged = true;
+                }
+            }
+        }
+
         $secrets = [];
         $errors = [];
         foreach ($definition['secrets'] as $key => $field) {
             $value = $request->string('secret_' . $key);
+            if ($endpointChanged && $value === '' && !filter_var($request->input('secret_' . $key . '__clear'), FILTER_VALIDATE_BOOL)) {
+                $errors['secret_' . $key] = ['The address or user has changed: please enter this credential again.'];
+                continue;
+            }
             if (filter_var($request->input('secret_' . $key . '__clear'), FILTER_VALIDATE_BOOL) && ($field['required'] ?? false) !== true) {
                 $secrets[$key] = null;
                 continue;

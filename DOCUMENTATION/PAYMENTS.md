@@ -73,6 +73,8 @@ Admin → Transactions → *Refund* (permission `payments.refund`):
   * **Order / renewal, fully refunded** – active services of the invoice are suspended (reason "Payment refunded"), services not yet provisioned are cancelled and an unfulfilled order is cancelled. Nothing is terminated automatically.
   * **Partial refunds** (goodwill) leave services running.
 
+
+**Negative credit after a reversal**: when a refunded or charged-back credit top-up had already been spent, the balance becomes negative. The customer's active services are then suspended and new orders are refused until the balance is settled (credit top-up); reactivate the services afterwards on the customer page.
 ## Disputes and chargebacks
 
 Stripe `charge.dispute.created`, PayPal `CUSTOMER.DISPUTE.CREATED` and `PAYMENT.CAPTURE.REVERSED` are recorded as `payment.disputed` (or as a refund for reversals). For disputed payments the same reversal rules as for a full refund apply: services are suspended ("Payment disputed"), top-up credit is removed. If you win the dispute, reactivate the services and re-credit the balance manually. Respond to disputes in the provider dashboard.

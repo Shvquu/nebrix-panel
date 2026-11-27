@@ -60,7 +60,7 @@ docker compose exec app php bin/nebrix user:create-admin --email=admin@example.c
 
    The command asks for a password (at least 10 characters, checked against the password policy).
 
-5. Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, …) in front of port `APP_PORT` (default 8080) and add the proxy's address to `TRUSTED_PROXIES`.
+5. Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, …) in front of port `APP_PORT` (default 8080) and add the proxy's address to `TRUSTED_PROXIES`. The port is published on `127.0.0.1` only (`APP_BIND`), so the panel is not reachable over plain HTTP from outside; set `APP_BIND=0.0.0.0` only if your proxy runs on another machine.
 
 The image is built from `.docker/Dockerfile`; `.dockerignore` keeps `.env`, `.git`, local `vendor/`, tests, logs and runtime data out of the build context, so no secrets end up in the image. The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, issued invoice documents in `invoices` (mounted into app, worker and scheduler – include it in your backups and keep it for the statutory retention period), the database in `db-data`.
 

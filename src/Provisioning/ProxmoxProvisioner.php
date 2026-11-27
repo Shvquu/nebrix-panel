@@ -386,6 +386,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         if ($client->findGuest($vmid) === null) {
             return;
         }
+        $this->ownedGuest($service, $client);
         if (($client->status($node, $type, $vmid)['status'] ?? '') === $state) {
             $client->power($node, $type, $vmid, $action);
         }
@@ -466,8 +467,9 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
     public function status(Service $service): array
     {
-        [$node, $vmid, $type] = $this->guest($service);
-        $status = $this->client($service)->status($node, $type, $vmid);
+        $client = $this->client($service);
+        [$node, $vmid, $type] = $this->ownedGuest($service, $client);
+        $status = $client->status($node, $type, $vmid);
 
         return [
             'state' => (string) ($status['status'] ?? 'unknown'),
@@ -618,8 +620,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
     public function perform(Service $service, string $action, array $input = []): string
     {
-        [$node, $vmid, $type] = $this->guest($service);
         $client = $this->client($service);
+        [$node, $vmid, $type] = $this->ownedGuest($service, $client);
 
         if ($action === 'reset_password' && $type === ProxmoxClient::TYPE_QEMU) {
             $password = self::generatePassword();
@@ -657,8 +659,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
     public function openConsole(Service $service): array
     {
-        [$node, $vmid, $type] = $this->guest($service);
         $client = $this->client($service);
+        [$node, $vmid, $type] = $this->ownedGuest($service, $client);
         $proxy = $client->vncProxy($node, $type, $vmid);
 
         // Proxmox uses the VNC ticket as the VNC password.
@@ -723,6 +725,28 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
     /**
      * @return array{0: string, 1: int, 2: string}
      */
+    /**
+     * Node, VMID and type of the service's guest – after checking that the guest still
+     * carries this service's marker (VMIDs are reused after a guest was deleted outside
+     * the panel). Every customer-facing action goes through this check.
+     *
+     * @return array{0: string, 1: int, 2: string}
+     */
+    private function ownedGuest(Service $service, ProxmoxClient $client): array
+    {
+        [$node, $vmid, $type] = $this->guest($service);
+        if (!$this->isOwnGuest($client, $service, ['vmid' => $vmid, 'node' => $node, 'type' => $type], $node, $type)) {
+            $this->logger->warning('Proxmox guest does not carry the marker of its service', ['service' => $service->id, 'node' => $node, 'vmid' => $vmid]);
+
+            throw new IntegrationException('The server could not be verified as belonging to this service. Please contact support.');
+        }
+
+        return [$node, $vmid, $type];
+    }
+
+    /**
+     * @return array{0: string, 1: int, 2: string}
+     */
     private function guest(Service $service): array
     {
         if (!isset($service->remote['node'], $service->remote['vmid'])) {
@@ -734,7 +758,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
     public function packageKeys(Service $service): array
     {
-        $keys = ['cores', 'memory_mb', 'disk_gb', 'rate_mbps', 'backup_storage', 'max_backups'];
+        // The backup storage stays as it is: its archives must remain reachable (and are deleted on termination).
+        $keys = ['cores', 'memory_mb', 'disk_gb', 'rate_mbps', 'max_backups'];
 
         return $this->type($service) === ProxmoxClient::TYPE_LXC ? [...$keys, 'swap_mb'] : $keys;
     }
@@ -753,8 +778,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
     public function changePackage(Service $service, array $newConfig): ?string
     {
-        [$node, $vmid, $type] = $this->guest($service);
         $client = $this->client($service);
+        [$node, $vmid, $type] = $this->ownedGuest($service, $client);
         $current = $client->guestConfig($node, $type, $vmid);
         $disk = $type === ProxmoxClient::TYPE_LXC ? 'rootfs' : 'scsi0';
         $currentSize = self::diskSizeGb((string) ($current[$disk] ?? ''));

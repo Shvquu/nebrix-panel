@@ -123,6 +123,8 @@ final class CancellationController extends Controller
                     $this->cancellations->complete($id, (string) ($data['note'] ?? ''), $actor);
                     $this->flash($request, 'success', 'The declaration has been marked as handled.');
             }
+        } catch (\PDOException $exception) {
+            throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

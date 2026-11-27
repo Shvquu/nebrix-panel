@@ -170,7 +170,8 @@ final class TeamSpeakProvisioner implements Provisioner, PackageChangeable
             $sid = (int) $service->remote['sid'];
             $exists = false;
             foreach ($client->listServers() as $server) {
-                $exists = $exists || (int) ($server['virtualserver_id'] ?? 0) === $sid;
+                // Only the server with this service's port is ours (server IDs are reused).
+                $exists = $exists || ((int) ($server['virtualserver_id'] ?? 0) === $sid && $this->portMatches($service, $server));
             }
             if ($exists) {
                 $this->stop($client, $sid);
@@ -203,10 +204,31 @@ final class TeamSpeakProvisioner implements Provisioner, PackageChangeable
 
         [, $client] = $this->client($service);
         try {
-            $operation($client, (int) $service->remote['sid']);
+            $sid = (int) $service->remote['sid'];
+            $owned = false;
+            foreach ($client->listServers() as $server) {
+                $owned = $owned || ((int) ($server['virtualserver_id'] ?? 0) === $sid && $this->portMatches($service, $server));
+            }
+            if (!$owned) {
+                throw new IntegrationException('The TeamSpeak server could not be verified as belonging to this service. Please contact support.');
+            }
+            $operation($client, $sid);
         } finally {
             $client->disconnect();
         }
+    }
+
+    /**
+     * The virtual server still uses the port recorded for the service (imported services
+     * without a recorded port are accepted).
+     *
+     * @param array<string, mixed> $server serverlist entry
+     */
+    private function portMatches(Service $service, array $server): bool
+    {
+        $port = (int) ($service->remote['port'] ?? 0);
+
+        return $port === 0 || (int) ($server['virtualserver_port'] ?? 0) === $port;
     }
 
     public function status(Service $service): array
