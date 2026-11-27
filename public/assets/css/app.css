@@ -471,3 +471,33 @@ a.p-stat:hover { border-color: var(--brand-primary); text-decoration: none; }
 .p-status-notice { display: flex; gap: .75rem; align-items: flex-start; }
 .p-status-notice + .p-status-notice { margin-top: .5rem; }
 
+/* ------------------------------------------------------------ admin portal */
+.p-brand { position: relative; }
+.p-brand-badge { margin-left: auto; padding: .12rem .5rem; border-radius: 999px; background: var(--p-grad); color: #fff; font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.p-nav-compact a { padding: .28rem .5rem; font-size: .9rem; }
+.p-nav-compact .p-nav-icon { width: 30px; height: 30px; border-radius: 9px; }
+.p-nav-compact .p-nav-icon .icon { width: 16px; height: 16px; }
+.p-nav-compact .p-nav-section { padding: .95rem .5rem .35rem; }
+.p-avatar-name { display: inline-flex; flex-direction: column; line-height: 1.15; }
+.p-avatar-role { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.admin-portal .topbar-actions { gap: .5rem; }
+.admin-portal .page-header h1 { font-size: 1.6rem; letter-spacing: -.01em; }
+.admin-portal .card { box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.admin-portal .card-header h2 { font-size: 1rem; }
+.admin-portal .table tbody tr:hover { background: color-mix(in srgb, var(--brand-primary) 5%, transparent); }
+.a-hero { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 1.25rem; flex-wrap: wrap; padding: 1.6rem 1.75rem; margin-bottom: 1.25rem; color: #fff; border: 0;
+  background:
+    radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--brand-accent) 40%, transparent), transparent 45%),
+    radial-gradient(circle at 90% 90%, color-mix(in srgb, var(--brand-primary) 60%, transparent), transparent 50%),
+    linear-gradient(135deg, #1e1b4b 0%, #1e2a78 55%, #0b4f6c 100%); }
+.a-hero h1 { margin: .15rem 0 .25rem; color: #fff; font-size: 1.7rem; }
+.a-hero .muted { color: rgba(255, 255, 255, .78); margin: 0; }
+.a-hero-kicker { margin: 0; font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
+.a-hero-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.a-hero .btn-outline { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .3); color: #fff; }
+.a-hero .btn-outline:hover { background: rgba(255, 255, 255, .18); }
+.a-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.a-stats .p-stat-hint { overflow-wrap: anywhere; }
+@media (max-width: 1200px) { .a-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .a-stats { grid-template-columns: minmax(0, 1fr); } .p-avatar-name { display: none; } .a-hero { padding: 1.25rem; } }
+

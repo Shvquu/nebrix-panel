@@ -1485,4 +1485,7 @@ return [
     'Choose an existing integration.' => 'Wählen Sie eine vorhandene Integration.',
     'The maintenance has started.' => 'Die Wartung hat begonnen.',
     'The maintenance has been completed.' => 'Die Wartung ist abgeschlossen.',
+    'Hello :name' => 'Hallo :name',
+    'Search customers' => 'Kunden suchen',
+    'Search customers (name, e-mail, number) …' => 'Kunden suchen (Name, E-Mail, Nummer) …',
 ];

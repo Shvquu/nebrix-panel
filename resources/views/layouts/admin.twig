@@ -1,68 +1,86 @@
 {% extends 'layouts/base.twig' %}
+{% import 'macros/icons.twig' as i %}
+
+{% block body_class %}portal admin-portal{% endblock %}
+
+{% macro link(href, label, icon, exact = false) %}
+    {% import 'macros/icons.twig' as i %}
+    <a href="{{ href }}" class="{{ active(href, exact) }}"><span class="p-nav-icon">{{ i.icon(icon) }}</span><span>{{ label|t }}</span></a>
+{% endmacro %}
 
 {% block body %}
+{% import _self as m %}
 <div class="app">
-    <aside class="sidebar">
-        <a class="sidebar-brand" href="/admin">
-            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> {{ brand.name }}{% endif %}
+    <aside class="sidebar p-sidebar" id="admin-sidebar">
+        <a class="sidebar-brand p-brand" href="/admin">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> <span>{{ brand.name }}</span>{% endif %}
+            <span class="p-brand-badge">{{ 'Admin'|t }}</span>
         </a>
-        <nav class="nav">
-            <div class="nav-section">{{ 'Administration'|t }}</div>
-            <a href="/admin" class="{{ active('/admin', true) }}">{{ 'Dashboard'|t }}</a>
-            {% if can('customers.view') %}<a href="/admin/customers" class="{{ active('/admin/customers') }}">{{ 'Customers'|t }}</a>{% endif %}
-            {% if can('customers.view') and setting('referral.enabled') %}<a href="/admin/referrals" class="{{ active('/admin/referrals') }}">{{ 'Referrals'|t }}</a>{% endif %}
-            {% if can('customer_groups.manage') %}<a href="/admin/customer-groups" class="{{ active('/admin/customer-groups') }}">{{ 'Customer groups'|t }}</a>{% endif %}
-            {% if can('services.view') %}<a href="/admin/services" class="{{ active('/admin/services') }}">{{ 'Services'|t }}</a>{% endif %}
-            {% if can('services.view') %}<a href="/admin/cancellations" class="{{ active('/admin/cancellations') }}">{{ 'Cancellations'|t }}</a>{% endif %}
-            {% if can('tickets.view') %}<a href="/admin/tickets" class="{{ active('/admin/tickets') }}">{{ 'Support tickets'|t }}</a>{% endif %}
-            {% if can('status.manage') %}<a href="/admin/status" class="{{ active('/admin/status') }}">{{ 'Status page'|t }}</a>{% endif %}
+        <nav class="p-nav p-nav-compact" aria-label="{{ 'Administration'|t }}">
+            <div class="p-nav-section">{{ 'Overview'|t }}</div>
+            {{ m.link('/admin', 'Dashboard', 'dashboard', true) }}
+            {% if can('customers.view') %}{{ m.link('/admin/customers', 'Customers', 'users') }}{% endif %}
+            {% if can('customers.view') and setting('referral.enabled') %}{{ m.link('/admin/referrals', 'Referrals', 'gift') }}{% endif %}
+            {% if can('customer_groups.manage') %}{{ m.link('/admin/customer-groups', 'Customer groups', 'grid') }}{% endif %}
+            {% if can('services.view') %}{{ m.link('/admin/services', 'Services', 'services') }}{{ m.link('/admin/cancellations', 'Cancellations', 'x-circle') }}{% endif %}
 
-            <div class="nav-section">{{ 'Sales'|t }}</div>
-            {% if can('products.view') %}<a href="/admin/products" class="{{ active('/admin/products') }}">{{ 'Products'|t }}</a>{% endif %}
-            {% if can('products.view') %}<a href="/admin/coupons" class="{{ active('/admin/coupons') }}">{{ 'Coupons'|t }}</a>{% endif %}
-            {% if can('orders.view') %}<a href="/admin/orders" class="{{ active('/admin/orders') }}">{{ 'Orders'|t }}</a>{% endif %}
-            {% if can('invoices.view') %}<a href="/admin/invoices" class="{{ active('/admin/invoices') }}">{{ 'Invoices'|t }}</a>{% endif %}
-            {% if can('transactions.view') %}<a href="/admin/transactions" class="{{ active('/admin/transactions') }}">{{ 'Transactions'|t }}</a>{% endif %}
-            {% if can('transactions.view') %}<a href="/admin/payments/webhooks" class="{{ active('/admin/payments/webhooks') }}">{{ 'Payment events'|t }}</a>{% endif %}
+            {% if can('tickets.view') or can('status.manage') %}<div class="p-nav-section">{{ 'Support'|t }}</div>{% endif %}
+            {% if can('tickets.view') %}{{ m.link('/admin/tickets', 'Support tickets', 'support') }}{% endif %}
+            {% if can('status.manage') %}{{ m.link('/admin/status', 'Status page', 'pulse') }}{% endif %}
 
-            <div class="nav-section">{{ 'Infrastructure'|t }}</div>
-            {% if can('integrations.view') %}<a href="/admin/integrations" class="{{ active('/admin/integrations') }}">{{ 'Integrations'|t }}</a><a href="/admin/ip-pools" class="{{ active('/admin/ip-pools') }}">{{ 'IP pools'|t }}</a>{% endif %}
-            {% if can('jobs.view') %}<a href="/admin/jobs" class="{{ active('/admin/jobs') }}">{{ 'Background jobs'|t }}</a>{% endif %}
+            {% if can('products.view') or can('orders.view') or can('invoices.view') or can('transactions.view') %}<div class="p-nav-section">{{ 'Sales'|t }}</div>{% endif %}
+            {% if can('products.view') %}{{ m.link('/admin/products', 'Products', 'box') }}{{ m.link('/admin/coupons', 'Coupons', 'tag') }}{% endif %}
+            {% if can('orders.view') %}{{ m.link('/admin/orders', 'Orders', 'cart') }}{% endif %}
+            {% if can('invoices.view') %}{{ m.link('/admin/invoices', 'Invoices', 'invoice') }}{% endif %}
+            {% if can('transactions.view') %}{{ m.link('/admin/transactions', 'Transactions', 'transactions') }}{{ m.link('/admin/payments/webhooks', 'Payment events', 'bell') }}{% endif %}
 
-            <div class="nav-section">{{ 'Configuration'|t }}</div>
-            {% if can('settings.general') %}<a href="/admin/settings/general" class="{{ active('/admin/settings/general') }}">{{ 'General'|t }}</a>{% endif %}
-            {% if can('settings.branding') %}<a href="/admin/settings/branding" class="{{ active('/admin/settings/branding') }}">{{ 'Branding'|t }}</a>{% endif %}
-            {% if can('settings.email') %}<a href="/admin/settings/email" class="{{ active('/admin/settings/email') }}">{{ 'E-mail'|t }}</a>{% endif %}
-            {% if can('mail_templates.manage') %}<a href="/admin/mail-templates" class="{{ active('/admin/mail-templates') }}">{{ 'E-mail templates'|t }}</a>{% endif %}
-            {% if can('payments.settings') %}<a href="/admin/settings/payments" class="{{ active('/admin/settings/payments') }}">{{ 'Payments'|t }}</a>{% endif %}
-            {% if can('settings.system') %}<a href="/admin/settings/system" class="{{ active('/admin/settings/system') }}">{{ 'System'|t }}</a>{% endif %}
+            {% if can('integrations.view') or can('jobs.view') %}<div class="p-nav-section">{{ 'Infrastructure'|t }}</div>{% endif %}
+            {% if can('integrations.view') %}{{ m.link('/admin/integrations', 'Integrations', 'plug') }}{{ m.link('/admin/ip-pools', 'IP pools', 'network') }}{% endif %}
+            {% if can('jobs.view') %}{{ m.link('/admin/jobs', 'Background jobs', 'cpu') }}{% endif %}
 
-            <div class="nav-section">{{ 'Staff & security'|t }}</div>
-            {% if can('staff.view') %}<a href="/admin/staff" class="{{ active('/admin/staff') }}">{{ 'Staff'|t }}</a>{% endif %}
-            {% if can('roles.manage') %}<a href="/admin/roles" class="{{ active('/admin/roles') }}">{{ 'Roles & permissions'|t }}</a>{% endif %}
-            {% if can('staff.view') %}<a href="/admin/login-history" class="{{ active('/admin/login-history') }}">{{ 'Login history'|t }}</a>{% endif %}
-            {% if can('audit.view') %}<a href="/admin/audit-log" class="{{ active('/admin/audit-log') }}">{{ 'Audit log'|t }}</a>{% endif %}
-            {% if can('api_tokens.manage') %}<a href="/admin/api-tokens" class="{{ active('/admin/api-tokens') }}">{{ 'API tokens'|t }}</a>{% endif %}
+            {% if can('settings.general') or can('settings.branding') or can('settings.email') or can('mail_templates.manage') or can('payments.settings') or can('settings.system') %}<div class="p-nav-section">{{ 'Configuration'|t }}</div>{% endif %}
+            {% if can('settings.general') %}{{ m.link('/admin/settings/general', 'General', 'gear') }}{% endif %}
+            {% if can('settings.branding') %}{{ m.link('/admin/settings/branding', 'Branding', 'palette') }}{% endif %}
+            {% if can('settings.email') %}{{ m.link('/admin/settings/email', 'E-mail', 'mail') }}{% endif %}
+            {% if can('mail_templates.manage') %}{{ m.link('/admin/mail-templates', 'E-mail templates', 'file') }}{% endif %}
+            {% if can('payments.settings') %}{{ m.link('/admin/settings/payments', 'Payments', 'card') }}{% endif %}
+            {% if can('settings.system') %}{{ m.link('/admin/settings/system', 'System', 'sliders') }}{% endif %}
 
-            <div class="nav-section">{{ 'Account'|t }}</div>
-            <a href="/dashboard">{{ 'Customer area'|t }}</a>
-            <a href="/account/security">{{ 'My security'|t }}</a>
+            {% if can('staff.view') or can('roles.manage') or can('audit.view') or can('api_tokens.manage') %}<div class="p-nav-section">{{ 'Staff & security'|t }}</div>{% endif %}
+            {% if can('staff.view') %}{{ m.link('/admin/staff', 'Staff', 'user') }}{% endif %}
+            {% if can('roles.manage') %}{{ m.link('/admin/roles', 'Roles & permissions', 'shield') }}{% endif %}
+            {% if can('staff.view') %}{{ m.link('/admin/login-history', 'Login history', 'clock') }}{% endif %}
+            {% if can('audit.view') %}{{ m.link('/admin/audit-log', 'Audit log', 'list') }}{% endif %}
+            {% if can('api_tokens.manage') %}{{ m.link('/admin/api-tokens', 'API tokens', 'code') }}{% endif %}
         </nav>
-        <div class="sidebar-footer">{{ brand.name }} · {{ 'Admin'|t }}</div>
+        <div class="sidebar-footer">
+            <a href="/dashboard">{{ 'Customer area'|t }}</a> · <a href="/account/security">{{ 'My security'|t }}</a><br>
+            &copy; {{ 'now'|date('Y') }} {{ brand.name }}
+        </div>
     </aside>
     <div class="main">
-        <header class="topbar">
-            <button class="icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}">&#9776;</button>
+        <header class="topbar p-topbar">
+            <button class="p-icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}" aria-controls="admin-sidebar">{{ i.icon('menu') }}</button>
+            {% if can('customers.view') %}
+            <form class="p-search" method="get" action="/admin/customers" role="search">
+                <label class="sr-only" for="admin-search">{{ 'Search customers'|t }}</label>
+                <input id="admin-search" type="search" name="search" placeholder="{{ 'Search customers (name, e-mail, number) …'|t }}" maxlength="100" value="{{ current_path == '/admin/customers' ? app_query('search') : '' }}">
+                <button type="submit" aria-label="{{ 'Search'|t }}">{{ i.icon('search') }}</button>
+            </form>
+            {% else %}
             <div class="muted small">{% block breadcrumb %}{{ 'Administration'|t }}{% endblock %}</div>
+            {% endif %}
             <div class="topbar-actions">
-                <button class="icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">&#9680;</button>
+                <a class="p-icon-btn" href="/status" target="_blank" rel="noopener" aria-label="{{ 'Status page'|t }}" title="{{ 'Status page'|t }}">{{ i.icon('pulse') }}</a>
+                <a class="p-icon-btn" href="/dashboard" aria-label="{{ 'Customer area'|t }}" title="{{ 'Customer area'|t }}">{{ i.icon('home') }}</a>
+                <button class="p-icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">{{ i.icon('theme') }}</button>
                 {% if auth_user %}
-                <span class="user-chip"><span class="avatar">{{ auth_user.displayName|first|upper }}</span><span>{{ auth_user.displayName }} <span class="badge badge-info">{{ auth_user.roleName }}</span></span></span>
-                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Sign out'|t }}</button></form>
+                <a class="p-avatar-link" href="/account/security" title="{{ auth_user.displayName }}"><span class="p-avatar">{{ auth_user.displayName|first|upper }}</span><span class="p-avatar-name">{{ auth_user.displayName }}<span class="p-avatar-role">{{ auth_user.roleName }}</span></span></a>
+                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="p-icon-btn" type="submit" aria-label="{{ 'Sign out'|t }}" title="{{ 'Sign out'|t }}">{{ i.icon('logout') }}</button></form>
                 {% endif %}
             </div>
         </header>
-        <main class="content">
+        <main class="content p-content">
             {% include 'partials/flash.twig' %}
             {% block content %}{% endblock %}
         </main>

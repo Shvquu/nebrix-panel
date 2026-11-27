@@ -1,17 +1,41 @@
 {% extends 'layouts/admin.twig' %}
 {% block title %}{{ 'Admin dashboard'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Dashboard'|t }}</h1><p class="muted">{{ 'Overview of customers, sales, infrastructure and background processing.'|t }}</p></div></div>
+{% import 'macros/icons.twig' as ic %}
+<section class="p-card a-hero">
+    <div>
+        <p class="a-hero-kicker">{{ 'Administration'|t }}</p>
+        <h1>{{ 'Hello :name'|t({name: auth_user.firstName ?: auth_user.displayName}) }}</h1>
+        <p class="muted">{{ 'Overview of customers, sales, infrastructure and background processing.'|t }}</p>
+    </div>
+    <div class="a-hero-actions">
+        {% if can('customers.manage') %}<a class="btn btn-primary" href="/admin/customers/create">{{ 'New customer'|t }}</a>{% endif %}
+        {% if can('tickets.view') %}<a class="btn btn-outline" href="/admin/tickets">{{ 'Support tickets'|t }}{% if stats.tickets_open > 0 %} <span class="badge badge-warning">{{ stats.tickets_open }}</span>{% endif %}</a>{% endif %}
+        {% if can('status.manage') %}<a class="btn btn-outline" href="/admin/status">{{ 'Status page'|t }}</a>{% endif %}
+    </div>
+</section>
 
 {% for note in stats.notifications %}
     <div class="alert alert-{{ note.level == 'error' ? 'danger' : note.level }}">{{ note.message|t }}{% if note.link %} <a href="{{ note.link }}">{{ 'Open'|t }} &rarr;</a>{% endif %}</div>
 {% endfor %}
 
-<div class="grid grid-4">
-    <div class="card stat"><div class="stat-label">{{ 'Customers'|t }}</div><div class="stat-value">{{ stats.customers_total }}</div><div class="stat-hint">{{ stats.customers_active }} {{ 'active'|t }} · {{ stats.customers_suspended }} {{ 'suspended'|t }} · {{ stats.customers_pending }} {{ 'pending'|t }}</div></div>
-    <div class="card stat"><div class="stat-label">{{ 'Orders'|t }}</div><div class="stat-value">{{ stats.orders_total }}</div><div class="stat-hint">{{ stats.orders_pending }} {{ 'awaiting payment'|t }}</div></div>
-    <div class="card stat"><div class="stat-label">{{ 'Revenue this month'|t }}</div><div class="stat-value">{{ stats.revenue_month|money(stats.currency) }}</div><div class="stat-hint">{{ 'Total'|t }}: {{ stats.revenue_total|money(stats.currency) }}</div></div>
-    <div class="card stat"><div class="stat-label">{{ 'Active services'|t }}</div><div class="stat-value">{{ stats.services_active }}</div><div class="stat-hint">{{ stats.products_active }} {{ 'active products'|t }} · {{ stats.invoices_unpaid }} {{ 'unpaid invoices'|t }} · {{ stats.tickets_open }} {{ 'open tickets'|t }}</div></div>
+<div class="a-stats">
+    <a class="p-card p-stat" href="{{ can('customers.view') ? '/admin/customers' : '#' }}">
+        <span class="p-stat-icon">{{ ic.icon('users') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Customers'|t }}</div><div class="p-stat-value">{{ stats.customers_total }}</div><div class="p-stat-hint">{{ stats.customers_active }} {{ 'active'|t }} · {{ stats.customers_suspended }} {{ 'suspended'|t }} · {{ stats.customers_pending }} {{ 'pending'|t }}</div></div>
+    </a>
+    <a class="p-card p-stat" href="{{ can('orders.view') ? '/admin/orders' : '#' }}">
+        <span class="p-stat-icon">{{ ic.icon('cart') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Orders'|t }}</div><div class="p-stat-value">{{ stats.orders_total }}</div><div class="p-stat-hint">{{ stats.orders_pending }} {{ 'awaiting payment'|t }}</div></div>
+    </a>
+    <a class="p-card p-stat" href="{{ can('invoices.view') ? '/admin/invoices' : '#' }}">
+        <span class="p-stat-icon">{{ ic.icon('trend') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Revenue this month'|t }}</div><div class="p-stat-value">{{ stats.revenue_month|money(stats.currency) }}</div><div class="p-stat-hint">{{ 'Total'|t }}: {{ stats.revenue_total|money(stats.currency) }} · {{ stats.invoices_unpaid }} {{ 'unpaid invoices'|t }}</div></div>
+    </a>
+    <a class="p-card p-stat" href="{{ can('services.view') ? '/admin/services' : '#' }}">
+        <span class="p-stat-icon">{{ ic.icon('services') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Active services'|t }}</div><div class="p-stat-value">{{ stats.services_active }}</div><div class="p-stat-hint">{{ stats.products_active }} {{ 'active products'|t }} · {{ stats.tickets_open }} {{ 'open tickets'|t }}</div></div>
+    </a>
 </div>
 
 <div class="grid grid-2">
