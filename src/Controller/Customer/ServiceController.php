@@ -79,6 +79,7 @@ final class ServiceController extends Controller
             'console' => $this->mayManage($request) && $this->consoles->supports($service),
             'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
             'can_withdraw_cancellation' => $this->container->get(\Nebrix\Contract\CancellationService::class)->canWithdraw($service),
+            'package_change' => $this->packageChange($service),
         ]);
     }
 
@@ -206,6 +207,21 @@ final class ServiceController extends Controller
         }
 
         return $this->render($request, 'customer/orders.twig', ['orders' => $orders]);
+    }
+
+    /**
+     * Whether the service belongs to an upgrade group (link to the package page) and an open change.
+     *
+     * @return array{available: bool, open: array<string, mixed>|null}
+     */
+    private function packageChange(Service $service): array
+    {
+        $group = $service->productId !== null ? $this->container->get(\Nebrix\Database\Connection::class)->fetchValue('SELECT `upgrade_group` FROM `nx_products` WHERE `id` = ?', [$service->productId]) : null;
+
+        return [
+            'available' => $service->isActive() && is_string($group) && trim($group) !== '',
+            'open' => $this->container->get(\Nebrix\Service\ServiceChangeService::class)->openChange($service->id),
+        ];
     }
 
     private function mayManage(Request $request): bool

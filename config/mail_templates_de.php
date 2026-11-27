@@ -72,6 +72,10 @@ return [
         'subject' => 'Beleg {{ document_number }} zu Rechnung {{ invoice_number }}',
         'html' => '<p>Hallo {{ name }},</p><p>wir haben den Beleg <strong>{{ document_number }}</strong> über {{ amount }} zur Rechnung {{ invoice_number }} ausgestellt (Storno oder Erstattung). Sie finden ihn im Anhang und in Ihrem Kundenbereich.</p><p><a class="button" href="{{ document_url }}">Beleg ansehen</a></p>',
     ],
+    'service_package_changed' => [
+        'subject' => 'Ihr Dienst {{ service_name }} läuft jetzt mit {{ package }}',
+        'html' => '<p>Hallo {{ name }},</p><p>das Paket Ihres Dienstes <strong>{{ service_name }}</strong> wurde auf <strong>{{ package }}</strong> umgestellt. Ab der nächsten Verlängerung beträgt der Preis {{ price }} (netto) pro Zeitraum.</p><p>{{ note }}</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
+    ],
     'referral_reward' => [
         'subject' => 'Danke für Ihre Empfehlung – {{ amount }} Guthaben',
         'html' => '<p>Hallo {{ name }},</p><p>ein von Ihnen geworbener Kunde ist jetzt zahlender Kunde bei {{ company_name }}. Als Dankeschön haben wir Ihrem Kundenkonto <strong>{{ amount }}</strong> Guthaben gutgeschrieben. Es wird für Ihre nächsten Rechnungen verwendet.</p><p><a class="button" href="{{ referrals_url }}">Ihre Empfehlungen ansehen</a></p>',

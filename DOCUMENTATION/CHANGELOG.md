@@ -56,6 +56,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Support PIN** for identity checks by phone or chat (encrypted, verified by staff without seeing it, renewable).
 - Account closure now also removes the VIES holder name (previously kept).
 
+### Added (upgrades and downgrades)
+- **Package changes** between products of the same upgrade group: upgrades are invoiced prorated for the rest of the paid period and applied through the queue after payment, downgrades take effect at the end of the paid period with the next renewal at the new price; withdraw, expiry of unpaid upgrade invoices, follow-up invoice when a renewal was paid in between, stock reservation, coupon and customer-group discounts kept.
+- Remote changes for Proxmox (CPU, memory, swap, network rate, disk growth), Pterodactyl (build limits), TeamSpeak (slots), Nextcloud (quota) and Plesk (service plan switch).
+- Customer page *Upgrade or downgrade*, staff change (also without invoice) with history and retry, REST API `GET/POST /services/{id}/package`, e-mail "package changed" (EN/DE), scheduler task `services.package_changes`, migration `2026_11_29_000015`.
+
 ### Added (coupons and refer a friend)
 - **Coupon codes** (Sales → Coupons): percent or fixed discounts on the first invoice or permanently on renewals, validity dates, product restriction, total and per-customer limits, new-customers-only option; price preview on the order page (rate-limited), `coupon` field in `POST /api/v1/orders`, release of the use when an unpaid order is cancelled, list of uses per coupon.
 - **Refer a friend**: personal referral link and code per customer, code field on the registration form, reward as account credit (optional welcome credit for the new customer) after a payment with real money of at least the minimum amount and a holding period; refunds reset the referral, monthly limit per referrer, sign-ups from the referrer's own IP address are held for staff review (Customers → Referrals); e-mails in English and German; hourly scheduler task `referrals.process`.

@@ -16,7 +16,7 @@ use Nebrix\Service\ServiceRepository;
  * One Nextcloud account per service with user ID <prefix><service-id>.
  * Suspension disables the account (data is kept); termination deletes it.
  */
-final class NextcloudProvisioner implements Provisioner
+final class NextcloudProvisioner implements Provisioner, PackageChangeable
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -136,5 +136,23 @@ final class NextcloudProvisioner implements Provisioner
     public function prepareReinstall(Service $service, array $input): void
     {
         throw new IntegrationException('Reinstalling is not supported for this service type.');
+    }
+
+    public function packageKeys(Service $service): array
+    {
+        return ['quota_gb'];
+    }
+
+    public function packageChangeBlocker(Service $service, array $newConfig): ?string
+    {
+        return $service->externalId !== null ? null : 'The account has not been created yet.';
+    }
+
+    public function changePackage(Service $service, array $newConfig): ?string
+    {
+        [$integration, $client] = $this->client($service);
+        $client->setQuota($this->userId($integration, $service), max(1, (int) ($newConfig['quota_gb'] ?? 1)) . ' GB');
+
+        return null;
     }
 }

@@ -205,6 +205,16 @@ class ProxmoxClient
         $this->api->request('POST', $this->guestPath($node, self::TYPE_QEMU, $vmid) . '/config', ['form_params' => $params, 'action' => 'qemu.config']);
     }
 
+    /**
+     * Changes container settings (cores, memory, swap, network).
+     *
+     * @param array<string, scalar> $params
+     */
+    public function updateContainerConfig(string $node, int $vmid, array $params): void
+    {
+        $this->api->request('PUT', $this->guestPath($node, self::TYPE_LXC, $vmid) . '/config', ['form_params' => $params, 'action' => 'lxc.config']);
+    }
+
     public function resizeDisk(string $node, string $type, int $vmid, string $disk, int $sizeGb): void
     {
         if (preg_match('/^((scsi|virtio|sata|ide)\d+|rootfs)$/', $disk) !== 1) {

@@ -17,6 +17,8 @@ class InvoiceRepository
     public const TYPE_ORDER = 'order';
     public const TYPE_RENEWAL = 'renewal';
     public const TYPE_CREDIT = 'credit';
+    /** Prorated difference for switching a service to a larger package. */
+    public const TYPE_UPGRADE = 'upgrade';
     /** Cancellation or correction document referring to an invoice (positive amounts). */
     public const TYPE_CREDIT_NOTE = 'credit_note';
     /** Status of correction documents (they are not paid, they are issued). */

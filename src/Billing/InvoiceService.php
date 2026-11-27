@@ -29,6 +29,7 @@ class InvoiceService
 {
     public const JOB_FULFIL_ORDER = 'order.fulfil';
     public const JOB_UNSUSPEND_SERVICE = 'service.unsuspend';
+    public const JOB_APPLY_CHANGE = 'service.change';
 
     public function __construct(
         private readonly InvoiceRepository $invoices,
@@ -214,6 +215,54 @@ class InvoiceService
     /**
      * Credit top-up invoice (the "charge balance" function of the legacy panel).
      */
+    /**
+     * Invoice for an upgrade: the prorated difference for the rest of the
+     * paid period. The package changes when it is paid.
+     *
+     * @param array<string, mixed> $product target product
+     */
+    public function createUpgrade(Service $service, User $user, array $product, int $net, string $description, \DateTimeImmutable $periodStart, \DateTimeImmutable $periodEnd): int
+    {
+        return $this->db->transaction(function () use ($service, $user, $product, $net, $description, $periodStart, $periodEnd): int {
+            $decision = $this->taxes->decide($user);
+            $taxRate = $decision->rate((int) $product['tax_rate_bp']);
+            $tax = Money::tax($net, $taxRate);
+            $id = $this->invoices->create([
+                'number' => $this->nextNumber('invoice'),
+                'user_id' => $user->id,
+                'service_id' => $service->id,
+                'type' => InvoiceRepository::TYPE_UPGRADE,
+                'status' => InvoiceRepository::STATUS_UNPAID,
+                'currency' => $service->currency,
+                'subtotal' => $net,
+                'tax' => $tax,
+                'total' => $net + $tax,
+                ...$this->taxColumns($decision),
+                'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'due_at' => $this->clock->now()->modify(sprintf('+%d days', max(0, $this->settings->int('billing.invoice_due_days'))))->format('Y-m-d H:i:s'),
+            ], [[
+                'service_id' => $service->id,
+                'description' => mb_substr($description, 0, 255),
+                'quantity' => 1,
+                'unit_amount' => $net,
+                'tax_rate_bp' => $taxRate,
+                'total' => $net,
+                'period_start' => $periodStart->format('Y-m-d H:i:s'),
+                'period_end' => $periodEnd->format('Y-m-d H:i:s'),
+            ]]);
+            $invoice = $this->invoices->find($id);
+            $this->mailer->queue($user->email, $user->displayName(), 'invoice_created', [
+                'name' => $user->displayName(),
+                'invoice_number' => (string) ($invoice['number'] ?? ''),
+                'invoice_total' => Money::format($net + $tax, $service->currency, $this->language($user)),
+                'due_date' => Translator::date($this->language($user), new \DateTimeImmutable((string) ($invoice['due_at'] ?? 'now'), new \DateTimeZone('UTC'))),
+                'invoice_url' => $this->url('/invoices/' . $id),
+            ], null, [], $id);
+
+            return $id;
+        });
+    }
+
     public function createCreditTopUp(User $user, int $amount, string $currency): int
     {
         return $this->db->transaction(function () use ($user, $amount, $currency): int {
@@ -264,6 +313,11 @@ class InvoiceService
 
             case InvoiceRepository::TYPE_RENEWAL:
                 $this->applyRenewal($invoice);
+                break;
+
+            case InvoiceRepository::TYPE_UPGRADE:
+                // The remote change runs in the queue; the payment is never blocked by an integration.
+                $this->jobs->dispatch(self::JOB_APPLY_CHANGE, ['invoice_id' => $id], self::JOB_APPLY_CHANGE . ':invoice:' . $id);
                 break;
 
             case InvoiceRepository::TYPE_CREDIT:
@@ -328,6 +382,14 @@ class InvoiceService
                     if ($item['product_id'] !== null) {
                         $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $item['product_id']]);
                     }
+                }
+            }
+            if ($invoice['type'] === InvoiceRepository::TYPE_UPGRADE) {
+                // The upgrade does not happen; the reserved unit of the target product is free again.
+                $change = $this->db->fetchOne("SELECT `id`, `to_product_id` FROM `nx_service_changes` WHERE `invoice_id` = ? AND `status` = 'pending_payment' FOR UPDATE", [$invoiceId]);
+                if ($change !== null) {
+                    $this->db->update('nx_service_changes', ['status' => 'cancelled', 'error' => 'The invoice was cancelled.', 'updated_at' => $this->clock->nowString()], ['id' => $change['id']]);
+                    $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $change['to_product_id']]);
                 }
             }
         });

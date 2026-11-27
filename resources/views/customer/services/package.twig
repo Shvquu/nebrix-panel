@@ -1,0 +1,81 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Change package'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Change package'|t }}</h1><p class="muted">{{ service.name }} · <a href="/services/{{ service.id }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+
+{% set open = options.open %}
+{% if open %}
+<div class="alert alert-info">
+    {% if open.status == 'pending_payment' %}
+        {{ 'Upgrade to :package: waiting for payment of invoice :number.'|t({package: open.to_name, number: open.invoice_number}) }}
+        <a href="/invoices/{{ open.invoice_id }}">{{ 'Pay now'|t }}</a>
+    {% elseif open.status == 'scheduled' %}
+        {{ 'Change to :package on :date (end of the paid period).'|t({package: open.to_name, date: open.effective_at|d}) }}
+    {% else %}
+        {{ 'The package is being changed to :package.'|t({package: open.to_name}) }}
+    {% endif %}
+    {% if may_manage and open.status in ['pending_payment', 'scheduled'] %}
+    <form method="post" action="/services/{{ service.id }}/package/withdraw" class="inline" data-confirm="{{ 'Withdraw the package change?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Withdraw'|t }}</button></form>
+    {% endif %}
+</div>
+{% elseif options.blocker %}
+<div class="alert alert-warning">{{ options.blocker|t }}</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Current package'|t }}</h2></div>
+    <div class="card-body"><dl class="details">
+        <dt>{{ 'Price'|t }}</dt><dd>{{ service.recurringAmount|money(service.currency) }} {{ 'net'|t }} / {{ service.billingCycle|humanize|t }}</dd>
+        <dt>{{ 'Paid until'|t }}</dt><dd>{{ service.nextDueAt|d }}</dd>
+    </dl></div>
+</div>
+
+{% if options.targets|length > 0 %}
+<div class="p-packages mt-2">
+    {% for t in options.targets %}
+    <div class="p-card p-package {{ t.direction == 'upgrade' ? 'is-upgrade' : 'is-downgrade' }}">
+        <div class="p-package-head">
+            <span class="badge badge-sentence {{ t.direction == 'upgrade' ? 'badge-success' : 'badge-info' }}">{{ t.direction == 'upgrade' ? 'Upgrade'|t : 'Downgrade'|t }}</span>
+            <h3>{{ t.product.name }}</h3>
+            <div class="p-package-price">{{ t.recurring_gross|money(service.currency) }} <span class="small muted">/ {{ service.billingCycle|humanize|t }} {{ 'incl. VAT'|t }}</span></div>
+        </div>
+        {% if t.product.features %}<ul class="p-package-features">{% for line in t.product.features|split("\n") %}{% if line|trim %}<li>{{ line|trim }}</li>{% endif %}{% endfor %}</ul>{% endif %}
+        <p class="small">
+            {% if t.direction == 'upgrade' %}
+                {{ 'Due today: :amount (prorated until :date). The package changes as soon as the invoice is paid.'|t({amount: t.charge_gross|money(service.currency), date: service.nextDueAt|d}) }}
+            {% else %}
+                {{ 'Takes effect on :date, at the end of the paid period. There is no refund for the current period.'|t({date: t.effective_at|d}) }}
+            {% endif %}
+        </p>
+        {% if t.blocker %}
+            <p class="small text-danger">{{ t.blocker|t }}</p>
+        {% elseif may_manage and not open and not options.blocker %}
+        <form method="post" action="/services/{{ service.id }}/package" class="p-package-form">
+            {{ csrf_field() }}
+            <input type="hidden" name="product_id" value="{{ t.product.id }}">
+            <label class="checkbox"><input type="checkbox" name="accept" value="1" required><span>{{ t.direction == 'upgrade' ? 'I order the upgrade with costs.'|t : 'I want to switch to the smaller package.'|t }}</span></label>
+            <button class="btn {{ t.direction == 'upgrade' ? 'btn-primary' : 'btn-outline' }} btn-block" type="submit">{{ t.direction == 'upgrade' ? 'Upgrade now'|t : 'Schedule downgrade'|t }}</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% elseif not options.blocker and not open %}
+<div class="alert alert-info mt-2">{{ 'There are no other packages for this service.'|t }}</div>
+{% endif %}
+
+{% if history|length > 0 %}
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Package changes'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Change'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Invoice'|t }}</th></tr></thead>
+        <tbody>
+        {% for h in history %}
+            <tr><td>{{ h.created_at|dt }}</td><td>{{ h.from_name ?? '–' }} → {{ h.to_name }}</td><td><span class="badge badge-sentence {{ h.status|status_class }}">{{ h.status|humanize|t }}</span></td><td>{% if h.invoice_id %}<a class="mono" href="/invoices/{{ h.invoice_id }}">{{ h.invoice_number }}</a>{% else %}–{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endblock %}

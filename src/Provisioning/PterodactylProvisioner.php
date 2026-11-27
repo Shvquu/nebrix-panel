@@ -24,7 +24,7 @@ use Psr\Log\LoggerInterface;
  * also enforced by Pterodactyl). Only backups of the service's own server
  * are offered; deleting the server in Pterodactyl deletes its backups.
  */
-final class PterodactylProvisioner implements Provisioner
+final class PterodactylProvisioner implements Provisioner, PackageChangeable
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -340,5 +340,41 @@ final class PterodactylProvisioner implements Provisioner
     public function prepareReinstall(Service $service, array $input): void
     {
         throw new IntegrationException('Reinstalling is not supported for this service type.');
+    }
+
+    public function packageKeys(Service $service): array
+    {
+        return ['memory_mb', 'swap_mb', 'disk_mb', 'cpu_percent', 'io', 'databases', 'allocations', 'backups'];
+    }
+
+    public function packageChangeBlocker(Service $service, array $newConfig): ?string
+    {
+        return (int) $service->remote('server_id', 0) > 0 ? null : 'The server has not been created yet.';
+    }
+
+    public function changePackage(Service $service, array $newConfig): string
+    {
+        [, $client] = $this->client($service);
+        $id = (int) $service->remote('server_id', 0);
+        if ($id === 0) {
+            throw new IntegrationException('The server has not been created yet.');
+        }
+        // The build endpoint needs the primary allocation; it stays the same.
+        $server = $client->server($id);
+        $client->updateBuild($id, [
+            'allocation' => (int) ($server['allocation'] ?? 0),
+            'memory' => (int) ($newConfig['memory_mb'] ?? 0),
+            'swap' => (int) ($newConfig['swap_mb'] ?? 0),
+            'disk' => (int) ($newConfig['disk_mb'] ?? 0),
+            'io' => (int) ($newConfig['io'] ?? 500),
+            'cpu' => (int) ($newConfig['cpu_percent'] ?? 0),
+            'feature_limits' => [
+                'databases' => (int) ($newConfig['databases'] ?? 0),
+                'allocations' => (int) ($newConfig['allocations'] ?? 0),
+                'backups' => (int) ($newConfig['backups'] ?? 0),
+            ],
+        ]);
+
+        return 'The new limits apply after the next restart of the server.';
     }
 }

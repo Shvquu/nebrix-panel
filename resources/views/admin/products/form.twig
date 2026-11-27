@@ -28,6 +28,7 @@
                 {{ f.input('tax_rate', 'Tax rate (%)', tax_rate, 'text', {inputmode: 'decimal', help: 'Added on top of the net price, e.g. 19.00'}) }}
                 {{ f.input('stock', 'Stock (empty = unlimited)', p.stock ?? '', 'number') }}
                 {{ f.select('customer_group_id', 'Only for customer group', groups, p.customer_group_id ?? '', {placeholder: '– everyone –'}) }}
+                {{ f.input('upgrade_group', 'Upgrade group', p.upgrade_group ?? '', 'text', {maxlength: 50, help: 'Services can switch between active products with the same group name, category, integration, currency and billing cycle (e.g. "vps-fsn").'}) }}
             </div>
             <div class="card-body">
                 {{ f.checkbox('is_active', 'Active (can be ordered and renewed)', product ? p.is_active : true) }}

@@ -109,6 +109,19 @@ class PleskClient
         ])->id;
     }
 
+    /**
+     * Moves a subscription to another service plan (looked up by its name).
+     */
+    public function switchPlan(int $webspaceId, string $planName): void
+    {
+        $plan = $this->operation('service-plan', 'get', [['filter' => [['name' => $planName]]]]);
+        $guid = trim((string) ($plan->guid ?? ''));
+        if ($guid === '') {
+            throw new IntegrationException(sprintf('The Plesk service plan "%s" was not found.', mb_substr($planName, 0, 100)));
+        }
+        $this->operation('webspace', 'switch-subscription', [['filter' => [['id' => (string) $webspaceId]]], ['plan-guid' => $guid]]);
+    }
+
     public function setWebspaceStatus(int $webspaceId, int $status): void
     {
         $this->operation('webspace', 'set', [['filter' => [['id' => (string) $webspaceId]]], ['values' => [['gen_setup' => [['status' => (string) $status]]]]]]);

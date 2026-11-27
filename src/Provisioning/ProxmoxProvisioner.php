@@ -42,7 +42,7 @@ use Psr\Log\LoggerInterface;
  * "restore" and "restore_start") and keeps the guest's VMID and address.
  * Terminating the service deletes its backups.
  */
-final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
+final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageChangeable
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -730,6 +730,83 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         }
 
         return [(string) $service->remote['node'], (int) $service->remote['vmid'], (string) ($service->remote['type'] ?? $this->type($service))];
+    }
+
+    public function packageKeys(Service $service): array
+    {
+        $keys = ['cores', 'memory_mb', 'disk_gb', 'rate_mbps', 'backup_storage', 'max_backups'];
+
+        return $this->type($service) === ProxmoxClient::TYPE_LXC ? [...$keys, 'swap_mb'] : $keys;
+    }
+
+    public function packageChangeBlocker(Service $service, array $newConfig): ?string
+    {
+        if (!isset($service->remote['node'], $service->remote['vmid'])) {
+            return 'The server has not been created yet.';
+        }
+        if ((int) ($newConfig['disk_gb'] ?? 0) < (int) $service->config('disk_gb', 0)) {
+            return 'The disk cannot be made smaller.';
+        }
+
+        return null;
+    }
+
+    public function changePackage(Service $service, array $newConfig): ?string
+    {
+        [$node, $vmid, $type] = $this->guest($service);
+        $client = $this->client($service);
+        $current = $client->guestConfig($node, $type, $vmid);
+        $disk = $type === ProxmoxClient::TYPE_LXC ? 'rootfs' : 'scsi0';
+        $currentSize = self::diskSizeGb((string) ($current[$disk] ?? ''));
+        $newSize = (int) ($newConfig['disk_gb'] ?? 0);
+        if ($currentSize !== null && $newSize < $currentSize) {
+            throw new IntegrationException('The disk cannot be made smaller.');
+        }
+
+        $params = [
+            'cores' => (int) ($newConfig['cores'] ?? 1),
+            'memory' => (int) ($newConfig['memory_mb'] ?? 1024),
+        ];
+        if ($type === ProxmoxClient::TYPE_LXC) {
+            $params['swap'] = (int) ($newConfig['swap_mb'] ?? 0);
+        }
+        // The network rate is part of net0; the rest of the line (MAC address, bridge, IP) stays unchanged.
+        $net = (string) ($current['net0'] ?? '');
+        if ($net !== '') {
+            $rate = (int) ($newConfig['rate_mbps'] ?? 0);
+            $updated = (string) preg_replace('/,rate=[0-9.]+/', '', $net) . ($rate > 0 ? ',rate=' . $rate : '');
+            if ($updated !== $net) {
+                $params['net0'] = $updated;
+            }
+        }
+
+        if ($type === ProxmoxClient::TYPE_LXC) {
+            $client->updateContainerConfig($node, $vmid, $params);
+        } else {
+            $client->updateVmConfig($node, $vmid, $params);
+        }
+        if ($currentSize === null || $newSize > $currentSize) {
+            $client->resizeDisk($node, $type, $vmid, $disk, $newSize);
+        }
+
+        // Containers apply CPU and memory at once; VMs only after a restart (unless hotplug is configured).
+        return $type === ProxmoxClient::TYPE_QEMU ? 'CPU and memory changes take effect after the next restart of the server.' : null;
+    }
+
+    /** Size of a Proxmox disk line ("local-lvm:vm-100-disk-0,size=40G") in GB. */
+    public static function diskSizeGb(string $line): ?int
+    {
+        if (preg_match('/(?:^|,)size=(\d+(?:\.\d+)?)([KMGT])?/', $line, $match) !== 1) {
+            return null;
+        }
+        $factor = match ($match[2] ?? 'G') {
+            'K' => 1 / (1024 * 1024),
+            'M' => 1 / 1024,
+            'T' => 1024,
+            default => 1,
+        };
+
+        return (int) ceil((float) $match[1] * $factor);
     }
 
     public static function generatePassword(int $length = 20): string

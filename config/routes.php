@@ -52,6 +52,9 @@ return static function (Router $r): void {
             $r->get('/services/{id:\d+}/credentials', [Api\ServiceController::class, 'credentials'], ['middleware' => ['api.scope:services:credentials']]);
             $r->post('/services/{id:\d+}/cancel', [Api\ServiceController::class, 'cancel'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
             $r->post('/services/{id:\d+}/cancel/withdraw', [Api\ServiceController::class, 'withdrawCancellation'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
+            $r->get('/services/{id:\d+}/package', [Api\ServiceController::class, 'packageOptions'], ['middleware' => ['api.scope:services:read']]);
+            $r->post('/services/{id:\d+}/package', [Api\ServiceController::class, 'changePackage'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
+            $r->post('/services/{id:\d+}/package/withdraw', [Api\ServiceController::class, 'withdrawPackageChange'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
 
             $r->get('/invoices', [Api\InvoiceController::class, 'index'], ['middleware' => ['api.scope:invoices:read']]);
             $r->get('/invoices/{id:\d+}', [Api\InvoiceController::class, 'show'], ['middleware' => ['api.scope:invoices:read']]);
@@ -141,6 +144,9 @@ return static function (Router $r): void {
         $r->get('/services/{id:\d+}/console', [Customer\ServiceController::class, 'console']);
         $r->post('/services/{id:\d+}/console/session', [Customer\ServiceController::class, 'consoleSession']);
         $r->post('/services/{id:\d+}/cancellation/withdraw', [Customer\ServiceController::class, 'withdrawCancellation']);
+        $r->get('/services/{id:\d+}/package', [Customer\PackageController::class, 'show']);
+        $r->post('/services/{id:\d+}/package', [Customer\PackageController::class, 'change']);
+        $r->post('/services/{id:\d+}/package/withdraw', [Customer\PackageController::class, 'withdraw']);
         $r->get('/orders', [Customer\ServiceController::class, 'orders']);
 
         $r->get('/tickets', [Customer\TicketController::class, 'index']);
@@ -297,6 +303,9 @@ return static function (Router $r): void {
             $r->get('/services/{id:\d+}/console', [Admin\ServiceController::class, 'console']);
             $r->post('/services/{id:\d+}/console/session', [Admin\ServiceController::class, 'consoleSession']);
             $r->post('/services/{id:\d+}/action', [Admin\ServiceController::class, 'action']);
+            $r->post('/services/{id:\d+}/package', [Admin\ServiceController::class, 'changePackage']);
+            $r->post('/services/{id:\d+}/package/withdraw', [Admin\ServiceController::class, 'withdrawPackageChange']);
+            $r->post('/services/{id:\d+}/package/{change:\d+}/retry', [Admin\ServiceController::class, 'retryPackageChange']);
         });
 
         // Payments

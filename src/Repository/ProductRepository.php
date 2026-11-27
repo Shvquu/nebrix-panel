@@ -12,7 +12,7 @@ class ProductRepository
     private const WRITABLE = [
         'category', 'name', 'slug', 'description', 'features', 'price', 'setup_fee', 'currency', 'billing_cycle',
         'tax_rate_bp', 'stock', 'is_visible', 'is_active', 'auto_provision', 'integration_id', 'provisioning_config',
-        'customer_group_id', 'sort_order',
+        'customer_group_id', 'sort_order', 'upgrade_group',
     ];
 
     public function __construct(

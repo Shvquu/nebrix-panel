@@ -153,6 +153,7 @@ final class ProductController extends Controller
             'integration_id' => 'nullable|int|min:1',
             'customer_group_id' => 'nullable|int|min:1',
             'sort_order' => 'nullable|int|min:-1000|max:1000',
+            'upgrade_group' => 'nullable|string|max:50|regex:/^[A-Za-z0-9 ._-]*$/',
         ]);
 
         if ($this->products->slugExists((string) $data['slug'], $id)) {
@@ -216,6 +217,7 @@ final class ProductController extends Controller
             'integration_id' => $data['integration_id'],
             'customer_group_id' => $data['customer_group_id'],
             'sort_order' => $data['sort_order'] ?? 0,
+            'upgrade_group' => trim((string) ($data['upgrade_group'] ?? '')) !== '' ? trim((string) $data['upgrade_group']) : null,
             'provisioning_config' => $config,
         ];
     }

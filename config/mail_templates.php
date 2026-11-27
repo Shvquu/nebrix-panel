@@ -106,6 +106,12 @@ return [
         'subject' => 'Document {{ document_number }} for invoice {{ invoice_number }}',
         'html' => '<p>Hello {{ name }},</p><p>we have issued the document <strong>{{ document_number }}</strong> over {{ amount }} for invoice {{ invoice_number }} (cancellation or refund). It is attached and available in your customer area.</p><p><a class="button" href="{{ document_url }}">View document</a></p>',
     ],
+    'service_package_changed' => [
+        'name' => 'Package changed (upgrade/downgrade)',
+        'variables' => ['name', 'service_name', 'package', 'price', 'note', 'service_url'],
+        'subject' => 'Your service {{ service_name }} now runs with {{ package }}',
+        'html' => '<p>Hello {{ name }},</p><p>the package of your service <strong>{{ service_name }}</strong> has been changed to <strong>{{ package }}</strong>. From the next renewal the price is {{ price }} (net) per period.</p><p>{{ note }}</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
+    ],
     'referral_reward' => [
         'name' => 'Refer a friend: reward credited',
         'variables' => ['name', 'amount', 'referrals_url', 'invoices_url'],

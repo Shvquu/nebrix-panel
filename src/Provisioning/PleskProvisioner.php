@@ -25,7 +25,7 @@ use Nebrix\Service\ServiceRepository;
  * live webhosting service per Plesk server only, so terminating one service
  * can never delete another service's subscription.
  */
-final class PleskProvisioner implements Provisioner, OrderPrecheck
+final class PleskProvisioner implements Provisioner, OrderPrecheck, PackageChangeable
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -245,5 +245,27 @@ final class PleskProvisioner implements Provisioner, OrderPrecheck
         $integration = $this->integrations->get($service->integrationId);
 
         return [$integration, $this->integrations->plesk($integration)];
+    }
+
+    public function packageKeys(Service $service): array
+    {
+        return ['plan'];
+    }
+
+    public function packageChangeBlocker(Service $service, array $newConfig): ?string
+    {
+        if ((int) ($service->remote['webspace_id'] ?? 0) < 1) {
+            return 'The subscription has not been created yet.';
+        }
+
+        return trim((string) ($newConfig['plan'] ?? '')) === '' ? 'The new product has no Plesk service plan.' : null;
+    }
+
+    public function changePackage(Service $service, array $newConfig): ?string
+    {
+        [, $client] = $this->client($service);
+        $client->switchPlan($this->webspaceId($service), trim((string) ($newConfig['plan'] ?? '')));
+
+        return null;
     }
 }

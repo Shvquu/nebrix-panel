@@ -8,6 +8,7 @@
 {% if service.status == 'suspended' %}<div class="alert alert-danger">{{ 'This service is suspended.'|t }}{% if renewal %} <a href="/invoices/{{ renewal.id }}">{{ 'Pay the open invoice to reactivate it.'|t }}</a>{% endif %}</div>{% endif %}
 {% if service.attributes.cancel_at %}<div class="alert alert-info">{{ 'This service has been cancelled and ends on'|t }} <strong>{{ service.attributes.cancel_at|d }}</strong>.
     {% if can_withdraw_cancellation %}<form method="post" action="/services/{{ service.id }}/cancellation/withdraw" class="d-inline" data-confirm="{{ 'Take back the cancellation? The service will be renewed as usual.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Take back cancellation'|t }}</button></form>{% endif %}</div>{% endif %}
+{% if package_change.open %}<div class="alert alert-info">{{ 'A package change to :package is in progress.'|t({package: package_change.open.to_name}) }} <a href="/services/{{ service.id }}/package">{{ 'Details'|t }}</a></div>{% endif %}
 {% if renewal and service.status == 'active' %}<div class="alert alert-warning">{{ 'A renewal invoice is open.'|t }} <a href="/invoices/{{ renewal.id }}">{{ 'Pay now'|t }} ({{ renewal.total|money(renewal.currency) }})</a></div>{% endif %}
 
 <div class="grid grid-2">
@@ -37,6 +38,7 @@
                 <p class="muted">{{ 'No remote actions are available for this service.'|t }}</p>
             {% endif %}
             {% if console %}<p class="mt-2"><a class="btn btn-outline" href="/services/{{ service.id }}/console">{{ 'Open console'|t }}</a></p>{% endif %}
+            {% if package_change.available %}<p class="mt-2"><a class="btn btn-outline" href="/services/{{ service.id }}/package">{{ 'Upgrade or downgrade'|t }}</a></p>{% endif %}
             {% if has_credentials %}
                 <p class="mt-2"><a class="btn btn-primary" href="/services/{{ service.id }}/credentials">{{ 'Show access data'|t }}</a></p>
             {% endif %}

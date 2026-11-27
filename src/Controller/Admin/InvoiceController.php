@@ -31,7 +31,7 @@ final class InvoiceController extends Controller
     {
         $filters = [
             'status' => in_array($request->string('status'), ['unpaid', 'paid', 'cancelled', 'refunded'], true) ? $request->string('status') : '',
-            'type' => in_array($request->string('type'), ['order', 'renewal', 'credit'], true) ? $request->string('type') : '',
+            'type' => in_array($request->string('type'), ['order', 'renewal', 'upgrade', 'credit'], true) ? $request->string('type') : '',
             'search' => mb_substr($request->string('search'), 0, 100),
         ];
         $page = $this->page($request);

@@ -59,6 +59,27 @@
             {% include 'partials/service_actions.twig' with {actions: remote_actions, url: '/admin/services/' ~ service.id ~ '/remote'} only %}
         </div></div>
         {% endif %}
+        {% if package_targets|length > 0 or package_history|length > 0 %}
+        <div class="card"><div class="card-header"><h2>{{ 'Package'|t }}</h2></div>
+            {% if package_open %}<div class="card-body"><div class="alert alert-info">{{ 'Open change to :package'|t({package: package_open.to_name}) }} – {{ package_open.status|humanize|t }}{% if package_open.effective_at %} ({{ package_open.effective_at|d }}){% endif %}
+                {% if can('services.manage') and package_open.status in ['pending_payment', 'scheduled'] %}<form method="post" action="/admin/services/{{ service.id }}/package/withdraw" class="inline" data-confirm="{{ 'Withdraw the package change?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Withdraw'|t }}</button></form>{% endif %}</div></div>
+            {% elseif package_targets|length > 0 %}
+            <form method="post" action="/admin/services/{{ service.id }}/package" class="card-body" data-confirm="{{ 'Change the package of this service?'|t }}">
+                {{ csrf_field() }}
+                <div class="form-row"><label for="f-product_id">{{ 'New package'|t }}</label>
+                    <select id="f-product_id" name="product_id">{% for t in package_targets %}<option value="{{ t.product.id }}"{% if t.blocker %} disabled{% endif %}>{{ t.product.name }} – {{ t.recurring|money(service.currency) }} {{ 'net'|t }}{% if t.direction == 'upgrade' %} ({{ 'upgrade, prorated'|t }} {{ t.charge|money(service.currency) }}){% else %} ({{ 'downgrade'|t }}){% endif %}{% if t.blocker %} – {{ t.blocker|t }}{% endif %}</option>{% endfor %}</select>
+                </div>
+                <div class="form-row"><label class="checkbox"><input type="radio" name="mode" value="invoice" checked> <span>{{ 'Like a customer: upgrades are invoiced prorated, downgrades take effect at the end of the paid period'|t }}</span></label>
+                {% if can('invoices.manage') %}<label class="checkbox"><input type="radio" name="mode" value="free"> <span>{{ 'Now, without invoice (the new price applies from the next renewal)'|t }}</span></label>{% endif %}</div>
+                {% if not automated %}<p class="small muted">{{ 'This service is not managed by an integration: change the resources on the server yourself.'|t }}</p>{% endif %}
+                <button class="btn btn-primary" type="submit">{{ 'Change package'|t }}</button>
+            </form>
+            {% endif %}
+            {% if package_history|length > 0 %}<div class="table-wrap"><table class="table"><tbody>
+                {% for h in package_history %}<tr><td class="small">{{ h.created_at|dt }}</td><td>{{ h.from_name ?? '–' }} → {{ h.to_name }}</td><td><span class="badge {{ h.status|status_class }}">{{ h.status|humanize|t }}</span>{% if h.error %}<div class="small muted">{{ h.error|slice(0, 200) }}</div>{% endif %}</td><td>{% if h.invoice_id %}<a class="mono" href="/admin/invoices/{{ h.invoice_id }}">{{ h.invoice_number }}</a>{% endif %}{% if h.status == 'failed' and can('services.manage') %}<form method="post" action="/admin/services/{{ service.id }}/package/{{ h.id }}/retry" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Retry'|t }}</button></form>{% endif %}</td></tr>{% endfor %}
+            </tbody></table></div>{% endif %}
+        </div>
+        {% endif %}
         <div class="card"><div class="card-header"><h2>{{ 'Jobs'|t }}</h2></div><div class="table-wrap"><table class="table"><tbody>
             {% for j in jobs %}<tr><td class="mono small">{{ j.type }}</td><td><span class="badge {{ j.status|status_class }}">{{ j.status }}</span></td><td>{{ j.attempts }}/{{ j.max_attempts }}</td><td class="small">{{ j.last_error|default('')|slice(0, 200) }}</td></tr>{% else %}<tr><td class="empty">{{ 'No jobs.'|t }}</td></tr>{% endfor %}
         </tbody></table></div></div>

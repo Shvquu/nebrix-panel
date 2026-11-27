@@ -52,6 +52,13 @@ final class OpenApi
                 'properties' => ['end_date' => ['type' => 'string', 'format' => 'date', 'description' => 'Optional later end date; earlier dates are moved to the end of the paid term.'], 'reason' => ['type' => 'string', 'maxLength' => 5000]],
             ]],
             ['POST', '/services/{id}/cancel/withdraw', ApiScope::SERVICES_MANAGE, 'Take back a scheduled cancellation', 'Service'],
+            ['GET', '/services/{id}/package', ApiScope::SERVICES_READ, 'Packages the service can switch to (upgrade/downgrade) with prices and the open change', 'PackageOptions'],
+            ['POST', '/services/{id}/package', ApiScope::SERVICES_MANAGE, 'Upgrade (creates the prorated invoice; the package changes when it is paid) or schedule a downgrade for the end of the paid period', 'PackageChange', [
+                'type' => 'object',
+                'required' => ['product_id'],
+                'properties' => ['product_id' => ['type' => 'integer', 'description' => 'One of the packages from GET /services/{id}/package.']],
+            ]],
+            ['POST', '/services/{id}/package/withdraw', ApiScope::SERVICES_MANAGE, 'Withdraw an unpaid upgrade or a scheduled downgrade', 'Withdrawn'],
             ['GET', '/invoices', ApiScope::INVOICES_READ, 'Your invoices', 'InvoiceList', [], [...$list, 'status', 'type']],
             ['GET', '/invoices/{id}', ApiScope::INVOICES_READ, 'One of your invoices with items and payment methods', 'Invoice'],
             ['GET', '/invoices/{id}/pdf', ApiScope::INVOICES_READ, 'Invoice as PDF (archived document)', 'Binary'],
@@ -176,7 +183,7 @@ final class OpenApi
         if ($method !== 'POST') {
             return '200';
         }
-        if (in_array($path, ['/orders', '/tickets', '/services/{id}/cancel'], true) || str_ends_with($path, '/replies')) {
+        if (in_array($path, ['/orders', '/tickets', '/services/{id}/cancel'], true) || $path === '/services/{id}/package' || str_ends_with($path, '/replies')) {
             return '201';
         }
 
@@ -265,6 +272,19 @@ final class OpenApi
                 'requires_confirmation' => ['type' => 'boolean'], 'confirmation_text' => $nullableStr, 'fields' => ['type' => 'array', 'items' => ['type' => 'object']],
             ]]]]],
             'ActionResult' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => ['message' => $str, 'redirect_url' => $nullableStr, 'service' => ['$ref' => '#/components/schemas/ServiceData']]]]],
+            'PackageOptions' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => [
+                'blocker' => $nullableStr,
+                'open_change' => ['type' => ['object', 'null']],
+                'packages' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'product_id' => $int, 'name' => $str, 'direction' => ['type' => 'string', 'enum' => ['upgrade', 'downgrade']],
+                    'recurring_net' => $int, 'recurring_gross' => $int, 'charge_net' => $int, 'charge_gross' => $int,
+                    'effective_at' => $nullableStr, 'available' => ['type' => 'boolean'], 'reason' => $nullableStr,
+                ]]],
+            ]]]],
+            'PackageChange' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => [
+                'change_id' => $int, 'status' => ['type' => 'string', 'enum' => ['pending_payment', 'scheduled', 'queued']], 'invoice_id' => ['type' => ['integer', 'null']],
+            ]]]],
+            'Withdrawn' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => ['withdrawn' => ['type' => 'boolean']]]]],
             'CancellationResult' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => [
                 'reference' => $str, 'received_at' => $date, 'ends_at' => $date, 'service' => ['$ref' => '#/components/schemas/ServiceData'],
             ]]]],

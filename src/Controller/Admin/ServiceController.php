@@ -33,6 +33,8 @@ final class ServiceController extends Controller
         private readonly ServiceActionRunner $runner,
         private readonly ConsoleSessions $consoles,
         private readonly Config $config,
+        private readonly \Nebrix\Service\ServiceChangeService $changes,
+        private readonly \Nebrix\Repository\UserRepository $users,
     ) {
     }
 
@@ -88,7 +90,68 @@ final class ServiceController extends Controller
             'automated' => $this->provisioners->supportsService($service),
             'remote_actions' => $remoteActions,
             'console' => $this->consoles->supports($service),
+            'package_history' => $this->changes->history($id),
+            'package_open' => $this->changes->openChange($id),
+            'package_targets' => $this->can($request, Permission::SERVICES_MANAGE) && ($owner = $this->users->find($service->userId)) !== null
+                ? $this->changes->adminTargets($service, $owner) : [],
         ]);
+    }
+
+    /**
+     * Staff change the package: like a customer (upgrade invoice / downgrade
+     * at the end of the period) or at once without invoice (also needs
+     * invoices.manage, because it changes the price).
+     */
+    public function changePackage(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        $service = $this->find($id);
+        $data = $this->validate($request, ['product_id' => 'required|int|min:1', 'mode' => 'required|in:invoice,free']);
+        $free = $data['mode'] === 'free';
+        if ($free) {
+            $this->authorize($request, Permission::INVOICES_MANAGE);
+        }
+        $owner = $this->users->find($service->userId) ?? throw HttpException::notFound();
+        try {
+            $result = $this->changes->request($service, $owner, (int) $data['product_id'], $this->user($request)->id, $request->clientIp(), true, $free);
+            $this->flash($request, 'success', match ($result['status']) {
+                \Nebrix\Service\ServiceChangeService::PENDING_PAYMENT => 'The upgrade invoice has been created; the package changes when it is paid.',
+                \Nebrix\Service\ServiceChangeService::SCHEDULED => 'The package change has been scheduled for the end of the paid period.',
+                default => 'The package is being changed.',
+            });
+        } catch (\Nebrix\Service\ServiceChangeException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
+        }
+
+        return $this->redirect('/admin/services/' . $id);
+    }
+
+    public function withdrawPackageChange(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        try {
+            $this->changes->withdraw($this->find($id), $this->user($request)->id, $request->clientIp());
+            $this->flash($request, 'success', 'The package change has been withdrawn.');
+        } catch (\Nebrix\Service\ServiceChangeException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
+        }
+
+        return $this->redirect('/admin/services/' . $id);
+    }
+
+    public function retryPackageChange(Request $request, int $id, int $change): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        $this->find($id);
+        $belongs = $this->db->fetchValue('SELECT `id` FROM `nx_service_changes` WHERE `id` = ? AND `service_id` = ?', [$change, $id]) !== null;
+        if (!$belongs) {
+            throw HttpException::notFound();
+        }
+        $this->flash($request, ...($this->changes->retry($change, $this->user($request)->id, $request->clientIp())
+            ? ['success', 'The package change is being retried.']
+            : ['warning', 'Only failed package changes can be retried.']));
+
+        return $this->redirect('/admin/services/' . $id);
     }
 
     public function console(Request $request, int $id): Response

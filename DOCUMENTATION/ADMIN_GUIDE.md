@@ -64,6 +64,17 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for. Every refund creates a correction document (credit note) for the refunded amount.
 * **Webhook events**: every received payment webhook with its processing status.
 
+## Upgrades and downgrades
+
+Give products that customers may switch between the same **upgrade group** (product form, e.g. `lxc-fsn`). Switching is possible between active products with the same group, category, integration, currency and billing cycle; the customer sees the other packages under *My services → service → Upgrade or downgrade* (API: `GET/POST /api/v1/services/{id}/package`).
+
+* **Upgrade** (higher renewal price): the difference is invoiced prorated for the rest of the paid period (invoice type `upgrade`). The package is changed through the queue as soon as the invoice is paid; from then on renewals cost the new price. Unpaid upgrade invoices are cancelled after 14 days. If the customer pays a renewal at the old price before the upgrade invoice, the difference for that extra period is invoiced afterwards.
+* **Downgrade**: takes effect at the end of the paid period (no refund for the current period). The next renewal is already invoiced at the new price; until that renewal exists the customer can withdraw the downgrade.
+* **Rules**: only active services without a scheduled cancellation and without an open renewal invoice; one change at a time; products reserved for a customer group are only offered to its members; stock of the target product is reserved and the old product's unit released. A permanent coupon of the original order keeps applying to the new price, as does the customer-group discount.
+* **What changes remotely** (only the package values, the installation stays): Proxmox CPU cores, memory, swap (LXC), network rate, backups and disk – disks can only grow, so packages with a smaller disk are not offered as downgrade; VMs apply CPU/memory after the next restart. Pterodactyl memory, swap, disk, CPU, IO, databases, ports, backups (after a restart). TeamSpeak slots. Nextcloud quota. Plesk service plan (switched by plan name). Dedicated servers and domains cannot change their package.
+* **Staff** (*Services → service → Package*, permission `services.manage`): switch to any product of the same kind – like a customer (invoice / end of period) or, with `invoices.manage`, at once without invoice. Services without integration only change their billing data; adjust the server yourself. Failed changes (e.g. the integration was unreachable after all retries) show the error and can be retried; a paid upgrade that cannot be applied must be refunded by hand.
+* Refunding an upgrade invoice does not undo the package change – switch back by hand if needed.
+
 ## Coupons
 
 *Sales → Coupons* (viewing: `products.view`, creating and editing: `products.manage`).

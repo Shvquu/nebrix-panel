@@ -219,6 +219,68 @@ final class ServiceController extends ApiController
         return $this->data(Resource::service($this->services->find($id) ?? $service));
     }
 
+    /** Packages the service can switch to (upgrade/downgrade) with prices. */
+    public function packageOptions(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        $options = $this->container->get(\Nebrix\Service\ServiceChangeService::class)->options($service, $this->user($request));
+        $open = $options['open'];
+
+        return $this->data([
+            'blocker' => $options['blocker'],
+            'open_change' => $open === null ? null : [
+                'id' => (int) $open['id'], 'status' => (string) $open['status'], 'direction' => (string) $open['direction'],
+                'product_id' => (int) $open['to_product_id'], 'invoice_id' => $open['invoice_id'] !== null ? (int) $open['invoice_id'] : null,
+                'effective_at' => $open['effective_at'] !== null ? Resource::date((string) $open['effective_at']) : null,
+            ],
+            'packages' => array_map(static fn (array $t): array => [
+                'product_id' => (int) $t['product']['id'],
+                'name' => (string) $t['product']['name'],
+                'direction' => (string) $t['direction'],
+                'recurring_net' => (int) $t['recurring'],
+                'recurring_gross' => (int) $t['recurring_gross'],
+                'charge_net' => (int) $t['charge'],
+                'charge_gross' => (int) $t['charge_gross'],
+                'effective_at' => $t['effective_at'] !== null ? Resource::date((string) $t['effective_at']) : null,
+                'available' => $t['blocker'] === null,
+                'reason' => $t['blocker'],
+            ], $options['targets']),
+        ]);
+    }
+
+    /** Requests an upgrade (returns the invoice to pay) or schedules a downgrade. */
+    public function changePackage(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        if (!$this->mayManage($request)) {
+            throw ApiException::forbidden('Your customer group may not manage services.');
+        }
+        $data = $this->validateInput($request, ['product_id' => 'required|int|min:1']);
+        $this->throttle('package-change:' . $this->user($request)->id, 10, 3600, 'Too many package changes. Please try again later.');
+        try {
+            $result = $this->container->get(\Nebrix\Service\ServiceChangeService::class)->request($service, $this->user($request), (int) $data['product_id'], $this->user($request)->id, $request->clientIp());
+        } catch (\Nebrix\Service\ServiceChangeException $exception) {
+            throw new ApiException(422, 'package_change_invalid', $exception->getMessage());
+        }
+
+        return Response::json(['data' => ['change_id' => $result['change_id'], 'status' => $result['status'], 'invoice_id' => $result['invoice_id']]], 201);
+    }
+
+    public function withdrawPackageChange(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        if (!$this->mayManage($request)) {
+            throw ApiException::forbidden('Your customer group may not manage services.');
+        }
+        try {
+            $this->container->get(\Nebrix\Service\ServiceChangeService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
+        } catch (\Nebrix\Service\ServiceChangeException $exception) {
+            throw ApiException::conflict($exception->getMessage());
+        }
+
+        return Response::json(['data' => ['withdrawn' => true]]);
+    }
+
     public function credentials(Request $request, int $id): Response
     {
         $service = $this->find($request, $id);

@@ -126,6 +126,10 @@ php bin/nebrix migrate
 
 Both features are off until you use them: coupons only apply when you create one, "Refer a friend" has to be switched on in Settings → General.
 
+### Updating to upgrades and downgrades
+
+Migration `2026_11_29_000015_add_service_changes` adds `nx_products.upgrade_group` and the table `nx_service_changes` (additive). Run `composer install --no-dev --optimize-autoloader` and `php bin/nebrix migrate` after pulling. Nothing changes until you give products an upgrade group (Admin → Products). For Proxmox the API token needs `VM.Config.CPU`, `VM.Config.Memory`, `VM.Config.Disk` and `VM.Config.Network` (already required for provisioning).
+
 ### Updating to the billing, contract and backup features
 
 This update adds five additive migrations (auto-payment and reminders, e-mail templates per language, cancellations, tax fields, invoice documents) and the Composer package `dompdf/dompdf` (installed by `composer install`; Docker: rebuild the image). No existing data is changed or removed; customised e-mail templates are assigned to the default language.

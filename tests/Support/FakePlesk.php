@@ -20,6 +20,9 @@ final class FakePlesk
     /** @var array<int, array{name: string, owner_id: int, status: int, plan: string, ftp_login: string, ftp_password: string, ip: string}> */
     public array $webspaces = [];
 
+    /** @var array<string, string> service plan name => GUID */
+    public array $plans = ['Web S' => 'f1a3e0c2-0000-4000-8000-00000000000a', 'Web M' => 'f1a3e0c2-0000-4000-8000-00000000000b'];
+
     /** @var list<string> raw request bodies */
     public array $requests = [];
 
@@ -104,6 +107,22 @@ final class FakePlesk
                     return $notFound;
                 }
                 unset($this->webspaces[$id]);
+
+                return '<result><status>ok</status><id>' . $id . '</id></result>';
+            case 'service-plan.get':
+                $name = (string) $request->filter->name;
+                if (!isset($this->plans[$name])) {
+                    return $notFound;
+                }
+
+                return '<result><status>ok</status><id>' . (array_search($name, array_keys($this->plans), true) + 1) . '</id><name>' . htmlspecialchars($name, ENT_XML1) . '</name><guid>' . $this->plans[$name] . '</guid></result>';
+            case 'webspace.switch-subscription':
+                $id = (int) $request->filter->id;
+                $plan = array_search((string) $request->{'plan-guid'}, $this->plans, true);
+                if (!isset($this->webspaces[$id]) || $plan === false) {
+                    return $notFound;
+                }
+                $this->webspaces[$id]['plan'] = (string) $plan;
 
                 return '<result><status>ok</status><id>' . $id . '</id></result>';
             case 'server.create_session':

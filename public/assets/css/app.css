@@ -392,6 +392,15 @@ a.p-stat:hover { border-color: var(--brand-primary); text-decoration: none; }
 .p-ref-link { font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
 .p-steps { margin: 0 0 .75rem; padding-left: 1.3rem; display: grid; gap: .45rem; }
 
+/* Package change */
+.p-packages { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+.p-package { padding: 1.25rem; display: flex; flex-direction: column; gap: .6rem; }
+.p-package.is-upgrade { border-top: 3px solid var(--brand-accent); }
+.p-package h3 { margin: .45rem 0 .2rem; font-size: 1.15rem; }
+.p-package-price { font-size: 1.3rem; font-weight: 800; }
+.p-package-features { margin: 0; padding-left: 1.1rem; color: var(--text-muted); font-size: .9rem; }
+.p-package-form { margin-top: auto; display: grid; gap: .6rem; }
+
 .p-chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1.25rem; }
 .p-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .9rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; font-size: .9rem; }
 .p-chip:hover { border-color: var(--brand-primary); text-decoration: none; }

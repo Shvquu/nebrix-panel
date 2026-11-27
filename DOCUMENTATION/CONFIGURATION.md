@@ -173,6 +173,7 @@ Coupon codes have no global settings; they are managed under Sales → Coupons (
 | `billing.terminate_suspended` | 60 min | Terminates long-suspended services – only if "terminate after" is > 0. |
 | `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached and whose declaration is still scheduled. |
 | `billing.cancel_stale_orders` | 60 min | Cancels unpaid orders/invoices of new orders after 14 days and releases stock. |
+| `services.package_changes` | 15 min | Starts downgrades whose date has come (queue job `service.change`) and cancels upgrade invoices that stayed unpaid for 14 days. |
 | `referrals.process` | 60 min | Qualifies referrals whose referred customer has paid with real money, credits rewards after the holding period, resets referrals whose payment was refunded, removes sign-up IP addresses after the login-history retention. Does nothing (except the IP clean-up) while the feature is off. |
 | `discord.sync_roles` | 30 min | Queues a role sync for Discord links whose roles changed (or were not checked for a day). |
 | `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |

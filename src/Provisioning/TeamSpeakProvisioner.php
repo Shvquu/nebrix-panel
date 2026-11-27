@@ -23,7 +23,7 @@ use Nebrix\Service\ServiceRepository;
  * it carries the name this service requested; anything else on the port is
  * treated as a conflict instead of being taken over.
  */
-final class TeamSpeakProvisioner implements Provisioner
+final class TeamSpeakProvisioner implements Provisioner, PackageChangeable
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -271,5 +271,25 @@ final class TeamSpeakProvisioner implements Provisioner
     public function prepareReinstall(Service $service, array $input): void
     {
         throw new IntegrationException('Reinstalling is not supported for this service type.');
+    }
+
+    public function packageKeys(Service $service): array
+    {
+        return ['slots'];
+    }
+
+    public function packageChangeBlocker(Service $service, array $newConfig): ?string
+    {
+        return isset($service->remote['sid']) ? null : 'The TeamSpeak server has not been created yet.';
+    }
+
+    public function changePackage(Service $service, array $newConfig): ?string
+    {
+        $slots = max(1, (int) ($newConfig['slots'] ?? 1));
+        $this->withServer($service, static function (ServerQueryClient $client, int $sid) use ($slots): void {
+            $client->editServer($sid, ['virtualserver_maxclients' => $slots]);
+        });
+
+        return null;
     }
 }
