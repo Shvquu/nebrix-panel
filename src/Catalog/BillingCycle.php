@@ -21,6 +21,12 @@ final class BillingCycle
         self::ANNUALLY => 12,
     ];
 
+    /** Months of one billing period (0 for one-time). */
+    public static function months(string $cycle): int
+    {
+        return self::MONTHS[$cycle] ?? 0;
+    }
+
     /**
      * @return array<string, string>
      */

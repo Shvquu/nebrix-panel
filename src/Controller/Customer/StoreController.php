@@ -27,8 +27,18 @@ final class StoreController extends Controller
     public function index(Request $request): Response
     {
         $user = $this->user($request);
+        $groups = ProductCategory::groups();
+        $group = $request->string('group');
+        $group = array_key_exists($group, $groups) ? $group : '';
+        $search = mb_substr(trim($request->string('search')), 0, 100);
         $grouped = [];
         foreach ($this->products->orderable($user->customerGroupId) as $product) {
+            if ($group !== '' && !in_array((string) $product['category'], $groups[$group]['categories'], true)) {
+                continue;
+            }
+            if ($search !== '' && mb_stripos($product['name'] . ' ' . $product['description'] . ' ' . $product['features'], $search) === false) {
+                continue;
+            }
             $product['quote'] = $this->orders->quote($product, $user->customerGroupId, $user);
             $product['feature_list'] = array_values(array_filter(array_map('trim', explode("\n", (string) $product['features']))));
             $grouped[(string) $product['category']][] = $product;
@@ -36,6 +46,9 @@ final class StoreController extends Controller
 
         return $this->render($request, 'customer/store/index.twig', [
             'grouped' => $grouped,
+            'groups' => $groups,
+            'group' => $group,
+            'search' => $search,
             'categories' => ProductCategory::labels(),
             'cycles' => BillingCycle::labels(),
         ]);

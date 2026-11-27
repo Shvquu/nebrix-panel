@@ -166,6 +166,33 @@ final class ProductCategory
     }
 
     /**
+     * Groups of the customer portal (order menu, dashboard tabs, store
+     * filter): key => label, icon and the categories they contain.
+     *
+     * @return array<string, array{label: string, icon: string, categories: list<string>}>
+     */
+    public static function groups(): array
+    {
+        return [
+            'server' => ['label' => 'Server', 'icon' => 'server', 'categories' => [self::VPS, self::LXC, self::DEDICATED]],
+            'teamspeak' => ['label' => 'TeamSpeak', 'icon' => 'headset', 'categories' => [self::TEAMSPEAK]],
+            'web' => ['label' => 'Web & domains', 'icon' => 'globe', 'categories' => [self::WEBHOSTING, self::DOMAIN]],
+            'more' => ['label' => 'More services', 'icon' => 'grid', 'categories' => [self::MINECRAFT, self::NEXTCLOUD]],
+        ];
+    }
+
+    public static function groupOf(string $category): string
+    {
+        foreach (self::groups() as $key => $group) {
+            if (in_array($category, $group['categories'], true)) {
+                return $key;
+            }
+        }
+
+        return 'more';
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function labels(): array
