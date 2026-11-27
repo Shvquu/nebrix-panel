@@ -146,6 +146,64 @@ echo '* * * * * www-data cd /var/www/nebrix && php bin/nebrix schedule:run >> /d
 
 8. Optional hardening: `php bin/nebrix db:triggers --install` creates triggers that reject changes to payment events, audit log and credit ledger (needs the `TRIGGER` privilege).
 
+## Option C – Plesk
+
+Intended set-up (not yet verified on a live Plesk server; menu names can differ slightly between Plesk versions): Plesk Obsidian with Apache + nginx (default), PHP 8.4 (or 8.3) from Plesk, MariaDB. Replace `panel.example.com` with your (sub)domain; the commands run as the subscription's system user over SSH.
+
+1. **Domain and TLS**: *Websites & Domains → Add Subdomain* (e.g. `panel.example.com`). Issue a Let's Encrypt certificate (*SSL/TLS Certificates*) and enable the permanent HTTP → HTTPS redirect (*Hosting & DNS → Hosting*).
+2. **PHP**: *Hosting & DNS → PHP*: PHP 8.4, handler *FPM application served by Apache* (so `.htaccess` applies). Under *Tools & Settings → PHP Settings → 8.4* check that `pdo_mysql`, `sodium`, `curl`, `mbstring`, `openssl`, `fileinfo`, `dom`, `intl` and `opcache` are enabled. `memory_limit` 256M is enough.
+3. **SSH access**: *Hosting & DNS → Hosting → SSH access*: `/bin/bash` (not the chrooted shell – it has no PHP). Use the Plesk PHP binary for every command: `/opt/plesk/php/8.4/bin/php`.
+4. **Code**: install with the Plesk *Git* extension (repository `https://github.com/Shvquu/nebrix-panel.git`, your release branch, deployment path e.g. `/nebrix`) or over SSH:
+
+```bash
+cd /var/www/vhosts/example.com/panel.example.com && git clone https://github.com/Shvquu/nebrix-panel.git nebrix
+```
+
+   Then set the **document root** to `nebrix/public` (*Hosting & DNS → Hosting → Document root*). Everything outside `public/` (`.env`, `src/`, `storage/`) is then not reachable from the web.
+5. **Dependencies** (Plesk ships Composer for its *PHP Composer* extension; you can also use that extension's UI):
+
+```bash
+cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bin/php /usr/lib/plesk-9.0/composer.phar install --no-dev --optimize-autoloader --classmap-authoritative
+```
+
+   (On AlmaLinux/RHEL-based Plesk servers the path is `/usr/lib64/plesk-9.0/composer.phar`.)
+6. **Database**: *Databases → Add Database* (MariaDB, utf8mb4) with its own user.
+7. **Configuration**:
+
+```bash
+cp .env.example .env && chmod 600 .env && /opt/plesk/php/8.4/bin/php bin/nebrix key:generate
+```
+
+   In `.env`: `APP_URL=https://panel.example.com`, `APP_KEY=` (the generated value – keep a copy outside the server), `DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`. Leave `TRUSTED_PROXIES` empty: Plesk's nginx passes the client address to Apache. If the login history shows `127.0.0.1` for every sign-in, set `TRUSTED_PROXIES=127.0.0.1`.
+8. **Schema and first administrator**:
+
+```bash
+/opt/plesk/php/8.4/bin/php bin/nebrix migrate && /opt/plesk/php/8.4/bin/php bin/nebrix user:create-admin --email=admin@example.com
+```
+
+9. **Scheduler and worker** (*Websites & Domains → Scheduled Tasks → Add Task → Run a command*, schedule `* * * * *`, "notify" off):
+
+```bash
+cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bin/php bin/nebrix schedule:run
+```
+
+```bash
+cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bin/php bin/nebrix queue:work --max-time=55
+```
+
+   The second task starts a worker every minute that stops after 55 seconds, so e-mails, provisioning and Discord roles are processed continuously without a process supervisor. Several workers at once are safe (jobs are reserved atomically). With root access you can instead run the worker as a systemd service (see Option B, `User=` = the subscription's system user, `ExecStart=/opt/plesk/php/8.4/bin/php bin/nebrix queue:work --max-time=3600`).
+10. **E-mail**: create a mailbox in Plesk (e.g. `billing@example.com`) and enter it under *Admin → Settings → E-mail* (host = your mail server name, port 587, STARTTLS). Send the test e-mail.
+11. **File permissions**: Plesk runs PHP as the subscription user, which owns the files – `storage/` and `public/uploads/` are writable without changes. `public/uploads/.htaccess` blocks scripts in the upload folder.
+12. **Console proxy** (only for Proxmox consoles, needs root): a systemd service for `bin/nebrix console:proxy --listen=127.0.0.1:8081` and under *Apache & nginx Settings → Additional nginx directives*:
+
+```nginx
+location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_read_timeout 4h; access_log off; }
+```
+
+**Updates**: pull the new version (Plesk *Git* → *Pull updates*, or `git pull`), then run Composer (step 5) and `bin/nebrix migrate`; workers pick up the new code within a minute. In the Git extension you can enter both commands as *additional deployment actions*.
+
+**Backups**: Plesk backups contain the files (including `storage/invoices` and `.env`) and the database. Keep a separate copy of `APP_KEY` – without it stored secrets cannot be decrypted.
+
 ## After the installation
 
 1. Sign in at `APP_URL/login` with the administrator account and enable two-factor authentication (Account → Security).

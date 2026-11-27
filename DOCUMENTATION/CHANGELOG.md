@@ -43,6 +43,10 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Invoice documents**: PDF invoices (dompdf), XRechnung 3.0 (UN/CEFACT CII) for business customers, attachments in order/renewal e-mails, unchangeable archive with SHA-256 checks, cancellation and correction documents for cancelled invoices and refunds (prefix `RK-`), downloads for customers, staff and the API.
 - **Customer backups**: Proxmox (vzdump to a backup storage, restore through the provisioning queue, deletion, cleanup on termination) and Pterodactyl (create, restore, download, delete) with per-product limits and strict ownership checks.
 
+### Added (Plesk)
+- Installation guide for Plesk (INSTALLATION.md, option C): document root, PHP handler, Composer, scheduled tasks for scheduler and worker, e-mail, console proxy, updates and backups.
+- `public/uploads/.htaccess` blocks scripts, HTML and SVG in the upload folder on Apache hosts without the Docker configuration.
+
 ### Added (customer portal and Discord)
 - Redesigned customer portal in the Nebrix colours (purple, blue, cyan; dark and light mode): grouped sidebar with icons and order menu by product group, product search in the top bar, profile card with customer number and credit, services in tabs by product group with order buttons, key figures (support PIN, products, monthly costs incl. VAT), Discord card; store filter by group and category.
 - **Discord account link** (OAuth2) with optional server join and automatic roles for linked customers and customers with an active service (queue job, periodic re-sync, only panel-granted roles are removed); unlink by customer or staff; admin settings and status on the customer page.

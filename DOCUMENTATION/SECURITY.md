@@ -56,7 +56,7 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * **Open redirects**: redirect targets from the session or headers are reduced to same-origin paths (`RedirectGuard`) (M-03). Response headers reject CR/LF.
 * **Client IP**: `X-Forwarded-*` headers are only honoured from addresses listed in `TRUSTED_PROXIES` (H-10).
 * **Input validation**: central `Validator` (types, lengths, enumerations, formats); only declared fields are returned (mass assignment). Product/integration configuration values that end up in remote API calls are restricted by regular expressions.
-* **File uploads** (logo/favicon): content-based type detection (finfo + image header), PNG/JPEG/WebP/ICO only (no SVG), max 1 MB and 4096 px, random file names, stored under `public/uploads` where the Apache configuration disables PHP and denies script/HTML/SVG files.
+* **File uploads** (logo/favicon): content-based type detection (finfo + image header), PNG/JPEG/WebP/ICO only (no SVG), max 1 MB and 4096 px, random file names, stored under `public/uploads` where the Apache configuration of the Docker image – and `public/uploads/.htaccess` on other Apache hosts such as Plesk – denies script/HTML/SVG files.
 * **Errors**: generic error pages with a reference ID; details only in the log. Debug output requires both `APP_ENV=local` and `APP_DEBUG=true` (H-09). PHP warnings become exceptions (nothing fails silently); deprecations are logged.
 * **Path traversal**: no user-controlled file paths; uploaded asset deletion accepts only the generated file name pattern.
 

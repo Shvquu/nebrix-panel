@@ -21,3 +21,4 @@ public/uploads/*
 .claude
 phpstan.neon.dist
 phpunit.xml.dist
+!public/uploads/.htaccess

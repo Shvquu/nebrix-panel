@@ -1,0 +1,7 @@
+# Uploaded branding files (logo, favicon) are images only. Never execute or
+# serve scripts, HTML or SVG from here – also on hosts without the Docker
+# Apache configuration (e.g. Plesk).
+Options -Indexes -ExecCGI
+<FilesMatch "\.(php|phtml|phar|pl|py|cgi|sh|html?|svg|svgz|js|xml)$">
+    Require all denied
+</FilesMatch>
