@@ -38,6 +38,7 @@ class OrderService
         private readonly OrderPrechecks $prechecks,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
         private readonly \Nebrix\View\Translator $translator,
+        private readonly \Nebrix\Billing\Coupons\CouponService $coupons,
     ) {
     }
 
@@ -48,7 +49,7 @@ class OrderService
      * @throws ValidationException
      * @throws OrderException
      */
-    public function place(User $user, int $productId, array $input, string $ip): array
+    public function place(User $user, int $productId, array $input, string $ip, ?string $couponCode = null): array
     {
         $product = $this->products->find($productId);
         if ($product === null || !$product['is_active'] || !$product['is_visible']
@@ -74,20 +75,27 @@ class OrderService
         $discountBp = $group !== null ? (int) $group['discount_bp'] : 0;
         $price = (int) $product['price'];
         $setupFee = (int) $product['setup_fee'];
-        $discount = Money::discount($price, $discountBp);
-        $net = $price + $setupFee - $discount;
+        $groupDiscount = Money::discount($price, $discountBp);
         // Tax by customer: reverse charge, OSS rates, small business (TaxService).
         $taxRate = $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']);
-        $tax = Money::tax($net, $taxRate);
+        $couponCode = $couponCode !== null && trim($couponCode) !== '' ? $couponCode : null;
 
-        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $discount, $net, $tax, $taxRate, $ip): array {
+        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $groupDiscount, $taxRate, $ip, $couponCode): array {
             if (!$this->products->reserveStock((int) $product['id'])) {
                 throw new OrderException('This product is sold out.');
             }
 
+            // Coupon: checked again with the coupon row locked (limits hold under concurrency).
+            $coupon = $couponCode !== null ? $this->coupons->lockAndEvaluate($couponCode, $product, $user, $price - $groupDiscount, $setupFee) : null;
+            $discount = $groupDiscount + ($coupon['first'] ?? 0);
+            $recurringDiscount = $groupDiscount + ($coupon['recurring'] ?? 0);
+            $net = $price + $setupFee - $discount;
+            $tax = Money::tax($net, $taxRate);
+
             // Stored on the order and the invoice: written in the customer's language.
             $cycleLabel = $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), BillingCycle::labels()[(string) $product['billing_cycle']] ?? (string) $product['billing_cycle']);
             $label = (string) ($options['hostname'] ?? $options['server_name'] ?? $options['domain'] ?? '');
+            $couponNote = $coupon !== null ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Coupon :code', ['code' => (string) $coupon['coupon']['code']]) : '';
             [$orderId] = $this->orders->create([
                 'number' => $this->invoices->nextNumber('order'),
                 'user_id' => $user->id,
@@ -98,17 +106,25 @@ class OrderService
                 'tax' => $tax,
                 'total' => $net + $tax,
                 'ip' => $ip,
+                'coupon_id' => $coupon !== null ? (int) $coupon['coupon']['id'] : null,
+                'coupon_code' => $coupon !== null ? (string) $coupon['coupon']['code'] : null,
+                'coupon_discount' => (int) ($coupon['first'] ?? 0),
             ], [[
                 'product_id' => (int) $product['id'],
-                'description' => trim(sprintf('%s (%s)%s', $product['name'], $cycleLabel, $label !== '' ? ' – ' . $label : '')),
+                'description' => mb_substr(trim(sprintf('%s (%s)%s', $product['name'], $cycleLabel, $label !== '' ? ' – ' . $label : '')) . $couponNote, 0, 255),
                 'quantity' => 1,
                 'unit_price' => $price,
                 'setup_fee' => $setupFee,
                 'discount' => $discount,
+                'recurring_discount' => $recurringDiscount,
                 'tax_rate_bp' => $taxRate,
                 'billing_cycle' => (string) $product['billing_cycle'],
                 'options' => $options,
             ]]);
+
+            if ($coupon !== null) {
+                $this->coupons->redeem((int) $coupon['coupon']['id'], $user->id, $orderId, (int) $coupon['first']);
+            }
 
             $invoiceId = $this->invoices->createForOrder($orderId, $user);
             $paid = false;
@@ -134,30 +150,48 @@ class OrderService
     }
 
     /**
-     * Price preview for the order page.
+     * Price preview for the order page, optionally with a coupon code.
      *
      * @param array<string, mixed> $product
-     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int}
+     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int, coupon_code: string|null, coupon_discount: int, coupon_recurring: int, coupon_duration: string|null, coupon_error: string|null}
      */
-    public function quote(array $product, ?int $customerGroupId, ?User $user = null): array
+    public function quote(array $product, ?int $customerGroupId, ?User $user = null, ?string $couponCode = null): array
     {
         $group = $customerGroupId !== null ? $this->groups->find($customerGroupId) : null;
         $price = (int) $product['price'];
-        $discount = Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
-        $net = $price + (int) $product['setup_fee'] - $discount;
+        $setupFee = (int) $product['setup_fee'];
+        $groupDiscount = Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
+
+        $coupon = null;
+        $couponError = null;
+        if ($user !== null && $couponCode !== null && trim($couponCode) !== '') {
+            try {
+                $coupon = $this->coupons->evaluate($couponCode, $product, $user, $price - $groupDiscount, $setupFee);
+            } catch (Coupons\CouponException $exception) {
+                $couponError = $exception->getMessage();
+            }
+        }
+
+        $discount = $groupDiscount + ($coupon['first'] ?? 0);
+        $net = $price + $setupFee - $discount;
         $rate = $user !== null ? $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']) : (int) $product['tax_rate_bp'];
         $tax = Money::tax($net, $rate);
-        $recurringNet = $price - $discount;
+        $recurringNet = $price - $groupDiscount - ($coupon['recurring'] ?? 0);
 
         return [
             'price' => $price,
-            'setup_fee' => (int) $product['setup_fee'],
+            'setup_fee' => $setupFee,
             'discount' => $discount,
             'net' => $net,
             'tax' => $tax,
             'total' => $net + $tax,
             'recurring' => $recurringNet + Money::tax($recurringNet, $rate),
             'tax_rate_bp' => $rate,
+            'coupon_code' => $coupon !== null ? (string) $coupon['coupon']['code'] : null,
+            'coupon_discount' => (int) ($coupon['first'] ?? 0),
+            'coupon_recurring' => (int) ($coupon['recurring'] ?? 0),
+            'coupon_duration' => $coupon !== null ? (string) $coupon['coupon']['duration'] : null,
+            'coupon_error' => $couponError,
         ];
     }
 

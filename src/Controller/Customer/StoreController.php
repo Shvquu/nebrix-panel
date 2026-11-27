@@ -6,6 +6,7 @@ namespace Nebrix\Controller\Customer;
 
 use Nebrix\Billing\OrderException;
 use Nebrix\Billing\OrderService;
+use Nebrix\Billing\Coupons\CouponService;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Http\Controller;
@@ -63,11 +64,17 @@ final class StoreController extends Controller
     {
         $user = $this->user($request);
         $product = $this->findOrderable($slug, $user->customerGroupId);
+        $coupon = mb_substr(trim($request->string('coupon')), 0, 40);
+        // Checking codes is limited, so that codes cannot be guessed by trying.
+        if ($coupon !== '' && !$this->limiter->attempt('coupon-check:' . $user->id, 20, 3600)) {
+            throw HttpException::tooManyRequests('Too many coupon checks. Please try again later.');
+        }
 
         return $this->render($request, 'customer/store/order.twig', [
             'product' => $product,
             'options' => ProductCategory::get((string) $product['category'])['options'],
-            'quote' => $this->orders->quote($product, $user->customerGroupId, $user),
+            'quote' => $this->orders->quote($product, $user->customerGroupId, $user, $coupon !== '' ? $coupon : null),
+            'coupon' => $coupon,
             'cycles' => BillingCycle::labels(),
             'require_legal' => true,
         ]);
@@ -93,14 +100,20 @@ final class StoreController extends Controller
         }
 
         try {
-            $result = $this->orders->place($user, (int) $product['id'], $options, $request->clientIp());
+            $coupon = mb_substr(trim($request->string('coupon')), 0, 40);
+            $result = $this->orders->place($user, (int) $product['id'], $options, $request->clientIp(), $coupon !== '' ? $coupon : null);
+        } catch (\Nebrix\Billing\Coupons\CouponException $exception) {
+            // Back to the order page: the customer can correct or remove the code.
+            $this->flash($request, 'error', $exception->getMessage());
+
+            return $this->redirect('/store/' . $product['slug']);
         } catch (OrderException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
 
             return $this->redirect('/store');
         }
 
-        $this->audit($request, 'order.placed', 'order', $result['order_id'], ['product' => (int) $product['id']]);
+        $this->audit($request, 'order.placed', 'order', $result['order_id'], ['product' => (int) $product['id'], 'coupon' => $coupon !== '' ? CouponService::normalize($coupon) : null]);
         $this->flash($request, 'success', $result['paid']
             ? 'Thank you for your order! Your service is being set up.'
             : 'Thank you for your order! Please pay the invoice to start the setup.');

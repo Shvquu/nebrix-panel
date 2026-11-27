@@ -230,6 +230,11 @@ return static function (Router $r): void {
             $r->post('/products', [Admin\ProductController::class, 'store']);
             $r->get('/products/{id:\d+}/edit', [Admin\ProductController::class, 'edit']);
             $r->post('/products/{id:\d+}', [Admin\ProductController::class, 'update']);
+            $r->get('/coupons', [Admin\CouponController::class, 'index']);
+            $r->get('/coupons/create', [Admin\CouponController::class, 'create']);
+            $r->post('/coupons', [Admin\CouponController::class, 'store']);
+            $r->get('/coupons/{id:\d+}', [Admin\CouponController::class, 'edit']);
+            $r->post('/coupons/{id:\d+}', [Admin\CouponController::class, 'update']);
         });
 
         // Staff, roles, logs

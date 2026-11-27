@@ -94,7 +94,8 @@ class ProvisioningService
                 'name' => mb_substr((string) ($options['hostname'] ?? $options['server_name'] ?? $options['domain'] ?? $product['name']), 0, 150),
                 'status' => Service::STATUS_PENDING,
                 'billing_cycle' => $cycle,
-                'recurring_amount' => BillingCycle::isRecurring($cycle) ? (int) $item['unit_price'] - (int) $item['discount'] : 0,
+                // Renewal price: without one-time coupon discounts (recurring_discount; older orders: discount).
+                'recurring_amount' => BillingCycle::isRecurring($cycle) ? max(0, (int) $item['unit_price'] - (int) ($item['recurring_discount'] ?? $item['discount'])) : 0,
                 'tax_rate_bp' => (int) $item['tax_rate_bp'],
                 'currency' => (string) $order['currency'],
                 'next_due_at' => BillingCycle::isRecurring($cycle) ? BillingCycle::advance($now, $cycle)->format('Y-m-d H:i:s') : null,

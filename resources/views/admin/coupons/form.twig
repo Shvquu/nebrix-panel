@@ -1,0 +1,50 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set c = coupon %}
+{% block title %}{{ c ? c.code : 'New coupon'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ c ? c.code : 'New coupon'|t }}</h1><p class="muted"><a href="/admin/coupons">&larr; {{ 'Coupons'|t }}</a>{% if c %} · {{ 'Used :n times'|t({n: c.uses}) }}{% endif %}</p></div></div>
+<form method="post" action="{{ c ? '/admin/coupons/' ~ c.id : '/admin/coupons' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Code and discount'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('code', 'Code', c.code|default(''), 'text', {required: true, maxlength: 32, help: '3–32 letters, digits, dashes or underscores; not case-sensitive for customers.'}) }}
+                {{ f.input('description', 'Internal note', c.description|default('')) }}
+                {{ f.select('type', 'Type', {'percent': 'Percentage', 'fixed': 'Fixed amount'}, c.type|default('percent')) }}
+                {{ f.input('amount', 'Value (percent or amount)', amount, 'text', {required: true, inputmode: 'decimal', help: 'e.g. 10 for 10 % or 5.00 for a fixed amount (net).'}) }}
+                {{ f.input('currency', 'Currency (fixed amounts)', c.currency|default(default_currency), 'text', {maxlength: 3}) }}
+                {{ f.select('duration', 'Applies to', {'once': 'First invoice only', 'forever': 'First invoice and every renewal'}, c.duration|default('once')) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Conditions'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('valid_from', 'Valid from', c.valid_from ? c.valid_from|slice(0, 10) : '', 'date') }}
+                {{ f.input('valid_until', 'Valid until', c.valid_until ? c.valid_until|slice(0, 10) : '', 'date') }}
+                {{ f.input('max_uses', 'Maximum uses in total (empty = unlimited)', c.max_uses|default(''), 'number', {min: 1}) }}
+                {{ f.input('max_uses_per_customer', 'Uses per customer', c.max_uses_per_customer|default(1), 'number', {min: 1}) }}
+                {{ f.checkbox('new_customers_only', 'Only for new customers (no previous order)', c ? c.new_customers_only : false) }}
+                {{ f.checkbox('is_active', 'Active', c ? c.is_active : true) }}
+                {{ f.multiselect('product_ids', 'Only for these products (none = all products)', products, selected_products) }}
+            </div>
+        </div>
+    </div>
+    {% if can('products.manage') %}<div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+
+{% if c %}
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Uses'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Order'|t }}</th><th class="text-right">{{ 'Discount'|t }}</th></tr></thead>
+        <tbody>
+        {% for r in redemptions %}
+            <tr><td>{{ r.created_at|dt }}</td><td>{% if can('customers.view') %}<a href="/admin/customers/{{ r.user_id }}">{{ r.email }}</a>{% else %}#{{ r.user_id }}{% endif %}</td><td><a href="/admin/orders/{{ r.order_id }}" class="mono">{{ r.order_number }}</a> <span class="badge {{ r.order_status|status_class }}">{{ r.order_status|t }}</span></td><td class="text-right">{{ r.discount|money(r.currency) }}</td></tr>
+        {% else %}<tr><td colspan="4" class="empty">{{ 'Not used yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endblock %}

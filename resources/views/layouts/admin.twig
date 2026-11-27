@@ -17,6 +17,7 @@
 
             <div class="nav-section">{{ 'Sales'|t }}</div>
             {% if can('products.view') %}<a href="/admin/products" class="{{ active('/admin/products') }}">{{ 'Products'|t }}</a>{% endif %}
+            {% if can('products.view') %}<a href="/admin/coupons" class="{{ active('/admin/coupons') }}">{{ 'Coupons'|t }}</a>{% endif %}
             {% if can('orders.view') %}<a href="/admin/orders" class="{{ active('/admin/orders') }}">{{ 'Orders'|t }}</a>{% endif %}
             {% if can('invoices.view') %}<a href="/admin/invoices" class="{{ active('/admin/invoices') }}">{{ 'Invoices'|t }}</a>{% endif %}
             {% if can('transactions.view') %}<a href="/admin/transactions" class="{{ active('/admin/transactions') }}">{{ 'Transactions'|t }}</a>{% endif %}

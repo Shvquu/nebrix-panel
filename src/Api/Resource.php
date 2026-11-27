@@ -158,6 +158,8 @@ final class Resource
             'currency' => (string) $order['currency'],
             'subtotal' => (int) $order['subtotal'],
             'discount' => (int) $order['discount'],
+            'coupon_code' => isset($order['coupon_code']) ? (string) $order['coupon_code'] : null,
+            'coupon_discount' => (int) ($order['coupon_discount'] ?? 0),
             'tax' => (int) $order['tax'],
             'total' => (int) $order['total'],
             'created_at' => self::date($order['created_at'] ?? null),

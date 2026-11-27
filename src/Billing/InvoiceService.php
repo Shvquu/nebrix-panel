@@ -46,6 +46,7 @@ class InvoiceService
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
         private readonly \Nebrix\Repository\ProductRepository $products,
         private readonly Translator $translator,
+        private readonly Coupons\CouponService $coupons,
     ) {
     }
 
@@ -322,6 +323,7 @@ class InvoiceService
             $this->createCorrection($invoice, (int) $invoice['total']);
             if ($invoice['order_id'] !== null && $invoice['type'] === InvoiceRepository::TYPE_ORDER) {
                 $this->orders->update((int) $invoice['order_id'], ['status' => OrderRepository::STATUS_CANCELLED, 'cancelled_at' => $this->clock->nowString()]);
+                $this->coupons->releaseForOrder((int) $invoice['order_id']);
                 foreach ($this->orders->items((int) $invoice['order_id']) as $item) {
                     if ($item['product_id'] !== null) {
                         $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $item['product_id']]);

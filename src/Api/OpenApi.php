@@ -33,6 +33,7 @@ final class OpenApi
                     'product_id' => ['type' => 'integer'],
                     'accept_terms' => ['type' => 'boolean', 'description' => 'Must be true: the customer accepts the terms.'],
                     'options' => ['type' => 'object', 'description' => 'Order options of the product (see order_options of the product), e.g. {"hostname": "web01"}.'],
+                    'coupon' => ['type' => 'string', 'description' => 'Optional coupon code; an invalid code answers 422 coupon_invalid.'],
                 ],
             ]],
             ['GET', '/services', ApiScope::SERVICES_READ, 'Your services', 'ServiceList', [], [...$list, 'status']],
@@ -218,7 +219,7 @@ final class OpenApi
             'cancel_at' => $date, 'options' => ['type' => 'object'], 'has_credentials' => ['type' => 'boolean'], 'created_at' => $date,
         ]];
         $order = ['type' => 'object', 'properties' => [
-            'id' => $int, 'number' => $str, 'user_id' => $int, 'status' => $str, 'currency' => $str, 'subtotal' => $int, 'discount' => $int, 'tax' => $int, 'total' => $int,
+            'id' => $int, 'number' => $str, 'user_id' => $int, 'status' => $str, 'currency' => $str, 'subtotal' => $int, 'discount' => $int, 'coupon_code' => ['type' => ['string', 'null']], 'coupon_discount' => $int, 'tax' => $int, 'total' => $int,
             'created_at' => $date, 'paid_at' => $date, 'cancelled_at' => $date, 'items' => ['type' => 'array', 'items' => ['type' => 'object']],
         ]];
         $invoice = ['type' => 'object', 'properties' => [

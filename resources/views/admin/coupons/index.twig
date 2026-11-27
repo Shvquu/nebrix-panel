@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Coupons'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Coupons'|t }}</h1><p class="muted">{{ 'Codes customers enter when ordering. A use counts when the order is placed and is released if the unpaid order is cancelled.'|t }}</p></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/coupons/create">{{ 'New coupon'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Code'|t }}</th><th>{{ 'Discount'|t }}</th><th>{{ 'Duration'|t }}</th><th>{{ 'Uses'|t }}</th><th>{{ 'Valid until'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for c in coupons %}
+            <tr>
+                <td><strong class="mono">{{ c.code }}</strong>{% if c.description %}<div class="small muted">{{ c.description }}</div>{% endif %}</td>
+                <td class="nowrap">{{ c.type == 'percent' ? c.value|percent : c.value|money(c.currency) }}</td>
+                <td>{{ c.duration == 'forever' ? 'First invoice and renewals'|t : 'First invoice'|t }}</td>
+                <td>{{ c.uses }}{% if c.max_uses %} / {{ c.max_uses }}{% endif %}</td>
+                <td>{{ c.valid_until ? c.valid_until|d : '–' }}</td>
+                <td>{% if not c.is_active %}<span class="badge badge-neutral">{{ 'inactive'|t }}</span>{% elseif c.valid_until and c.valid_until < 'now'|date('Y-m-d H:i:s') %}<span class="badge badge-warning">{{ 'expired'|t }}</span>{% else %}<span class="badge badge-success">{{ 'active'|t }}</span>{% endif %}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/coupons/{{ c.id }}">{{ can('products.manage') ? 'Edit'|t : 'View'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No coupons yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}
