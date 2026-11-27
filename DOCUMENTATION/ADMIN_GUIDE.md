@@ -64,6 +64,16 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for. Every refund creates a correction document (credit note) for the refunded amount.
 * **Webhook events**: every received payment webhook with its processing status.
 
+## Status page and maintenance announcements
+
+The public page **`/status`** (linked on the sign-in page and in the customer menu; JSON for monitoring tools: `/status.json`) shows the state of your systems, current incidents, scheduled maintenance and the last 14 days. Manage it under *Support → Status page* (permission `status.manage`; the built-in Administrator and Support roles have it).
+
+* **Components** are what customers care about (e.g. "Cloud servers Falkenstein", "Webhosting", "Customer area"), optionally grouped. The shown state is the worst of: the state you set, an incident or ongoing maintenance that affects the component, and – if you link an integration – a failed health check (shown as *degraded*). Hidden components are only visible here.
+* **Incidents**: title, impact (minor → degraded, major → partial outage, critical → major outage), affected components, a first message; then post updates (*investigating → identified → monitoring → resolved*). Resolved incidents move to the history.
+* **Maintenance**: start and planned end in the panel time zone; announced in advance on the page and on the customer dashboard (72 hours ahead). The scheduler starts it at the start time and completes it at the planned end (with an automatic timeline entry) – extend the end time if the work takes longer, or post *completed* earlier.
+* **E-mail notification** (optional, per message): customers with an active service on an integration of the affected components; if no affected component is linked to an integration, all customers with an active service. Mails are queued and sent in the customer's language.
+* Entries can be saved as drafts (not published) and deleted; every change is audit-logged.
+
 ## Upgrades and downgrades
 
 Give products that customers may switch between the same **upgrade group** (product form, e.g. `lxc-fsn`). Switching is possible between active products with the same group, category, integration, currency and billing cycle; the customer sees the other packages under *My services → service → Upgrade or downgrade* (API: `GET/POST /api/v1/services/{id}/package`).

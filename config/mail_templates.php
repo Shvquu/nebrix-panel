@@ -112,6 +112,18 @@ return [
         'subject' => 'Your service {{ service_name }} now runs with {{ package }}',
         'html' => '<p>Hello {{ name }},</p><p>the package of your service <strong>{{ service_name }}</strong> has been changed to <strong>{{ package }}</strong>. From the next renewal the price is {{ price }} (net) per period.</p><p>{{ note }}</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
     ],
+    'status_maintenance' => [
+        'name' => 'Status page: maintenance announcement',
+        'variables' => ['name', 'title', 'message', 'window', 'status', 'status_url'],
+        'subject' => 'Maintenance: {{ title }}',
+        'html' => '<p>Hello {{ name }},</p><p>we are announcing maintenance that may affect your services:</p><p><strong>{{ title }}</strong><br>{{ window }}<br>Status: {{ status }}</p><p>{{ message }}</p><p><a class="button" href="{{ status_url }}">Open status page</a></p>',
+    ],
+    'status_incident' => [
+        'name' => 'Status page: incident',
+        'variables' => ['name', 'title', 'message', 'window', 'status', 'status_url'],
+        'subject' => 'Incident: {{ title }}',
+        'html' => '<p>Hello {{ name }},</p><p>we are currently dealing with an incident that may affect your services:</p><p><strong>{{ title }}</strong><br>Status: {{ status }}</p><p>{{ message }}</p><p>We keep the status page up to date.</p><p><a class="button" href="{{ status_url }}">Open status page</a></p>',
+    ],
     'referral_reward' => [
         'name' => 'Refer a friend: reward credited',
         'variables' => ['name', 'amount', 'referrals_url', 'invoices_url'],

@@ -126,6 +126,10 @@ php bin/nebrix migrate
 
 Both features are off until you use them: coupons only apply when you create one, "Refer a friend" has to be switched on in Settings → General.
 
+### Updating to the status page
+
+Migration `2026_11_29_000016_create_status_page` adds the status page tables and grants the new permission `status.manage` to the built-in Administrator and Support roles (custom roles: Admin → Roles). The page `/status` is public right away; add components under *Status page* in the admin area.
+
 ### Updating to upgrades and downgrades
 
 Migration `2026_11_29_000015_add_service_changes` adds `nx_products.upgrade_group` and the table `nx_service_changes` (additive). Run `composer install --no-dev --optimize-autoloader` and `php bin/nebrix migrate` after pulling. Nothing changes until you give products an upgrade group (Admin → Products). For Proxmox the API token needs `VM.Config.CPU`, `VM.Config.Memory`, `VM.Config.Disk` and `VM.Config.Network` (already required for provisioning).

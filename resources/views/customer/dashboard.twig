@@ -4,6 +4,14 @@
 {% block content %}
 <h1 class="p-title">{{ 'Dashboard'|t }}</h1>
 
+{% for n in status_notices %}
+<div class="alert {{ n.type == 'maintenance' ? 'alert-info' : 'alert-warning' }} p-status-notice">
+    {{ i.icon(n.type == 'maintenance' ? 'refresh' : 'info') }}
+    <div><strong>{{ n.title }}</strong>
+        {% if n.type == 'maintenance' %}<span class="small">· {{ n.starts_at|dt }}{% if n.ends_at %} – {{ n.ends_at|dt }}{% endif %}</span>{% endif %}
+        <a href="/status">{{ 'Details on the status page'|t }}</a></div>
+</div>
+{% endfor %}
 {% if notice %}<div class="p-notice">{{ i.icon('info') }}<div class="message-body">{{ notice }}</div></div>{% endif %}
 {% if unpaid|length > 0 %}<div class="alert alert-warning">{{ 'You have :n unpaid invoice(s) totalling :total.'|t({n: unpaid|length, total: unpaid_total|money(currency)}) }} <a href="/invoices">{{ 'View invoices'|t }}</a></div>{% endif %}
 

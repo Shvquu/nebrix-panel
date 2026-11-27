@@ -1,0 +1,50 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Status page'|t }}{% endblock %}
+{% block content %}
+{% set component_labels = {operational: 'Operational', maintenance: 'Maintenance', degraded: 'Degraded performance', partial_outage: 'Partial outage', major_outage: 'Major outage'} %}
+{% set component_classes = {operational: 'badge-success', maintenance: 'badge-info', degraded: 'badge-warning', partial_outage: 'badge-warning', major_outage: 'badge-danger'} %}
+<div class="page-header">
+    <div><h1>{{ 'Status page'|t }}</h1><p class="muted">{{ 'Public page with the state of your systems, incidents and maintenance announcements:'|t }} <a href="/status" target="_blank" rel="noopener">/status</a></p></div>
+    <div class="actions">
+        <a class="btn btn-primary" href="/admin/status/incidents/create?type=incident">{{ 'Report incident'|t }}</a>
+        <a class="btn btn-outline" href="/admin/status/incidents/create?type=maintenance">{{ 'Announce maintenance'|t }}</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Incidents and maintenance'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Type'|t }}</th><th>{{ 'Title'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Start'|t }}</th><th>{{ 'Components'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for i in incidents %}
+            <tr>
+                <td><span class="badge badge-sentence {{ i.type == 'maintenance' ? 'badge-info' : 'badge-warning' }}">{{ (i.type == 'maintenance' ? 'Maintenance' : 'Incident')|t }}</span>{% if not i.is_published %} <span class="badge badge-neutral">{{ 'draft'|t }}</span>{% endif %}</td>
+                <td><a href="/admin/status/incidents/{{ i.id }}">{{ i.title }}</a></td>
+                <td>{{ i.status|humanize|t }}</td>
+                <td class="nowrap">{{ i.starts_at|dt }}</td>
+                <td class="small">{{ i.components|map(c => c.name)|join(', ') ?: '–' }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/status/incidents/{{ i.id }}">{{ 'Open'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No incidents or maintenance yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Components'|t }}</h2><a class="btn btn-sm btn-outline" href="/admin/status/components/create">{{ 'New component'|t }}</a></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Group'|t }}</th><th>{{ 'Shown as'|t }}</th><th>{{ 'Integration'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for c in components %}
+            <tr>
+                <td><strong>{{ c.name }}</strong>{% if not c.is_visible %} <span class="badge badge-neutral">{{ 'hidden'|t }}</span>{% endif %}{% if c.description %}<div class="small muted">{{ c.description }}</div>{% endif %}</td>
+                <td>{{ c.group_name ?? '–' }}</td>
+                <td><span class="badge badge-sentence {{ component_classes[c.effective_status] }}">{{ component_labels[c.effective_status]|t }}</span>{% if c.effective_status != c.status %}<div class="small muted">{{ 'Set:'|t }} {{ component_labels[c.status]|t }}</div>{% endif %}</td>
+                <td class="small">{{ c.integration_name ?? '–' }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/status/components/{{ c.id }}">{{ 'Edit'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No components yet. Add the parts of your offer customers care about, e.g. "Cloud servers Falkenstein", "Webhosting", "Customer area".'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

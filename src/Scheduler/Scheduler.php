@@ -58,6 +58,7 @@ class Scheduler
         private readonly \Nebrix\Discord\DiscordService $discord,
         private readonly \Nebrix\Referral\ReferralService $referrals,
         private readonly \Nebrix\Service\ServiceChangeService $serviceChanges,
+        private readonly \Nebrix\Status\StatusService $status,
     ) {
     }
 
@@ -78,6 +79,11 @@ class Scheduler
             'billing.cancel_stale_orders' => [60, $this->cancelStaleOrders(...)],
             'integrations.health' => [30, fn (): string => sprintf('%d integration(s) checked', count($this->integrations->checkAll()))],
             'discord.sync_roles' => [30, fn (): string => sprintf('%d Discord link(s) queued for a role sync', $this->discord->syncAll())],
+            'status.maintenance' => [5, function (): string {
+                $result = $this->status->advanceMaintenance();
+
+                return sprintf('%d maintenance window(s) started, %d completed', $result['started'], $result['completed']);
+            }],
             'services.package_changes' => [15, function (): string {
                 $result = $this->serviceChanges->process();
 

@@ -1,0 +1,59 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set maintenance = type == 'maintenance' %}
+{% set states = maintenance ? {scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Completed'} : {investigating: 'Investigating', identified: 'Identified', monitoring: 'Monitoring', resolved: 'Resolved'} %}
+{% block title %}{{ incident ? incident.title : (maintenance ? 'Announce maintenance'|t : 'Report incident'|t) }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ incident ? incident.title : (maintenance ? 'Announce maintenance'|t : 'Report incident'|t) }}</h1>
+    <p class="muted">{{ (maintenance ? 'Maintenance' : 'Incident')|t }}{% if incident %} · {{ incident.status|humanize|t }}{% if incident.notified_at %} · {{ 'Customers notified'|t }} {{ incident.notified_at|dt }}{% endif %}{% endif %} · <a href="/admin/status">&larr; {{ 'Status page'|t }}</a></p></div></div>
+
+{% set selected = incident ? incident.component_ids : [] %}
+<div class="grid grid-2">
+<form method="post" action="{{ incident ? '/admin/status/incidents/' ~ incident.id : '/admin/status/incidents' }}" class="card" novalidate>
+    {{ csrf_field() }}
+    <input type="hidden" name="type" value="{{ type }}">
+    <div class="card-header"><h2>{{ 'Details'|t }}</h2></div>
+    <div class="card-body">
+        {{ f.input('title', 'Title', incident.title ?? '', 'text', {required: true, maxlength: 150}) }}
+        {% if not maintenance %}{{ f.select('impact', 'Impact', {minor: 'Minor (degraded performance)', major: 'Major (partial outage)', critical: 'Critical (major outage)', none: 'None (information)'}, incident.impact ?? 'minor') }}{% endif %}
+        <div class="form-grid">
+            {{ f.input('starts_at', maintenance ? 'Start' : 'Start (empty = now)', starts_at, 'datetime-local', maintenance ? {required: true} : {}) }}
+            {{ f.input('ends_at', maintenance ? 'Planned end' : 'End (optional)', ends_at, 'datetime-local') }}
+        </div>
+        <p class="small muted">{{ 'Times in the panel time zone (Settings → General).'|t }}</p>
+        <div class="form-row"><label>{{ 'Affected components'|t }}</label>
+            {% for c in components %}<label class="checkbox"><input type="checkbox" name="component_ids[]" value="{{ c.id }}"{% if c.id in selected %} checked{% endif %}> <span>{{ c.name }}{% if c.group_name %} <span class="muted small">({{ c.group_name }})</span>{% endif %}</span></label>{% else %}<p class="small muted">{{ 'No components yet.'|t }}</p>{% endfor %}
+        </div>
+        {% if not incident %}
+            {{ f.select('status', 'Status', states, maintenance ? 'scheduled' : 'investigating') }}
+            {{ f.textarea('message', 'Message for customers', '', {required: true, rows: 4}) }}
+            {{ f.checkbox('notify', 'Notify affected customers by e-mail', false, {help: 'Customers with an active service on an integration of the affected components; without such a link all customers with an active service.'}) }}
+        {% endif %}
+        {{ f.checkbox('is_published', 'Published on the status page', incident ? incident.is_published : true) }}
+    </div>
+    <div class="card-footer form-actions"><button class="btn btn-primary" type="submit">{{ incident ? 'Save'|t : (maintenance ? 'Announce maintenance'|t : 'Post incident'|t) }}</button></div>
+</form>
+
+{% if incident %}
+<div>
+    <form method="post" action="/admin/status/incidents/{{ incident.id }}/updates" class="card" novalidate>
+        {{ csrf_field() }}
+        <div class="card-header"><h2>{{ 'Post an update'|t }}</h2></div>
+        <div class="card-body">
+            {{ f.select('status', 'New status', states, incident.status) }}
+            {{ f.textarea('message', 'Message', '', {required: true, rows: 3}) }}
+            {{ f.checkbox('notify', 'Notify affected customers by e-mail', false) }}
+        </div>
+        <div class="card-footer form-actions"><button class="btn btn-primary" type="submit">{{ 'Post update'|t }}</button></div>
+    </form>
+    <div class="card mt-2">
+        <div class="card-header"><h2>{{ 'Timeline'|t }}</h2></div>
+        <ol class="st-timeline card-body">
+            {% for u in incident.updates %}<li><strong>{{ (states[u.status] ?? u.status)|t }}</strong> <span class="small muted">{{ u.created_at|dt }}</span><p>{{ u.message|nl2br }}</p></li>{% endfor %}
+        </ol>
+    </div>
+    <form method="post" action="/admin/status/incidents/{{ incident.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this entry with its timeline?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Delete'|t }}</button></form>
+</div>
+{% endif %}
+</div>
+{% endblock %}

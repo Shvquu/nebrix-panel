@@ -10,6 +10,7 @@ use Nebrix\Controller\BrandingController;
 use Nebrix\Controller\ContractController;
 use Nebrix\Controller\Customer;
 use Nebrix\Controller\HealthController;
+use Nebrix\Controller\StatusController;
 use Nebrix\Controller\WebhookController;
 use Nebrix\Http\Router;
 
@@ -97,6 +98,10 @@ return static function (Router $r): void {
     $r->post('/cancel-contract', [ContractController::class, 'cancel']);
     $r->get('/withdraw-contract', [ContractController::class, 'withdrawForm']);
     $r->post('/withdraw-contract', [ContractController::class, 'withdraw']);
+
+    // Public status page (also for visitors who are not signed in).
+    $r->get('/status', [StatusController::class, 'show']);
+    $r->get('/status.json', [StatusController::class, 'json']);
 
     // Referral link: remembers the code for the registration.
     $r->get('/r/{code:[A-Za-z0-9]{1,20}}', [Account\ReferralController::class, 'visit']);
@@ -226,6 +231,22 @@ return static function (Router $r): void {
             $r->get('/referrals', [Admin\ReferralController::class, 'index']);
             $r->post('/referrals/{id:\d+}/approve', [Admin\ReferralController::class, 'approve']);
             $r->post('/referrals/{id:\d+}/reject', [Admin\ReferralController::class, 'reject']);
+        });
+
+        // Status page
+        $r->group(['middleware' => ['permission:status.manage']], static function (Router $r): void {
+            $r->get('/status', [Admin\StatusController::class, 'index']);
+            $r->get('/status/components/create', [Admin\StatusController::class, 'componentForm']);
+            $r->post('/status/components', [Admin\StatusController::class, 'saveComponent']);
+            $r->get('/status/components/{id:\d+}', [Admin\StatusController::class, 'editComponent']);
+            $r->post('/status/components/{id:\d+}', [Admin\StatusController::class, 'updateComponent']);
+            $r->post('/status/components/{id:\d+}/delete', [Admin\StatusController::class, 'deleteComponent']);
+            $r->get('/status/incidents/create', [Admin\StatusController::class, 'createIncident']);
+            $r->post('/status/incidents', [Admin\StatusController::class, 'storeIncident']);
+            $r->get('/status/incidents/{id:\d+}', [Admin\StatusController::class, 'showIncident']);
+            $r->post('/status/incidents/{id:\d+}', [Admin\StatusController::class, 'updateIncident']);
+            $r->post('/status/incidents/{id:\d+}/updates', [Admin\StatusController::class, 'postUpdate']);
+            $r->post('/status/incidents/{id:\d+}/delete', [Admin\StatusController::class, 'deleteIncident']);
         });
 
         $r->group(['middleware' => ['permission:customer_groups.manage']], static function (Router $r): void {

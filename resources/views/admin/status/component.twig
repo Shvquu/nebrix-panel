@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ component ? 'Edit component'|t : 'New component'|t }}{% endblock %}
+{% block content %}
+{% set c = component %}
+<div class="page-header"><div><h1>{{ component ? 'Edit component'|t : 'New component'|t }}</h1><p class="muted"><a href="/admin/status">&larr; {{ 'Status page'|t }}</a></p></div></div>
+<form method="post" action="{{ c ? '/admin/status/components/' ~ c.id : '/admin/status/components' }}" class="card" novalidate>
+    {{ csrf_field() }}
+    <div class="card-body form-grid">
+        {{ f.input('name', 'Name', c.name ?? '', 'text', {required: true, maxlength: 100}) }}
+        {{ f.input('group_name', 'Group (optional)', c.group_name ?? '', 'text', {maxlength: 60, help: 'Components with the same group are shown together, e.g. "Servers".'}) }}
+        {{ f.input('description', 'Description (optional)', c.description ?? '', 'text', {maxlength: 255}) }}
+        {{ f.select('status', 'State', {operational: 'Operational', degraded: 'Degraded performance', partial_outage: 'Partial outage', major_outage: 'Major outage', maintenance: 'Maintenance'}, c.status ?? 'operational', {help: 'Incidents and maintenance that affect the component change the shown state automatically.'}) }}
+        {{ f.select('integration_id', 'Linked integration (optional)', integrations, c.integration_id ?? '', {placeholder: '– none –', help: 'A failed health check shows the component as degraded; notifications reach customers with services on this integration.'}) }}
+        {{ f.input('sort_order', 'Sort order', c.sort_order ?? 0, 'number') }}
+    </div>
+    <div class="card-body">{{ f.checkbox('is_visible', 'Show on the status page', c ? c.is_visible : true) }}</div>
+    <div class="card-footer form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+</form>
+{% if c %}
+<form method="post" action="/admin/status/components/{{ c.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this component?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Delete component'|t }}</button></form>
+{% endif %}
+{% endblock %}

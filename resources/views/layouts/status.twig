@@ -1,0 +1,21 @@
+{% extends 'layouts/base.twig' %}
+{% block body_class %}status-body{% endblock %}
+{% block body %}
+<div class="st-page">
+    <header class="st-header">
+        <a class="st-brand" href="/status">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> <span>{{ brand.name }}</span>{% endif %}
+            <span class="st-brand-sub">{{ 'Status'|t }}</span>
+        </a>
+        <nav class="st-nav">
+            {% if auth_user %}<a class="btn btn-sm btn-outline" href="/dashboard">{{ 'Customer area'|t }}</a>{% else %}<a class="btn btn-sm btn-outline" href="/login">{{ 'Sign in'|t }}</a>{% endif %}
+        </nav>
+    </header>
+    <main class="st-main">{% block content %}{% endblock %}</main>
+    <footer class="st-footer">
+        {% if brand.imprint_url %}<a href="{{ brand.imprint_url }}" rel="noopener">{{ 'Imprint'|t }}</a>{% endif %}
+        {% if brand.privacy_url %}<a href="{{ brand.privacy_url }}" rel="noopener">{{ 'Privacy policy'|t }}</a>{% endif %}
+        <a href="/status.json">JSON</a>
+    </footer>
+</div>
+{% endblock %}

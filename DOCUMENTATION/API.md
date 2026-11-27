@@ -111,6 +111,7 @@ Token management itself, the graphical console (it needs a browser session), pro
 | `GET` | `/health` | none | Liveness/readiness check. `200 {"status":"ok","database":"ok"}` or `503 {"status":"degraded",…}`. Contains no version or configuration details. |
 | `POST` | `/webhooks/stripe` | Stripe signature (`Stripe-Signature`, signing secret) | Stripe events – see [PAYMENTS.md](PAYMENTS.md). |
 | `POST` | `/webhooks/paypal` | PayPal transmission headers verified via PayPal's API and the configured webhook ID | PayPal events – see [PAYMENTS.md](PAYMENTS.md). |
+| `GET` | `/status.json` | none | Public status (`Access-Control-Allow-Origin: *`): overall `status` (`operational`, `maintenance`, `degraded`, `partial_outage`, `major_outage`), visible `components` with their state, current `incidents` and `scheduled_maintenance` with their updates. Only published entries; no internal data. |
 | `GET` | `/branding.css` | none | Brand colours as CSS custom properties (cacheable). |
 | `GET` (WebSocket) | `CONSOLE_WS_URL` (default `/console/ws?token=…`), served by `console:proxy` | single-use console token + `Origin` = `APP_URL` | Relay to the hypervisor's VNC WebSocket (see INTEGRATIONS.md). |
 

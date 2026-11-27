@@ -76,6 +76,14 @@ return [
         'subject' => 'Ihr Dienst {{ service_name }} läuft jetzt mit {{ package }}',
         'html' => '<p>Hallo {{ name }},</p><p>das Paket Ihres Dienstes <strong>{{ service_name }}</strong> wurde auf <strong>{{ package }}</strong> umgestellt. Ab der nächsten Verlängerung beträgt der Preis {{ price }} (netto) pro Zeitraum.</p><p>{{ note }}</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
     ],
+    'status_maintenance' => [
+        'subject' => 'Wartungsarbeiten: {{ title }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir kündigen Wartungsarbeiten an, die Ihre Dienste betreffen können:</p><p><strong>{{ title }}</strong><br>{{ window }}<br>Status: {{ status }}</p><p>{{ message }}</p><p><a class="button" href="{{ status_url }}">Statusseite öffnen</a></p>',
+    ],
+    'status_incident' => [
+        'subject' => 'Störung: {{ title }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir beheben gerade eine Störung, die Ihre Dienste betreffen kann:</p><p><strong>{{ title }}</strong><br>Status: {{ status }}</p><p>{{ message }}</p><p>Die Statusseite halten wir aktuell.</p><p><a class="button" href="{{ status_url }}">Statusseite öffnen</a></p>',
+    ],
     'referral_reward' => [
         'subject' => 'Danke für Ihre Empfehlung – {{ amount }} Guthaben',
         'html' => '<p>Hallo {{ name }},</p><p>ein von Ihnen geworbener Kunde ist jetzt zahlender Kunde bei {{ company_name }}. Als Dankeschön haben wir Ihrem Kundenkonto <strong>{{ amount }}</strong> Guthaben gutgeschrieben. Es wird für Ihre nächsten Rechnungen verwendet.</p><p><a class="button" href="{{ referrals_url }}">Ihre Empfehlungen ansehen</a></p>',

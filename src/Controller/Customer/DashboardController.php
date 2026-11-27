@@ -35,6 +35,7 @@ final class DashboardController extends Controller
         private readonly SupportPin $supportPin,
         private readonly DiscordService $discord,
         private readonly RateLimiter $limiter,
+        private readonly \Nebrix\Status\StatusService $status,
     ) {
     }
 
@@ -71,6 +72,7 @@ final class DashboardController extends Controller
         }
 
         return $this->render($request, 'customer/dashboard.twig', [
+            'status_notices' => $this->status->banner(),
             'groups' => $groups,
             'by_group' => $byGroup,
             'orderable' => $orderable,

@@ -56,6 +56,9 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Support PIN** for identity checks by phone or chat (encrypted, verified by staff without seeing it, renewable).
 - Account closure now also removes the VIES holder name (previously kept).
 
+### Added (status page)
+- Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
+
 ### Added (upgrades and downgrades)
 - **Package changes** between products of the same upgrade group: upgrades are invoiced prorated for the rest of the paid period and applied through the queue after payment, downgrades take effect at the end of the paid period with the next renewal at the new price; withdraw, expiry of unpaid upgrade invoices, follow-up invoice when a renewal was paid in between, stock reservation, coupon and customer-group discounts kept.
 - Remote changes for Proxmox (CPU, memory, swap, network rate, disk growth), Pterodactyl (build limits), TeamSpeak (slots), Nextcloud (quota) and Plesk (service plan switch).

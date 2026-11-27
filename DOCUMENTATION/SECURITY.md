@@ -92,6 +92,9 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Support PIN: 9 random digits, stored encrypted, shown only to the customer, verified – never displayed – for staff (10 checks per customer and 10 minutes, each check audit-logged). It cannot be used to sign in (unlike the removed legacy PIN login). Customers can renew it.
 * Account closure deletes the Discord link, the support PIN and the VIES holder name together with the other personal data.
 
+### Status page
+* `/status` and `/status.json` are public by design and only show published entries and visible components – no integration names, staff or customer data. All texts are escaped (line breaks are the only formatting). Managing the page needs `status.manage`; e-mail notifications are queued per customer and only sent when staff tick the option.
+
 ### Upgrades and downgrades
 * Prices, proration and allowed target products are computed on the server only; the customer sends just the product ID, which must be one of the offered packages of their own service (other customers' services answer 404, customer groups without "manage services" 403). The service row is locked while a change is requested, so two parallel requests cannot create two changes. The remote change runs only after the upgrade invoice is paid (payment confirmed by the provider or recorded by staff) – never on the return from a payment page. Free changes by staff need `services.manage` and `invoices.manage`.
 

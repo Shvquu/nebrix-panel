@@ -1,0 +1,74 @@
+{% extends 'layouts/status.twig' %}
+{% block title %}{{ 'Status'|t }}{% endblock %}
+{% block content %}
+{% set state_labels = {operational: 'All systems operational', maintenance: 'Maintenance in progress', degraded: 'Some systems are degraded', partial_outage: 'Partial outage', major_outage: 'Major outage'} %}
+{% set component_labels = {operational: 'Operational', maintenance: 'Maintenance', degraded: 'Degraded performance', partial_outage: 'Partial outage', major_outage: 'Major outage'} %}
+{% set status_labels = {investigating: 'Investigating', identified: 'Identified', monitoring: 'Monitoring', resolved: 'Resolved', scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Completed'} %}
+
+<section class="st-hero st-{{ status.state }}">
+    <span class="st-hero-dot" aria-hidden="true"></span>
+    <h1>{{ state_labels[status.state]|t }}</h1>
+    <p>{{ 'As of'|t }} {{ checked_at|dt }}</p>
+</section>
+
+{% for incident in status.active %}
+<article class="st-incident st-incident-{{ incident.type }} st-impact-{{ incident.impact }}">
+    <header>
+        <span class="badge badge-sentence {{ incident.type == 'maintenance' ? 'badge-info' : 'badge-warning' }}">{{ (incident.type == 'maintenance' ? 'Maintenance' : 'Incident')|t }}</span>
+        <h2>{{ incident.title }}</h2>
+        {% if incident.components|length > 0 %}<p class="small muted">{{ 'Affects:'|t }} {{ incident.components|map(c => c.name)|join(', ') }}</p>{% endif %}
+        {% if incident.type == 'maintenance' %}<p class="small">{{ incident.starts_at|dt }}{% if incident.ends_at %} – {{ incident.ends_at|dt }}{% endif %}</p>{% endif %}
+    </header>
+    <ol class="st-timeline">
+        {% for u in incident.updates %}<li><strong>{{ (status_labels[u.status] ?? u.status)|t }}</strong> <span class="small muted">{{ u.created_at|dt }}</span><p>{{ u.message|nl2br }}</p></li>{% endfor %}
+    </ol>
+</article>
+{% endfor %}
+
+<section class="st-section">
+    {% for group, components in status.groups %}
+    <div class="st-group">
+        {% if group %}<h2 class="st-group-title">{{ group }}</h2>{% endif %}
+        <ul class="st-components">
+            {% for c in components %}
+            <li class="st-component">
+                <div><strong>{{ c.name }}</strong>{% if c.description %}<div class="small muted">{{ c.description }}</div>{% endif %}</div>
+                <span class="st-state st-state-{{ c.effective_status }}"><span class="st-dot" aria-hidden="true"></span>{{ component_labels[c.effective_status]|t }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <p class="muted">{{ 'No components have been set up yet.'|t }}</p>
+    {% endfor %}
+</section>
+
+{% if status.upcoming|length > 0 %}
+<section class="st-section">
+    <h2 class="st-section-title">{{ 'Scheduled maintenance'|t }}</h2>
+    {% for m in status.upcoming %}
+    <article class="st-incident st-incident-maintenance">
+        <header>
+            <h3>{{ m.title }}</h3>
+            <p class="small"><strong>{{ m.starts_at|dt }}{% if m.ends_at %} – {{ m.ends_at|dt }}{% endif %}</strong>{% if m.components|length > 0 %} · {{ m.components|map(c => c.name)|join(', ') }}{% endif %}</p>
+        </header>
+        {% if m.updates|length > 0 %}<p>{{ (m.updates|first).message|nl2br }}</p>{% endif %}
+    </article>
+    {% endfor %}
+</section>
+{% endif %}
+
+<section class="st-section">
+    <h2 class="st-section-title">{{ 'Past 14 days'|t }}</h2>
+    {% for h in status.history %}
+    <details class="st-past">
+        <summary><span class="badge badge-sentence badge-neutral">{{ (h.type == 'maintenance' ? 'Maintenance' : 'Incident')|t }}</span> <strong>{{ h.title }}</strong> <span class="small muted">{{ h.starts_at|d }}</span></summary>
+        <ol class="st-timeline">
+            {% for u in h.updates %}<li><strong>{{ (status_labels[u.status] ?? u.status)|t }}</strong> <span class="small muted">{{ u.created_at|dt }}</span><p>{{ u.message|nl2br }}</p></li>{% endfor %}
+        </ol>
+    </details>
+    {% else %}
+    <p class="muted">{{ 'No incidents in the past 14 days.'|t }}</p>
+    {% endfor %}
+</section>
+{% endblock %}

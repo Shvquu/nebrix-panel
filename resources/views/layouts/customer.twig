@@ -14,6 +14,7 @@
             <a href="/dashboard" class="{{ active('/dashboard') }}"><span class="p-nav-icon">{{ i.icon('dashboard') }}</span>{{ 'Dashboard'|t }}</a>
             <a href="/services" class="{{ active('/services') }}"><span class="p-nav-icon">{{ i.icon('services') }}</span>{{ 'My services'|t }}</a>
             {% if setting('system.tickets_enabled') %}<a href="/tickets" class="{{ active('/tickets') }}"><span class="p-nav-icon">{{ i.icon('support') }}</span>{{ 'Support tickets'|t }}</a>{% endif %}
+            <a href="/status"><span class="p-nav-icon">{{ i.icon('pulse') }}</span>{{ 'System status'|t }}</a>
 
             <div class="p-nav-section">{{ 'Profile'|t }}</div>
             <a href="/account/profile" class="{{ active('/account/profile') }}"><span class="p-nav-icon">{{ i.icon('user') }}</span>{{ 'Settings'|t }}</a>
