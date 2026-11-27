@@ -19,9 +19,24 @@ final class CustomerPanelTest extends FeatureTestCase
 
         $body = $this->get('/dashboard')->body();
 
-        self::assertStringContainsString('Welcome, Ada', $body);
+        self::assertStringContainsString('class="p-profile-name">' . $customer->displayName(), $body);
+        self::assertStringContainsString('C' . $customer->id, $body, 'Customer number in the profile card.');
         self::assertStringContainsString('Clan TS', $body);
         self::assertStringContainsString('Planned maintenance on Sunday.', $body);
+        self::assertSame(1, preg_match('/id="support-pin" class="mono">(\d{3}-\d{3}-\d{3})</', $body, $pin), 'Support PIN shown.');
+        self::assertStringContainsString('€3.00', $body, 'Monthly costs of the TeamSpeak server.');
+        preg_match('/id="support-pin" class="mono">(\d{3}-\d{3}-\d{3})</', $this->get('/dashboard')->body(), $again);
+        self::assertSame($pin[1], $again[1] ?? null, 'The PIN stays the same.');
+
+        // Store filter by group and search.
+        $this->app->container()->get(\Nebrix\Repository\ProductRepository::class)->create([
+            'category' => 'teamspeak', 'name' => 'TS Starter', 'slug' => 'ts-starter', 'price' => 300, 'setup_fee' => 0, 'currency' => 'EUR',
+            'billing_cycle' => 'monthly', 'tax_rate_bp' => 1900, 'is_visible' => 1, 'is_active' => 1, 'auto_provision' => 0, 'provisioning_config' => [],
+        ]);
+        self::assertStringContainsString('TS Starter', $this->get('/store', ['group' => 'teamspeak'])->body());
+        self::assertStringNotContainsString('TS Starter', $this->get('/store', ['group' => 'server'])->body());
+        self::assertStringContainsString('TS Starter', $this->get('/store', ['search' => 'starter'])->body());
+        self::assertStringNotContainsString('TS Starter', $this->get('/store', ['search' => 'minecraft'])->body());
     }
 
     public function testInterfaceLanguageFollowsTheUserPreference(): void
@@ -31,7 +46,7 @@ final class CustomerPanelTest extends FeatureTestCase
 
         $body = $this->get('/dashboard')->body();
 
-        self::assertStringContainsString('Willkommen, Ada', $body);
+        self::assertStringContainsString('Kundennummer', $body);
         self::assertStringContainsString('Meine Dienste', $body);
         self::assertStringContainsString('<html lang="de"', $body);
     }

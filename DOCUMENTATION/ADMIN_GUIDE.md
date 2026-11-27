@@ -81,6 +81,13 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * **Declarations of guests, extraordinary cancellations and withdrawals** appear in **Admin → Cancellations** for review (the identity of a guest cannot be verified automatically). Staff match the declaration to the customer (by account, e-mail or customer number), then *schedule* the end of the service (today or later), *complete* it after handling it manually (e.g. a withdrawal with refund via Transactions) or *reject* it with a note. Rejecting a scheduled declaration removes the end date – the service continues and is renewed. Cancellations scheduled by staff can only be taken back through staff; scheduling a second declaration for the same service replaces the first. Each step is audit-logged.
 * Withdrawals: when the customer asked for the service to start during the withdrawal period, a proportionate amount for the time used may be retained – decide this case by case with your legal advisor.
 
+## Customer portal, support PIN and Discord
+
+* The customer dashboard shows a profile card (customer number, credit, customer since), the customer's services grouped by **Server**, **TeamSpeak**, **Web & domains** and **More services** (with order buttons when a group is empty), the support PIN, the number of products, the monthly costs (incl. VAT) and the Discord card. The order menu and the store filter use the same groups; the search field in the top bar searches product names, descriptions and features. The maintenance notice is the dashboard text from Settings → Branding.
+* **Support PIN**: when a customer calls, ask for the PIN shown on their dashboard and check it on the customer page (*Support PIN → Check PIN*). Staff never see the PIN.
+* **Discord**: see [INTEGRATIONS.md](INTEGRATIONS.md#discord-account-link-and-roles) for the set-up. The customer page shows the linked account, server membership and the last role sync; staff can unlink it.
+* Colours and logo come from Settings → Branding (primary = purple, accent = cyan by default; the portal uses a gradient of both).
+
 ## Services
 
 * Filter by status and category; search by service name, customer e-mail or service ID.

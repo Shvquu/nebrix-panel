@@ -1,0 +1,35 @@
+{# Line icons (24×24, stroke = currentColor). Usage: {% import 'macros/icons.twig' as i %} {{ i.icon('server') }} #}
+{% macro icon(name, class = '') %}
+<svg class="icon {{ class }}" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{% if name == 'dashboard' %}<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+{% elseif name == 'services' %}<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".6"/>
+{% elseif name == 'support' %}<circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.6h.01"/>
+{% elseif name == 'user' %}<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
+{% elseif name == 'shield' %}<path d="M12 3l8 3v6c0 4.6-3.3 8.3-8 9-4.7-.7-8-4.4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>
+{% elseif name == 'wallet' %}<path d="M4 7a2 2 0 0 1 2-2h12v4"/><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 13.5h2"/>
+{% elseif name == 'invoice' %}<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6M9 16h3"/>
+{% elseif name == 'cart' %}<circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H6.2"/>
+{% elseif name == 'transactions' %}<path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 12l4 4-4 4"/><path d="M21 16H7"/>
+{% elseif name == 'code' %}<path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/><path d="M13.5 5l-3 14"/>
+{% elseif name == 'chat' %}<path d="M5 18l-1.6 3.2L8 19.6A9.6 9.6 0 0 0 12 20c5 0 9-3.4 9-7.6S17 4.8 12 4.8 3 8.2 3 12.4c0 2.2 1.1 4.2 2.9 5.6"/><circle cx="9" cy="12.5" r=".9"/><circle cx="15" cy="12.5" r=".9"/>
+{% elseif name == 'server' %}<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/>
+{% elseif name == 'headset' %}<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20a3 3 0 0 1-3 2h-2"/>
+{% elseif name == 'globe' %}<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/>
+{% elseif name == 'grid' %}<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>
+{% elseif name == 'search' %}<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+{% elseif name == 'menu' %}<path d="M4 7h16M4 12h16M4 17h16"/>
+{% elseif name == 'copy' %}<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+{% elseif name == 'refresh' %}<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M20 20v-4h-4"/>
+{% elseif name == 'logout' %}<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>
+{% elseif name == 'theme' %}<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>
+{% elseif name == 'key' %}<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2 2M14 9l2 2"/>
+{% elseif name == 'box' %}<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>
+{% elseif name == 'coins' %}<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v4c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M9 14v3c0 1.7 2.7 3 6 3s6-1.3 6-3v-4c0-1.6-2.4-2.9-5.5-3"/>
+{% elseif name == 'info' %}<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>
+{% elseif name == 'edit' %}<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>
+{% elseif name == 'link' %}<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>
+{% elseif name == 'arrow' %}<path d="M5 12h14M13 6l6 6-6 6"/>
+{% elseif name == 'admin' %}<path d="M12 3l8 4v5c0 4.4-3.4 8-8 9-4.6-1-8-4.6-8-9V7l8-4z"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 17a4 4 0 0 1 7 0"/>
+{% else %}<circle cx="12" cy="12" r="3"/>{% endif %}
+</svg>
+{% endmacro %}

@@ -38,12 +38,37 @@
     });
   });
 
-  // Mobile sidebar.
+  // Sidebar: slides in on small screens, collapses on large ones (portal).
   document.querySelectorAll('[data-sidebar-toggle]').forEach(function (button) {
     button.addEventListener('click', function () {
       var sidebar = document.querySelector('.sidebar');
-      if (sidebar) { sidebar.classList.toggle('is-open'); }
+      if (!sidebar) { return; }
+      if (window.innerWidth > 900 && sidebar.classList.contains('p-sidebar')) {
+        sidebar.classList.toggle('is-collapsed');
+      } else {
+        sidebar.classList.toggle('is-open');
+      }
     });
+  });
+
+  // Tabs: <div data-tabs><button data-tab="panel-id">…</button></div>
+  document.querySelectorAll('[data-tabs]').forEach(function (list) {
+    var tabs = list.querySelectorAll('[data-tab]');
+    var select = function (tab) {
+      tabs.forEach(function (other) {
+        var active = other === tab;
+        other.classList.toggle('is-active', active);
+        other.setAttribute('aria-selected', active ? 'true' : 'false');
+        var panel = document.getElementById(other.getAttribute('data-tab'));
+        if (panel) { panel.classList.toggle('hidden', !active); }
+      });
+    };
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () { select(tab); });
+    });
+    // Start with the first tab that has content.
+    var withContent = list.querySelector('[data-tab] .p-tab-count');
+    if (withContent) { select(withContent.closest('[data-tab]')); }
   });
 
   // Copy to clipboard: <button data-copy="#element-id">

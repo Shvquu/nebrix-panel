@@ -21,6 +21,7 @@ final class JobRegistry
             ProvisioningService::JOB_SUSPEND => SuspendServiceJob::class,
             InvoiceService::JOB_UNSUSPEND_SERVICE => UnsuspendServiceJob::class,
             ProvisioningService::JOB_TERMINATE => TerminateServiceJob::class,
+            \Nebrix\Discord\DiscordService::JOB_SYNC => \Nebrix\Discord\DiscordSyncJob::class,
         ];
     }
 }

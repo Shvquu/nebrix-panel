@@ -167,6 +167,10 @@ return static function (Router $r): void {
         $r->get('/account/api-tokens', [Account\ApiTokenController::class, 'index']);
         $r->post('/account/api-tokens', [Account\ApiTokenController::class, 'store']);
         $r->post('/account/api-tokens/{id:\d+}/revoke', [Account\ApiTokenController::class, 'revoke']);
+        $r->post('/account/support-pin', [Customer\DashboardController::class, 'regenerateSupportPin']);
+        $r->get('/account/discord/connect', [Account\DiscordController::class, 'connect']);
+        $r->get('/account/discord/callback', [Account\DiscordController::class, 'callback']);
+        $r->post('/account/discord/unlink', [Account\DiscordController::class, 'unlink']);
     });
 
     // -------------------------------------------------------- administration
@@ -207,6 +211,8 @@ return static function (Router $r): void {
             $r->post('/customers/{id:\d+}/two-factor/reset', [Admin\CustomerController::class, 'resetTwoFactor']);
             $r->post('/customers/{id:\d+}/sessions/revoke', [Admin\CustomerController::class, 'revokeSessions']);
             $r->post('/customers/{id:\d+}/close', [Admin\CustomerController::class, 'close']);
+            $r->post('/customers/{id:\d+}/support-pin', [Admin\CustomerController::class, 'verifySupportPin']);
+            $r->post('/customers/{id:\d+}/discord/unlink', [Admin\CustomerController::class, 'unlinkDiscord']);
         });
 
         $r->group(['middleware' => ['permission:customer_groups.manage']], static function (Router $r): void {

@@ -84,6 +84,7 @@ final class CustomerController extends Controller
 
         return $this->render($request, 'admin/customers/show.twig', [
             'customer' => $customer,
+            'discord' => $this->container->get(\Nebrix\Discord\DiscordService::class)->link($customer->id),
             'vat_status' => $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->vatIdStatus($customer),
             'group' => $customer->customerGroupId !== null ? $this->groups->find($customer->customerGroupId) : null,
             'services' => $this->db->fetchAll('SELECT s.*, p.`name` AS product_name FROM `nx_services` s LEFT JOIN `nx_products` p ON p.`id` = s.`product_id` WHERE s.`user_id` = ? ORDER BY s.`id` DESC', [$id]),
@@ -244,6 +245,36 @@ final class CustomerController extends Controller
         $this->authorize($request, Permission::CUSTOMERS_MANAGE);
         $count = $this->customers->revokeSessions($this->findCustomer($id), $this->user($request)->id, $request->clientIp());
         $this->flash($request, 'success', sprintf('%d session(s) signed out; all API tokens have been revoked.', $count));
+
+        return $this->redirect('/admin/customers/' . $id);
+    }
+
+    /**
+     * Staff check the support PIN a customer tells them; the PIN itself is
+     * never shown in the administration.
+     */
+    public function verifySupportPin(Request $request, int $id): Response
+    {
+        $customer = $this->findCustomer($id);
+        $data = $this->validate($request, ['pin' => 'required|string|max:20']);
+        $limiter = $this->container->get(\Nebrix\Security\RateLimiter::class);
+        if (!$limiter->attempt('support-pin-check:' . $id, 10, 600)) {
+            throw HttpException::tooManyRequests();
+        }
+        $valid = $this->container->get(\Nebrix\Customer\SupportPin::class)->verify($customer, (string) $data['pin']);
+        $this->audit($request, 'customer.support_pin_checked', 'user', $id, ['valid' => $valid]);
+        $this->flash($request, $valid ? 'success' : 'error', $valid ? 'The support PIN is correct.' : 'The support PIN is not correct.');
+
+        return $this->redirect('/admin/customers/' . $id);
+    }
+
+    public function unlinkDiscord(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::CUSTOMERS_MANAGE);
+        $customer = $this->findCustomer($id);
+        if ($this->container->get(\Nebrix\Discord\DiscordService::class)->unlink($customer->id, $this->user($request)->id, $request->clientIp())) {
+            $this->flash($request, 'success', 'The Discord account has been unlinked.');
+        }
 
         return $this->redirect('/admin/customers/' . $id);
     }

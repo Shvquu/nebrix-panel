@@ -109,6 +109,10 @@ php bin/nebrix migrate
 
 Migrations are forward-only; to roll back, restore the backup taken in step 2 and the previous code version.
 
+### Updating to the new customer portal
+
+Migration `2026_11_29_000013_add_portal_features` adds the support PIN column and the table `nx_discord_links` (additive). The customer area gets the new layout automatically; PINs are created when customers first open their dashboard. Discord stays off until it is configured (Settings → System → Discord).
+
 ### Updating to the billing, contract and backup features
 
 This update adds five additive migrations (auto-payment and reminders, e-mail templates per language, cancellations, tax fields, invoice documents) and the Composer package `dompdf/dompdf` (installed by `composer install`; Docker: rebuild the image). No existing data is changed or removed; customised e-mail templates are assigned to the default language.

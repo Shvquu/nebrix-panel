@@ -14,6 +14,7 @@ It is the modernized successor of the open-source **RED-Host Panel** by Björn S
 * **Invoices and taxes (EU)** – PDF invoices and XRechnung e-invoices with an unchangeable archive, cancellation/correction documents, reverse charge with VIES-verified VAT IDs, OSS rates, small-business switch (§ 19 UStG).
 * **Contracts** – cancellation button (§ 312k BGB) and withdrawal function with immediate receipt e-mails, automatic end of cancelled services; e-mails in the customer's language.
 * **Customer backups** – Proxmox (vzdump, restore, delete) and Pterodactyl (create, restore, download, delete) with per-product limits.
+* **Customer portal & Discord** – dashboard with services by product group, product search, support PIN and monthly costs; Discord account link with server join and automatic customer roles.
 * **REST API** – token-authenticated JSON API (`/api/v1`, OpenAPI 3.1) for customers (orders, services and actions, invoices and payment, tickets) and staff (customers, services, orders, invoices, tickets) with scoped, expiring tokens, rate limits and idempotency keys.
 
 ## Security highlights

@@ -1,31 +1,37 @@
 {% extends 'layouts/base.twig' %}
+{% import 'macros/icons.twig' as i %}
+
+{% block body_class %}portal{% endblock %}
 
 {% block body %}
 <div class="app">
-    <aside class="sidebar">
-        <a class="sidebar-brand" href="/dashboard">
-            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> {{ brand.name }}{% endif %}
+    <aside class="sidebar p-sidebar" id="portal-sidebar">
+        <a class="sidebar-brand p-brand" href="/dashboard">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> <span>{{ brand.name }}</span>{% endif %}
         </a>
-        <nav class="nav">
-            <div class="nav-section">{{ 'Overview'|t }}</div>
-            <a href="/dashboard" class="{{ active('/dashboard') }}">{{ 'Dashboard'|t }}</a>
-            <a href="/services" class="{{ active('/services') }}">{{ 'My services'|t }}</a>
-            <a href="/store" class="{{ active('/store') }}">{{ 'Order new service'|t }}</a>
-            <div class="nav-section">{{ 'Billing'|t }}</div>
-            <a href="/orders" class="{{ active('/orders') }}">{{ 'Orders'|t }}</a>
-            <a href="/invoices" class="{{ active('/invoices') }}">{{ 'Invoices'|t }}</a>
-            <a href="/transactions" class="{{ active('/transactions') }}">{{ 'Transactions'|t }}</a>
-            {% if setting('system.tickets_enabled') %}
-            <div class="nav-section">{{ 'Support'|t }}</div>
-            <a href="/tickets" class="{{ active('/tickets') }}">{{ 'Support tickets'|t }}</a>
-            {% endif %}
-            <div class="nav-section">{{ 'Account'|t }}</div>
-            <a href="/account/profile" class="{{ active('/account/profile') }}">{{ 'Profile'|t }}</a>
-            <a href="/account/security" class="{{ active('/account/security') }}">{{ 'Security'|t }}</a>
-            {% if setting('api.enabled') and (setting('api.customer_tokens') or can('admin.access')) %}<a href="/account/api-tokens" class="{{ active('/account/api-tokens') }}">{{ 'API tokens'|t }}</a>{% endif %}
+        <nav class="p-nav" aria-label="{{ 'Menu'|t }}">
+            <div class="p-nav-section">{{ 'Start'|t }}</div>
+            <a href="/dashboard" class="{{ active('/dashboard') }}"><span class="p-nav-icon">{{ i.icon('dashboard') }}</span>{{ 'Dashboard'|t }}</a>
+            <a href="/services" class="{{ active('/services') }}"><span class="p-nav-icon">{{ i.icon('services') }}</span>{{ 'My services'|t }}</a>
+            {% if setting('system.tickets_enabled') %}<a href="/tickets" class="{{ active('/tickets') }}"><span class="p-nav-icon">{{ i.icon('support') }}</span>{{ 'Support tickets'|t }}</a>{% endif %}
+
+            <div class="p-nav-section">{{ 'Profile'|t }}</div>
+            <a href="/account/profile" class="{{ active('/account/profile') }}"><span class="p-nav-icon">{{ i.icon('user') }}</span>{{ 'Settings'|t }}</a>
+            <a href="/account/security" class="{{ active('/account/security') }}"><span class="p-nav-icon">{{ i.icon('shield') }}</span>{{ 'Security'|t }}</a>
+            <a href="/invoices#top-up" class=""><span class="p-nav-icon">{{ i.icon('wallet') }}</span>{{ 'Top up credit'|t }}</a>
+            <a href="/invoices" class="{{ active('/invoices') }}"><span class="p-nav-icon">{{ i.icon('invoice') }}</span>{{ 'Invoices'|t }}</a>
+            <a href="/orders" class="{{ active('/orders') }}"><span class="p-nav-icon">{{ i.icon('cart') }}</span>{{ 'Orders'|t }}</a>
+            <a href="/transactions" class="{{ active('/transactions') }}"><span class="p-nav-icon">{{ i.icon('transactions') }}</span>{{ 'Transactions'|t }}</a>
+            {% if setting('api.enabled') and (setting('api.customer_tokens') or can('admin.access')) %}<a href="/account/api-tokens" class="{{ active('/account/api-tokens') }}"><span class="p-nav-icon">{{ i.icon('code') }}</span>{{ 'API interface'|t }}</a>{% endif %}
+
+            <div class="p-nav-section">{{ 'Order now'|t }}</div>
+            {% for key, group in portal_groups() %}
+                <a href="/store?group={{ key }}" class="{{ current_path == '/store' and app_query('group') == key ? 'is-active' : '' }}"><span class="p-nav-icon">{{ i.icon(group.icon) }}</span>{{ group.label|t }}</a>
+            {% endfor %}
+
             {% if can('admin.access') %}
-            <div class="nav-section">{{ 'Staff'|t }}</div>
-            <a href="/admin">{{ 'Administration'|t }}</a>
+            <div class="p-nav-section">{{ 'Staff'|t }}</div>
+            <a href="/admin"><span class="p-nav-icon">{{ i.icon('admin') }}</span>{{ 'Administration'|t }}</a>
             {% endif %}
         </nav>
         <div class="sidebar-footer">
@@ -35,18 +41,22 @@
         </div>
     </aside>
     <div class="main">
-        <header class="topbar">
-            <button class="icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}">&#9776;</button>
-            <div class="muted small">{% block breadcrumb %}{% endblock %}</div>
+        <header class="topbar p-topbar">
+            <button class="p-icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}" aria-controls="portal-sidebar">{{ i.icon('menu') }}</button>
+            <form class="p-search" method="get" action="/store" role="search">
+                <label class="sr-only" for="portal-search">{{ 'Search products'|t }}</label>
+                <input id="portal-search" type="search" name="search" placeholder="{{ 'Search products …'|t }}" maxlength="100" value="{{ current_path == '/store' ? app_query('search') : '' }}">
+                <button type="submit" aria-label="{{ 'Search'|t }}">{{ i.icon('search') }}</button>
+            </form>
             <div class="topbar-actions">
-                <button class="icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">&#9680;</button>
+                <button class="p-icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">{{ i.icon('theme') }}</button>
                 {% if auth_user %}
-                <span class="user-chip"><span class="avatar">{{ auth_user.displayName|first|upper }}</span><span>{{ auth_user.displayName }}</span></span>
-                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Sign out'|t }}</button></form>
+                <a class="p-avatar-link" href="/account/profile" title="{{ auth_user.displayName }}"><span class="p-avatar">{{ auth_user.displayName|first|upper }}</span><span class="p-avatar-name">{{ auth_user.displayName }}</span></a>
+                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="p-icon-btn" type="submit" aria-label="{{ 'Sign out'|t }}" title="{{ 'Sign out'|t }}">{{ i.icon('logout') }}</button></form>
                 {% endif %}
             </div>
         </header>
-        <main class="content">
+        <main class="content p-content">
             {% include 'partials/flash.twig' %}
             {% block content %}{% endblock %}
         </main>

@@ -35,6 +35,7 @@ class CustomerService
         private readonly Clock $clock,
         private readonly Config $config,
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
+        private readonly \Nebrix\Discord\DiscordService $discord,
     ) {
     }
 
@@ -153,6 +154,11 @@ class CustomerService
                 'two_factor_secret' => null,
                 'two_factor_enabled_at' => null,
                 'two_factor_recovery_codes' => null,
+                'vat_id_valid' => null,
+                'vat_id_checked_at' => null,
+                'vat_id_name' => null,
+                'support_pin' => null,
+                'support_pin_created_at' => null,
             ]);
             $this->db->run('DELETE FROM `nx_user_tokens` WHERE `user_id` = ?', [$user->id]);
             $this->db->run('UPDATE `nx_api_tokens` SET `revoked_at` = COALESCE(`revoked_at`, ?) WHERE `user_id` = ?', [$this->clock->nowString(), $user->id]);
@@ -161,6 +167,8 @@ class CustomerService
             $this->sessions->destroyForUser($user->id);
         });
 
+        // The Discord link is personal data as well; roles are removed in the background.
+        $this->discord->unlink($user->id, $actorId, $ip);
         $this->audit->log($actorId, 'account.closed', 'user', $user->id, [], $ip);
     }
 }

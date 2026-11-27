@@ -85,6 +85,39 @@
     </div>
 </div>
 
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Support PIN'|t }}</h2></div>
+        <div class="card-body">
+            <p class="small muted">{{ 'Ask the caller for the PIN shown in their customer area and check it here. The PIN itself is never displayed to staff.'|t }}</p>
+            <form method="post" action="/admin/customers/{{ customer.id }}/support-pin" class="filters" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('pin', 'Support PIN', '', 'text', {inputmode: 'numeric', autocomplete: 'off', maxlength: 20, placeholder: '123-456-789'}) }}
+                <button class="btn btn-outline" type="submit">{{ 'Check PIN'|t }}</button>
+            </form>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>Discord</h2></div>
+        <div class="card-body">
+            {% if discord %}
+                <dl class="details">
+                    <dt>{{ 'Account'|t }}</dt><dd>{{ discord.global_name ?: discord.username }} <span class="muted">@{{ discord.username }}</span></dd>
+                    <dt>{{ 'Discord ID'|t }}</dt><dd class="mono">{{ discord.discord_id }}</dd>
+                    <dt>{{ 'Linked'|t }}</dt><dd>{{ discord.linked_at|dt }}</dd>
+                    <dt>{{ 'On the server'|t }}</dt><dd>{{ discord.in_guild is null ? '–' : (discord.in_guild ? 'yes'|t : 'no'|t) }}</dd>
+                    <dt>{{ 'Last role sync'|t }}</dt><dd>{{ discord.last_synced_at|dt }}{% if discord.sync_error %} <span class="badge badge-warning">{{ discord.sync_error }}</span>{% endif %}</dd>
+                </dl>
+                {% if can('customers.manage') %}
+                <form method="post" action="/admin/customers/{{ customer.id }}/discord/unlink" class="mt-1" data-confirm="{{ 'Unlink the Discord account? Roles granted by the panel are removed.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Unlink Discord account'|t }}</button></form>
+                {% endif %}
+            {% else %}
+                <p class="muted">{{ 'No Discord account linked.'|t }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header"><h2>{{ 'Services'|t }}</h2></div>
     <div class="table-wrap"><table class="table">

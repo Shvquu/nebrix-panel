@@ -37,6 +37,13 @@
 </div>
 {% endif %}
 
+{% if page == 'system' %}
+<div class="alert alert-info">
+    {{ 'Discord: register this redirect URI in the Discord developer portal (OAuth2 → Redirects)'|t }}:
+    <div class="mt-1"><code id="discord-redirect">{{ discord_redirect }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#discord-redirect">{{ 'Copy'|t }}</button></div>
+</div>
+{% endif %}
+
 {% for section in sections %}
 <form method="post" action="/admin/settings/{{ page }}" novalidate>
     {{ csrf_field() }}

@@ -31,9 +31,14 @@ final class StoreController extends Controller
         $group = $request->string('group');
         $group = array_key_exists($group, $groups) ? $group : '';
         $search = mb_substr(trim($request->string('search')), 0, 100);
+        $category = $request->string('category');
+        $category = array_key_exists($category, ProductCategory::labels()) ? $category : '';
         $grouped = [];
         foreach ($this->products->orderable($user->customerGroupId) as $product) {
             if ($group !== '' && !in_array((string) $product['category'], $groups[$group]['categories'], true)) {
+                continue;
+            }
+            if ($category !== '' && $product['category'] !== $category) {
                 continue;
             }
             if ($search !== '' && mb_stripos($product['name'] . ' ' . $product['description'] . ' ' . $product['features'], $search) === false) {

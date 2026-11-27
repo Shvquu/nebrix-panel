@@ -32,7 +32,7 @@ final class SettingsController extends Controller
         'branding' => [Permission::SETTINGS_BRANDING, 'Branding & design', ['branding' => 'Colors & texts']],
         'email' => [Permission::SETTINGS_EMAIL, 'E-mail delivery', ['mail' => 'SMTP server']],
         'payments' => [Permission::PAYMENTS_SETTINGS, 'Payment providers', ['payments_paypal' => 'PayPal', 'payments_stripe' => 'Stripe', 'payments_credit' => 'Account credit']],
-        'system' => [Permission::SETTINGS_SYSTEM, 'System', ['system' => 'Operation', 'api' => 'REST API']],
+        'system' => [Permission::SETTINGS_SYSTEM, 'System', ['system' => 'Operation', 'api' => 'REST API', 'discord' => 'Discord']],
     ];
 
     public function __construct(
@@ -79,6 +79,7 @@ final class SettingsController extends Controller
                 'paypal' => $this->config->string('app.url') . '/webhooks/paypal',
             ],
             'system' => $page === 'system' ? $this->systemInfo() : null,
+            'discord_redirect' => rtrim($this->config->string('app.url'), '/') . '/account/discord/callback',
         ]);
     }
 

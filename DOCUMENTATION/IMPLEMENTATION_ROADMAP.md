@@ -151,6 +151,10 @@ This file is the single source of truth for modernization progress. It is update
 - Fixed: Docker build (composer platform check), secrets in the build context (`.dockerignore`), health checks of worker/scheduler/console, incomplete German interface (translation test added), guest language, order form tax rate, localized invoice lines and mail dates, table layout.
 - Not covered (needs credentials/test systems): Stripe/PayPal sandbox, Proxmox, Hetzner Robot, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak; official KoSIT validation of XRechnung files.
 
+### Session 6 (2026-11-27) – customer portal and Discord
+- Customer portal redesigned after the layout the owner provided (sidebar with order menu, search, profile card, tabs per product group, key figures, community card), in the Nebrix colours; dark/light mode and phone layout checked in Chromium.
+- Discord account link (OAuth2, optional server join, role sync with queue job and scheduler) and support PIN; tests against a fake Discord API. Not tested against the live Discord API (no application credentials).
+
 ## Remaining work
 - Run the KoSIT validator (EN 16931 + XRechnung Schematron) on sample invoices of every tax category; optionally add ZUGFeRD (PDF/A-3 with embedded XML).
 - Keep the built-in EU VAT rates current (or maintain `tax.rate_overrides`); have the tax logic and legal texts (cancellation/withdrawal pages, invoice notes) reviewed.

@@ -1,7 +1,13 @@
 {% extends 'layouts/customer.twig' %}
+{% import 'macros/icons.twig' as i %}
 {% block title %}{{ 'Order new service'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Order new service'|t }}</h1><p class="muted">{{ 'All prices plus applicable taxes as shown at checkout.'|t }}</p></div></div>
+<div class="page-header"><div><h1>{{ 'Order new service'|t }}</h1><p class="muted">{{ 'Prices include the VAT that applies to you.'|t }}</p></div></div>
+<nav class="p-chips" aria-label="{{ 'Product groups'|t }}">
+    <a class="p-chip{{ group == '' ? ' is-active' : '' }}" href="/store">{{ i.icon('grid') }} {{ 'All'|t }}</a>
+    {% for key, g in groups %}<a class="p-chip{{ group == key ? ' is-active' : '' }}" href="/store?group={{ key }}">{{ i.icon(g.icon) }} {{ g.label|t }}</a>{% endfor %}
+</nav>
+{% if search %}<p class="muted">{{ 'Results for “:term”'|t({term: search}) }} · <a href="/store{{ group ? '?group=' ~ group : '' }}">{{ 'Reset search'|t }}</a></p>{% endif %}
 {% for category, products in grouped %}
     <h2 class="mt-2">{{ categories[category]|default(category)|t }}</h2>
     <div class="grid grid-3">

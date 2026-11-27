@@ -244,6 +244,23 @@ Slots. Customers choose a server name.
 
 `legacy:import --only=services` links legacy LXC/KVM servers, TeamSpeak servers, game servers and webspaces to the integrations you map (see UPGRADE_GUIDE.md). These services are marked `legacy`: the provisioners accept the remote IDs recorded by the legacy database (Proxmox VMID, Pterodactyl server ID, Plesk subscription ID) although the objects carry no Nebrix marker – with additional checks before anything is deleted: a Proxmox guest must still have the recorded host name and no marker of another service, a Pterodactyl server the recorded identifier.
 
+## Discord (account link and roles)
+
+Customers link their Discord account on the dashboard; optionally they are added to your community server and get roles automatically.
+
+**Set-up**
+1. Discord developer portal → *New Application*. Under **OAuth2** copy the *Client ID* and *Client Secret* and add the redirect URI shown in Admin → Settings → System (`<APP_URL>/account/discord/callback`).
+2. For server join and roles: **Bot** → create a bot token; invite the bot to your server with the permissions *Create Invite* and *Manage Roles* (OAuth2 URL generator, scope `bot`). In the server's role list, drag the bot's role **above** the roles it should assign.
+3. Enable *Developer Mode* in Discord (User Settings → Advanced) and copy the server ID and the role IDs (right click → *Copy ID*).
+4. Admin → Settings → System → **Discord**: enable linking, enter client ID and secret, bot token, server ID, the role for linked customers and/or the role for customers with an active service, and the invite link shown on the dashboard.
+
+**Behaviour**
+* Linking uses the OAuth2 authorization code flow with the scope `identify` (plus `guilds.join` when customers are added to the server). The `state` is random, bound to the customer's session, single-use and valid for 10 minutes. The user's access token is used once – to read the Discord ID and to add the user to the server – and is never stored.
+* A Discord account can be linked to one customer account only. Customers can unlink at any time; staff can unlink on the customer page. Closing a customer account removes the link.
+* Roles are applied by the queue worker (`discord.sync`; Discord rate limits are retried) right after linking and re-checked by the scheduler every 30 minutes (`discord.sync_roles`): "linked" while the account is linked and active, "active customer" while at least one service is active. The panel only removes roles it granted itself – roles your team gives by hand stay untouched.
+* Stored: Discord user ID, user name, display name, link time, the roles the panel granted and the last sync status. Mention the Discord link in your privacy policy.
+* Not tested against the live Discord API in this environment (no application credentials); the automated tests use a fake Discord API.
+
 ## EU VIES (VAT ID check)
 
 VAT IDs are verified with the public REST interface of the European Commission (`https://ec.europa.eu/taxation_customs/vies/rest-api/ms/<country>/vat/<number>`, no credentials). Only country code and number are sent. Results: valid, invalid, or unknown when VIES or the member state's service is unavailable (a newly entered VAT ID stays unchecked and VAT is charged; an earlier result for an unchanged VAT ID is kept; the scheduler retries). Reverse charge also needs the customer's company name to match the holder name VIES reports; several member states (e.g. Germany, Spain) do not disclose names – then the VAT ID alone counts. The service is subject to the EU's availability and fair-use rules.

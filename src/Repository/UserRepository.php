@@ -19,7 +19,7 @@ class UserRepository
         'first_name', 'last_name', 'company', 'vat_id', 'address_line1', 'address_line2', 'postcode', 'city',
         'country', 'phone', 'language', 'two_factor_secret', 'two_factor_enabled_at', 'two_factor_recovery_codes',
         'two_factor_last_slice', 'password_changed_at', 'last_login_at', 'last_login_ip', 'legal_accepted_at', 'notes', 'legacy_id',
-        'auto_pay_credit',
+        'auto_pay_credit', 'vat_id_valid', 'vat_id_checked_at', 'vat_id_name', 'support_pin', 'support_pin_created_at',
     ];
 
     public function __construct(

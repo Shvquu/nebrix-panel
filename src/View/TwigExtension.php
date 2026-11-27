@@ -33,6 +33,8 @@ final class TwigExtension extends AbstractExtension
             new TwigFunction('t', $this->translate(...)),
             new TwigFunction('active', $this->active(...)),
             new TwigFunction('query', $this->query(...)),
+            new TwigFunction('app_query', fn (string $key): string => is_string($value = $this->view->currentRequest()?->allQuery()[$key] ?? null) ? $value : ''),
+            new TwigFunction('portal_groups', static fn (): array => \Nebrix\Catalog\ProductCategory::groups()),
         ];
     }
 

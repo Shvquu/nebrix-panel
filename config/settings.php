@@ -131,4 +131,14 @@ return [
     'api.enabled' => ['group' => 'api', 'type' => 'bool', 'default' => false, 'label' => 'Enable the REST API', 'help' => 'Token-authenticated JSON API under /api/v1 (documentation: /api/v1/openapi.json).'],
     'api.customer_tokens' => ['group' => 'api', 'type' => 'bool', 'default' => true, 'label' => 'Customers may create API tokens', 'help' => 'When disabled, only staff tokens work.'],
     'api.rate_limit' => ['group' => 'api', 'type' => 'int', 'default' => 120, 'label' => 'Requests per minute and user (all tokens together)', 'rules' => 'required|int|min:10|max:6000'],
+    // ---------------------------------------------------------------- discord
+    'discord.enabled' => ['group' => 'discord', 'type' => 'bool', 'default' => false, 'label' => 'Customers can link their Discord account', 'help' => 'Uses Discord OAuth2 (scope "identify", plus "guilds.join" when customers are added to the server). Register the redirect URI shown below in the Discord developer portal.'],
+    'discord.client_id' => ['group' => 'discord', 'type' => 'string', 'default' => '', 'label' => 'Application (client) ID', 'rules' => 'nullable|regex:/^(\d{17,20})?$/'],
+    'discord.client_secret' => ['group' => 'discord', 'type' => 'string', 'default' => null, 'label' => 'Client secret', 'secret' => true, 'rules' => 'nullable|string|max:100'],
+    'discord.bot_token' => ['group' => 'discord', 'type' => 'string', 'default' => null, 'label' => 'Bot token (for joining the server and roles)', 'secret' => true, 'rules' => 'nullable|string|max:120', 'help' => 'The bot must be on the server with the permissions "Create Invite" and "Manage Roles"; its role must be above the roles it assigns.'],
+    'discord.guild_id' => ['group' => 'discord', 'type' => 'string', 'default' => '', 'label' => 'Server (guild) ID', 'rules' => 'nullable|regex:/^(\d{17,20})?$/'],
+    'discord.join_guild' => ['group' => 'discord', 'type' => 'bool', 'default' => true, 'label' => 'Add customers to the server when they link their account'],
+    'discord.role_linked' => ['group' => 'discord', 'type' => 'string', 'default' => '', 'label' => 'Role for linked customers (role ID)', 'rules' => 'nullable|regex:/^(\d{17,20})?$/'],
+    'discord.role_active' => ['group' => 'discord', 'type' => 'string', 'default' => '', 'label' => 'Role for customers with an active service (role ID)', 'rules' => 'nullable|regex:/^(\d{17,20})?$/'],
+    'discord.invite_url' => ['group' => 'discord', 'type' => 'url', 'default' => '', 'label' => 'Invite link to the server', 'rules' => 'nullable|url|max:200|regex:#^https://(discord\.gg|discord\.com/invite)/[A-Za-z0-9-]+$#'],
 ];

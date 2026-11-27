@@ -133,6 +133,18 @@ Configured in Admin → Payments: PayPal (mode sandbox/live, client ID, client s
 
 See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 
+### Discord (Settings → System)
+| Setting | Default |
+|---|---|
+| Customers can link their Discord account (`discord.enabled`) | off |
+| Application (client) ID / client secret (encrypted) | – |
+| Bot token (encrypted), server (guild) ID | – (needed for server join and roles) |
+| Add customers to the server when they link (`discord.join_guild`) | on |
+| Role for linked customers / role for customers with an active service (role IDs) | – |
+| Invite link (`https://discord.gg/…`) | – (shown on the dashboard) |
+
+The redirect URI to register at Discord is shown on the settings page. Set-up: [INTEGRATIONS.md](INTEGRATIONS.md#discord-account-link-and-roles).
+
 ## Scheduler tasks
 
 `php bin/nebrix schedule:run` (every minute) runs these tasks when due:
@@ -147,6 +159,7 @@ See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 | `billing.terminate_suspended` | 60 min | Terminates long-suspended services – only if "terminate after" is > 0. |
 | `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached and whose declaration is still scheduled. |
 | `billing.cancel_stale_orders` | 60 min | Cancels unpaid orders/invoices of new orders after 14 days and releases stock. |
+| `discord.sync_roles` | 30 min | Queues a role sync for Discord links whose roles changed (or were not checked for a day). |
 | `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |
 | `maintenance.cleanup` | daily | Deletes expired sessions, tokens, rate-limit entries, old login history and integration logs according to the retention settings. |

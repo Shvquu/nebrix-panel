@@ -86,6 +86,12 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Optional CAPTCHA (hCaptcha/Turnstile) on registration, password reset and the public cancellation/withdrawal forms (for visitors who are not signed in), verified server-side (fail closed); the provider's sources are added to the CSP of these pages only.
 * Cancellation and withdrawal forms (§ 312k BGB / EU withdrawal function) are CSRF-protected and limited to 10 declarations per client network and hour (IPv4 address or IPv6 /64) and, for guests, 3 receipts per recipient address and day. A guest's declaration never changes a contract automatically – it is reviewed by staff, because the identity cannot be verified; only signed-in customers can schedule the end of their own services directly. The confirmation page and e-mail repeat only what was entered (no account or contract data is disclosed to guests).
 
+### Customer portal and Discord
+* Discord linking uses the OAuth2 authorization code flow; the `state` is 256-bit random, stored as hash in the session, single-use and valid for 10 minutes, so an attacker can neither link their Discord account to a victim's customer account nor the other way round. The code is exchanged server-side with the client secret; the user's access token is used once and never stored or logged. Client secret and bot token are stored encrypted. Requests go only to `https://discord.com/api/v10` with timeouts and without redirects; Discord IDs are validated before they are put into URLs.
+* One Discord account per customer account (unique index); the bot only removes roles it granted itself.
+* Support PIN: 9 random digits, stored encrypted, shown only to the customer, verified – never displayed – for staff (10 checks per customer and 10 minutes, each check audit-logged). It cannot be used to sign in (unlike the removed legacy PIN login). Customers can renew it.
+* Account closure deletes the Discord link, the support PIN and the VIES holder name together with the other personal data.
+
 ### Invoices and taxes
 * Invoice PDFs and XML are only served through user-scoped lookups (customer: own invoices; API: `invoices:read` and own invoices; admin: invoice permissions). File names are reduced to `[A-Za-z0-9._-]` and sent as `attachment`.
 * PDFs are rendered by dompdf from an isolated Twig environment with auto-escaping, remote resources, PHP and JavaScript disabled and the file access restricted (`chroot`) to the PDF template directory; customer-entered values cannot load files or URLs. XML is built with DOM (escaped values).

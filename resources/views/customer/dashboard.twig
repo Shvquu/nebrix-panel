@@ -1,40 +1,113 @@
 {% extends 'layouts/customer.twig' %}
+{% import 'macros/icons.twig' as i %}
 {% block title %}{{ 'Dashboard'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Welcome, :name'|t({name: auth_user.displayName}) }}</h1><p class="muted">{{ 'Here is an overview of your account.'|t }}</p></div><a class="btn btn-primary" href="/store">{{ 'Order new service'|t }}</a></div>
-{% if notice %}<div class="alert alert-info message-body">{{ notice }}</div>{% endif %}
+<h1 class="p-title">{{ 'Dashboard'|t }}</h1>
+
+{% if notice %}<div class="p-notice">{{ i.icon('info') }}<div class="message-body">{{ notice }}</div></div>{% endif %}
 {% if unpaid|length > 0 %}<div class="alert alert-warning">{{ 'You have :n unpaid invoice(s) totalling :total.'|t({n: unpaid|length, total: unpaid_total|money(currency)}) }} <a href="/invoices">{{ 'View invoices'|t }}</a></div>{% endif %}
-<div class="grid grid-4">
-    <a class="card stat" href="/services"><div class="stat-label">{{ 'Active services'|t }}</div><div class="stat-value">{{ active_count }}</div><div class="stat-hint">{{ service_count }} {{ 'in total'|t }}</div></a>
-    <a class="card stat" href="/invoices"><div class="stat-label">{{ 'Open invoices'|t }}</div><div class="stat-value">{{ unpaid|length }}</div><div class="stat-hint">{{ unpaid_total|money(currency) }}</div></a>
-    <a class="card stat" href="/invoices"><div class="stat-label">{{ 'Account credit'|t }}</div><div class="stat-value">{{ auth_user.creditBalance|money(currency) }}</div><div class="stat-hint">{{ 'usable for invoices'|t }}</div></a>
-    {% if setting('system.tickets_enabled') %}<a class="card stat" href="/tickets"><div class="stat-label">{{ 'Open tickets'|t }}</div><div class="stat-value">{{ open_tickets }}</div><div class="stat-hint">{{ 'support requests'|t }}</div></a>{% endif %}
-</div>
-<div class="grid grid-2">
-    <div class="card">
-        <div class="card-header"><h2>{{ 'Your services'|t }}</h2><a class="small" href="/services">{{ 'All'|t }}</a></div>
-        <div class="table-wrap"><table class="table">
-            <tbody>
-            {% for s in services %}
-                <tr><td><a href="/services/{{ s.id }}"><strong>{{ s.name }}</strong></a><div class="small muted">{{ s.category|humanize|t }}</div></td><td><span class="badge {{ s.status|status_class }}">{{ s.status|t }}</span></td><td class="small">{{ s.nextDueAt|d }}</td></tr>
-            {% else %}<tr><td class="empty">{{ 'You have no services yet.'|t }} <a href="/store">{{ 'Order your first service'|t }}</a></td></tr>{% endfor %}
-            </tbody>
-        </table></div>
-    </div>
-    <div class="card">
-        <div class="card-header"><h2>{{ 'Upcoming renewals'|t }}</h2></div>
-        <div class="table-wrap"><table class="table">
-            <tbody>
-            {% for s in upcoming %}
-                <tr><td>{{ s.name }}</td><td>{{ s.nextDueAt|d }}</td><td class="text-right">{{ s.recurringAmount|money(s.currency) }} <span class="small muted">{{ 'net'|t }}</span></td></tr>
-            {% else %}<tr><td class="empty">{{ 'No upcoming renewals.'|t }}</td></tr>{% endfor %}
-            </tbody>
-        </table></div>
-        {% if unpaid|length > 0 %}
-        <div class="card-footer">
-            {% for i in unpaid %}<div class="gap"><a href="/invoices/{{ i.id }}" class="mono">{{ i.number }}</a> {{ i.total|money(i.currency) }} · {{ 'due'|t }} {{ i.due_at|d }} <a class="btn btn-sm btn-primary" href="/invoices/{{ i.id }}">{{ 'Pay now'|t }}</a></div>{% endfor %}
+
+{# Profile card #}
+<section class="p-card p-profile">
+    <div class="p-profile-avatar" aria-hidden="true">{{ auth_user.displayName|first|upper }}</div>
+    <div class="p-profile-main">
+        <h2 class="p-profile-name">{{ auth_user.displayName }}</h2>
+        <div class="p-profile-line">{{ 'Customer number'|t }}: <strong id="customer-number" class="mono">C{{ auth_user.id }}</strong>
+            <button type="button" class="p-mini-btn" data-copy="#customer-number" data-copied="{{ 'Copied'|t }}" aria-label="{{ 'Copy'|t }}">{{ i.icon('copy') }}</button></div>
+        <div class="p-profile-meta">
+            <span>{{ i.icon('wallet') }} {{ 'Credit'|t }}: <strong class="{{ auth_user.creditBalance < 0 ? 'text-danger' : '' }}">{{ auth_user.creditBalance|money(currency) }}</strong></span>
+            <span>{{ i.icon('user') }} {{ 'Customer since'|t }} {{ auth_user.attributes.created_at|d }}</span>
         </div>
-        {% endif %}
     </div>
+    <div class="p-profile-actions">
+        <a class="p-icon-btn" href="/invoices#top-up" title="{{ 'Top up credit'|t }}" aria-label="{{ 'Top up credit'|t }}">{{ i.icon('coins') }}</a>
+        {% if setting('system.tickets_enabled') %}<a class="p-icon-btn" href="/tickets" title="{{ 'Support tickets'|t }}" aria-label="{{ 'Support tickets'|t }}">{{ i.icon('support') }}</a>{% endif %}
+        <a class="p-icon-btn" href="/account/profile" title="{{ 'Edit profile'|t }}" aria-label="{{ 'Edit profile'|t }}">{{ i.icon('edit') }}</a>
+    </div>
+</section>
+
+{# Services by product group #}
+<div class="p-tabs" role="tablist" data-tabs>
+    {% for key, group in groups %}
+    <button type="button" role="tab" id="tab-{{ key }}" aria-controls="panel-{{ key }}" aria-selected="{{ loop.first ? 'true' : 'false' }}" class="p-tab{{ loop.first ? ' is-active' : '' }}" data-tab="panel-{{ key }}">
+        {{ i.icon(group.icon) }}<span>{{ group.label|t }}</span>{% if by_group[key]|length > 0 %}<span class="p-tab-count">{{ by_group[key]|length }}</span>{% endif %}
+    </button>
+    {% endfor %}
+</div>
+{% for key, group in groups %}
+<section class="p-panel{{ loop.first ? '' : ' hidden' }}" id="panel-{{ key }}" role="tabpanel" aria-labelledby="tab-{{ key }}">
+    {% if by_group[key]|length > 0 %}
+    <div class="p-services">
+        {% for s in by_group[key] %}
+        <a class="p-card p-service" href="/services/{{ s.id }}">
+            <div class="p-service-head"><span class="p-service-icon">{{ i.icon(group.icon) }}</span><div><strong>{{ s.name }}</strong><div class="small muted">{{ s.category|humanize|t }} · #{{ s.id }}</div></div><span class="badge {{ s.status|status_class }}">{{ s.status|t }}</span></div>
+            <div class="p-service-foot small"><span>{% if s.nextDueAt %}{{ 'Next due date'|t }}: {{ s.nextDueAt|d }}{% else %}&nbsp;{% endif %}</span><span>{{ s.recurringAmount|money(s.currency) }} {{ 'net'|t }}</span></div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-card p-empty">
+        <div>
+            <strong>{{ 'You have no product in this area yet.'|t }}</strong>
+            <div class="muted">{{ 'Order a product now to start your project.'|t }}</div>
+        </div>
+        <div class="p-empty-actions">
+            {% for category, label in orderable[key]|default({}) %}
+            <a class="btn btn-gradient" href="/store?category={{ category }}">{{ i.icon(group.icon) }} {{ label|t }}</a>
+            {% else %}
+            <a class="btn btn-outline" href="/store">{{ i.icon('cart') }} {{ 'Order new service'|t }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endfor %}
+
+<hr class="p-divider">
+
+<div class="p-bottom">
+    <div class="p-stats">
+        <div class="p-card p-stat">
+            <span class="p-stat-icon">{{ i.icon('key') }}</span>
+            <div class="p-stat-body">
+                <div class="p-stat-label">{{ 'Support PIN'|t }}</div>
+                <div class="p-stat-value"><span id="support-pin" class="mono">{{ support_pin }}</span>
+                    <button type="button" class="p-mini-btn" data-copy="#support-pin" data-copied="{{ 'Copied'|t }}" aria-label="{{ 'Copy'|t }}">{{ i.icon('copy') }}</button>
+                    <form method="post" action="/account/support-pin" class="inline" data-confirm="{{ 'Create a new support PIN? The current PIN stops working.'|t }}">{{ csrf_field() }}<button type="submit" class="p-mini-btn" aria-label="{{ 'New PIN'|t }}" title="{{ 'New PIN'|t }}">{{ i.icon('refresh') }}</button></form>
+                </div>
+                <div class="p-stat-hint">{{ 'Tell our support this PIN to prove your identity.'|t }}</div>
+            </div>
+        </div>
+        <a class="p-card p-stat" href="/services">
+            <span class="p-stat-icon">{{ i.icon('box') }}</span>
+            <div class="p-stat-body"><div class="p-stat-label">{{ 'Products'|t }}</div><div class="p-stat-value">{{ product_count }}</div></div>
+        </a>
+        <a class="p-card p-stat" href="/invoices">
+            <span class="p-stat-icon">{{ i.icon('invoice') }}</span>
+            <div class="p-stat-body"><div class="p-stat-label">{{ 'Monthly costs'|t }}</div><div class="p-stat-value">{{ monthly_costs|money(currency) }}</div><div class="p-stat-hint">{{ 'incl. VAT'|t }}</div></div>
+        </a>
+    </div>
+
+    {% if discord or discord_enabled or discord_invite %}
+    <section class="p-discord" aria-labelledby="discord-title">
+        <div class="p-discord-glow" aria-hidden="true"></div>
+        <div class="p-discord-inner">
+            <span class="p-discord-icon">{{ i.icon('chat') }}</span>
+            <h2 id="discord-title">{{ 'Join our Discord community!'|t }}</h2>
+            <p>{{ 'Get help from our team and the community, news about maintenance and new products.'|t }}</p>
+            {% if discord %}
+                <p class="p-discord-linked">{{ i.icon('link') }} {{ 'Linked with'|t }} <strong>{{ discord.global_name ?: discord.username }}</strong> <span class="muted">@{{ discord.username }}</span></p>
+                <div class="p-discord-actions">
+                    {% if discord_invite %}<a class="btn btn-light" href="{{ discord_invite }}" target="_blank" rel="noopener noreferrer">{{ 'Open Discord server'|t }} {{ i.icon('arrow') }}</a>{% endif %}
+                    <form method="post" action="/account/discord/unlink" class="inline" data-confirm="{{ 'Unlink your Discord account? Customer roles on our server are removed.'|t }}">{{ csrf_field() }}<button class="btn btn-ghost" type="submit">{{ 'Unlink'|t }}</button></form>
+                </div>
+            {% elseif discord_enabled %}
+                <div class="p-discord-actions"><a class="btn btn-light" href="/account/discord/connect">{{ i.icon('link') }} {{ 'Link Discord account'|t }}</a></div>
+            {% else %}
+                <div class="p-discord-actions"><a class="btn btn-light" href="{{ discord_invite }}" target="_blank" rel="noopener noreferrer">{{ 'Open Discord server'|t }} {{ i.icon('arrow') }}</a></div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}
