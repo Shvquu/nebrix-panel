@@ -163,10 +163,10 @@ cd /var/www/vhosts/example.com/panel.example.com && git clone https://github.com
 5. **Dependencies** (Plesk ships Composer for its *PHP Composer* extension; you can also use that extension's UI):
 
 ```bash
-cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bin/php /usr/lib/plesk-9.0/composer.phar install --no-dev --optimize-autoloader --classmap-authoritative
+cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bin/php /usr/lib/plesk-9.0/composer.phar install --no-dev --optimize-autoloader
 ```
 
-   (On AlmaLinux/RHEL-based Plesk servers the path is `/usr/lib64/plesk-9.0/composer.phar`.)
+   (On AlmaLinux/RHEL-based Plesk servers the path is `/usr/lib64/plesk-9.0/composer.phar`.) Without `--classmap-authoritative` PHP still finds classes that a later `git pull` adds; with it, every pull must be followed by Composer or the panel answers with HTTP 500 ("Class … not found").
 6. **Database**: *Databases → Add Database* (MariaDB, utf8mb4) with its own user.
 7. **Configuration**:
 
@@ -204,7 +204,13 @@ location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1;
 * Open the panel by IP: *Tools & Settings → IP Addresses* → the IP → *Default site* = your subscription. Set `APP_URL` exactly to the address you open, e.g. `http://203.0.113.10` (the Origin check compares it), and leave `SESSION_SECURE_COOKIE` commented out (it follows `APP_URL`; with `true` the browser drops the login cookie on plain HTTP) and set `APP_HSTS=false`.
 * Plain HTTP sends passwords unencrypted; HTTPS on a bare IP only works with a self-signed certificate (browser warning). Payment webhooks (Stripe, PayPal) need a public HTTPS URL, and e-mails from a server without a domain (no SPF/DKIM, no matching reverse DNS) are usually rejected or end up as spam. Use a domain (with Let's Encrypt) before going live; until then an external SMTP account is the more reliable way to send e-mails.
 
-**Updates**: pull the new version (Plesk *Git* → *Pull updates*, or `git pull`), then run Composer (step 5) and `bin/nebrix migrate`; workers pick up the new code within a minute. In the Git extension you can enter both commands as *additional deployment actions*.
+**Updates**: after **every** pull (Plesk *Git* → *Pull updates*, or `git pull`) run Composer (step 5) and `bin/nebrix migrate` – a pull alone can leave new classes or database changes missing (HTTP 500). Workers pick up the new code within a minute. In the Git extension you can enter both commands as *additional deployment actions*:
+
+```bash
+/opt/plesk/php/8.4/bin/php /usr/lib/plesk-9.0/composer.phar install --no-dev --optimize-autoloader && /opt/plesk/php/8.4/bin/php bin/nebrix migrate
+```
+
+If a page shows "500 – Reference: …", find the cause with `grep -h <reference> storage/logs/nebrix-*.log`.
 
 **Backups**: Plesk backups contain the files (including `storage/invoices` and `.env`) and the database. Keep a separate copy of `APP_KEY` – without it stored secrets cannot be decrypted.
 
