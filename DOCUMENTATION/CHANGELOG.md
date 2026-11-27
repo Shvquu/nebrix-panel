@@ -56,6 +56,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Support PIN** for identity checks by phone or chat (encrypted, verified by staff without seeing it, renewable).
 - Account closure now also removes the VIES holder name (previously kept).
 
+### Added (coupons and refer a friend)
+- **Coupon codes** (Sales → Coupons): percent or fixed discounts on the first invoice or permanently on renewals, validity dates, product restriction, total and per-customer limits, new-customers-only option; price preview on the order page (rate-limited), `coupon` field in `POST /api/v1/orders`, release of the use when an unpaid order is cancelled, list of uses per coupon.
+- **Refer a friend**: personal referral link and code per customer, code field on the registration form, reward as account credit (optional welcome credit for the new customer) after a payment with real money of at least the minimum amount and a holding period; refunds reset the referral, monthly limit per referrer, sign-ups from the referrer's own IP address are held for staff review (Customers → Referrals); e-mails in English and German; hourly scheduler task `referrals.process`.
+- Migration `2026_11_29_000014` (additive).
+
 ### Fixed (system test of the Docker installation)
 - Docker build: the composer stage failed on the missing `pdo_mysql` extension of the composer image; it is now ignored there (the runtime image installs it).
 - New `.dockerignore`: `.env`, `.git`, local `vendor/`, tests, logs and runtime data are no longer copied into the image (previously a `.env` next to the Dockerfile would have ended up in the image).

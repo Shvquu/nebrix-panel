@@ -60,6 +60,7 @@ class AuthService
         private readonly Config $config,
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
         private readonly \Nebrix\View\Translator $translator,
+        private readonly \Nebrix\Referral\ReferralService $referrals,
     ) {
     }
 
@@ -218,7 +219,7 @@ class AuthService
     }
 
     /**
-     * @param array{email: string, password: string, first_name?: ?string, last_name?: ?string, company?: ?string, country?: ?string} $data
+     * @param array{email: string, password: string, first_name?: ?string, last_name?: ?string, company?: ?string, country?: ?string, referral_code?: ?string} $data
      *
      * @throws ValidationException
      * @throws AuthenticationException
@@ -273,6 +274,9 @@ class AuthService
         }
 
         $this->audit->log($userId, 'customer.registered', 'user', $userId, [], $request->clientIp());
+        if (($data['referral_code'] ?? '') !== '') {
+            $this->referrals->attach($userId, (string) $data['referral_code'], $request->clientIp());
+        }
         $this->mailer->queue($user->email, $user->displayName(), 'account_registration', [
             'name' => $user->displayName(),
             'email' => $user->email,

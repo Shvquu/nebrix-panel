@@ -61,7 +61,7 @@ All paths are relative to `/api/v1`. Customer endpoints only ever return the tok
 | GET | `/me` | `account:read` | Account, credit balance, token details |
 | GET | `/products`, `/products/{id}` | `products:read` | `?category=` |
 | GET | `/orders`, `/orders/{id}` | `orders:read` | `?status=` |
-| POST | `/orders` | `orders:create` | `{"product_id": 3, "accept_terms": true, "options": {"hostname": "web01"}}` → order + `invoice_id`; same checks, prices and limits (10/hour) as the store |
+| POST | `/orders` | `orders:create` | `{"product_id": 3, "accept_terms": true, "options": {"hostname": "web01"}, "coupon": "WELCOME10"}` → order + `invoice_id`; same checks, prices and limits (10/hour) as the store. `coupon` is optional; an unusable code answers `422` with error code `coupon_invalid` and the reason as message. Orders contain `coupon_code` and `coupon_discount` (net, minor units). |
 | GET | `/services`, `/services/{id}` | `services:read` | `?status=` |
 | GET | `/services/{id}/status` | `services:read` | Live data from the remote system (`502 upstream_error` if unavailable); together with `/actions` at most 30 requests per minute and user |
 | GET | `/services/{id}/actions` | `services:read` | Available actions with their input fields |

@@ -120,6 +120,14 @@ return [
 
     'payments.credit.enabled' => ['group' => 'payments_credit', 'type' => 'bool', 'default' => true, 'label' => 'Allow paying invoices with account credit'],
 
+    // ------------------------------------------------------- refer a friend
+    'referral.enabled' => ['group' => 'referral', 'type' => 'bool', 'default' => false, 'label' => 'Enable "Refer a friend"', 'help' => 'Customers get a personal link. When a referred customer has paid an order with real money (not credit) and the holding period has passed, the referrer receives account credit.'],
+    'referral.reward' => ['group' => 'referral', 'type' => 'string', 'default' => '5.00', 'label' => 'Reward for the referrer (credit in the default currency)', 'rules' => 'required|regex:/^\\d{1,5}([.,]\\d{1,2})?$/', 'help' => 'Keep reward and welcome credit together below the minimum amount – otherwise referring yourself with a second account pays off.'],
+    'referral.welcome' => ['group' => 'referral', 'type' => 'string', 'default' => '0', 'label' => 'Welcome credit for the referred customer (0 = none)', 'rules' => 'required|regex:/^\\d{1,5}([.,]\\d{1,2})?$/'],
+    'referral.min_amount' => ['group' => 'referral', 'type' => 'string', 'default' => '10.00', 'label' => 'Minimum net amount of the qualifying invoice', 'rules' => 'required|regex:/^\\d{1,5}([.,]\\d{1,2})?$/', 'help' => 'Compared in the default currency; invoices in other currencies only qualify when the minimum is 0.'],
+    'referral.holding_days' => ['group' => 'referral', 'type' => 'int', 'default' => 14, 'label' => 'Holding period after payment (days)', 'rules' => 'required|int|min:0|max:180', 'help' => 'The reward is credited only if the payment has not been refunded by then (covers the withdrawal period).'],
+    'referral.monthly_limit' => ['group' => 'referral', 'type' => 'int', 'default' => 10, 'label' => 'Maximum rewards per referrer and month', 'rules' => 'required|int|min:1|max:1000'],
+
     // ----------------------------------------------------------------- system
     'system.maintenance_mode' => ['group' => 'system', 'type' => 'bool', 'default' => false, 'label' => 'Maintenance mode', 'help' => 'Customers see a maintenance page; staff with admin access can still sign in.'],
     'system.maintenance_message' => ['group' => 'system', 'type' => 'text', 'default' => 'We are performing scheduled maintenance. Please check back shortly.', 'label' => 'Maintenance message'],

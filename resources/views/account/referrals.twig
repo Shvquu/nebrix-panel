@@ -1,0 +1,54 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Refer a friend'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Refer a friend'|t }}</h1><p class="muted">{{ 'Recommend us and receive :amount credit for every friend who becomes a paying customer.'|t({amount: reward|money(currency)}) }}</p></div></div>
+
+<div class="p-stats p-stats-4">
+    <div class="p-card p-stat p-stat-wide">
+        <span class="p-stat-icon">{{ i.icon('link') }}</span>
+        <div class="p-stat-body">
+            <div class="p-stat-label">{{ 'Your personal link'|t }}</div>
+            <div class="p-stat-value"><span id="referral-link" class="mono p-ref-link">{{ link }}</span>
+                <button type="button" class="p-mini-btn" data-copy="#referral-link" data-copied="{{ 'Copied'|t }}" aria-label="{{ 'Copy'|t }}">{{ i.icon('copy') }}</button>
+            </div>
+            <div class="p-stat-hint">{{ 'Your code:'|t }} <span class="mono">{{ code }}</span></div>
+        </div>
+    </div>
+    <div class="p-card p-stat">
+        <span class="p-stat-icon">{{ i.icon('gift') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Successful referrals'|t }}</div><div class="p-stat-value">{{ overview.rewarded }}</div>{% if overview.open > 0 %}<div class="p-stat-hint">{{ ':n open'|t({n: overview.open}) }}</div>{% endif %}</div>
+    </div>
+    <div class="p-card p-stat">
+        <span class="p-stat-icon">{{ i.icon('coins') }}</span>
+        <div class="p-stat-body"><div class="p-stat-label">{{ 'Credit earned'|t }}</div><div class="p-stat-value">{{ overview.earned|money(currency) }}</div></div>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'How it works'|t }}</h2></div>
+    <div class="card-body">
+        <ol class="p-steps">
+            <li>{{ 'Share your link. Whoever registers through it within 30 days is assigned to you (or enters your code when registering).'|t }}</li>
+            <li>{% if minimum > 0 %}{{ 'Your friend orders and pays at least :amount net – by card, PayPal or bank transfer (payments from account credit do not count).'|t({amount: minimum|money(currency)}) }}{% else %}{{ 'Your friend orders and pays – by card, PayPal or bank transfer (payments from account credit do not count).'|t }}{% endif %}</li>
+            <li>{{ 'After :days days without a refund you receive :amount account credit. It is used automatically for your next invoices.'|t({days: holding_days, amount: reward|money(currency)}) }}</li>
+            {% if welcome > 0 %}<li>{{ 'Your friend receives :amount welcome credit at the same time.'|t({amount: welcome|money(currency)}) }}</li>{% endif %}
+        </ol>
+        <p class="small muted">{{ 'At most :n rewards per month. Referring yourself or creating accounts for this purpose is not permitted; such referrals are not rewarded.'|t({n: monthly_limit}) }}</p>
+    </div>
+</div>
+
+{% set labels = {pending: 'Waiting for the first payment', review: 'Being checked', qualified: 'Paid – reward after the holding period', rewarded: 'Rewarded', rejected: 'Not eligible'} %}
+{% set classes = {pending: 'badge-neutral', review: 'badge-warning', qualified: 'badge-info', rewarded: 'badge-success', rejected: 'badge-danger'} %}
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Your referrals'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Registered'|t }}</th><th>{{ 'Status'|t }}</th><th class="text-right">{{ 'Reward'|t }}</th></tr></thead>
+        <tbody>
+        {% for r in overview.rows %}
+            <tr><td>{{ r.created_at|dt }}</td><td><span class="badge badge-sentence {{ classes[r.status] ?? 'badge-neutral' }}">{{ (labels[r.status] ?? r.status)|t }}</span></td><td class="text-right">{{ r.status == 'rewarded' ? r.reward|money(r.currency) : '–' }}</td></tr>
+        {% else %}<tr><td colspan="3" class="empty">{{ 'Nobody has registered through your link yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

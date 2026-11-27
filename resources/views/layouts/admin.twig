@@ -10,6 +10,7 @@
             <div class="nav-section">{{ 'Administration'|t }}</div>
             <a href="/admin" class="{{ active('/admin', true) }}">{{ 'Dashboard'|t }}</a>
             {% if can('customers.view') %}<a href="/admin/customers" class="{{ active('/admin/customers') }}">{{ 'Customers'|t }}</a>{% endif %}
+            {% if can('customers.view') and setting('referral.enabled') %}<a href="/admin/referrals" class="{{ active('/admin/referrals') }}">{{ 'Referrals'|t }}</a>{% endif %}
             {% if can('customer_groups.manage') %}<a href="/admin/customer-groups" class="{{ active('/admin/customer-groups') }}">{{ 'Customer groups'|t }}</a>{% endif %}
             {% if can('services.view') %}<a href="/admin/services" class="{{ active('/admin/services') }}">{{ 'Services'|t }}</a>{% endif %}
             {% if can('services.view') %}<a href="/admin/cancellations" class="{{ active('/admin/cancellations') }}">{{ 'Cancellations'|t }}</a>{% endif %}

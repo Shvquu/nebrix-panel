@@ -1,0 +1,40 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Referrals'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Referrals'|t }}</h1><p class="muted">{{ 'Customers who registered through a referral link. A referral is rewarded after the referred customer has paid with real money and the holding period has passed. Sign-ups from the referrer\'s own address are held for review.'|t }}</p></div>{% if can('settings.general') %}<a class="btn btn-outline" href="/admin/settings/general#settings-referral">{{ 'Settings'|t }}</a>{% endif %}</div>
+{% if not enabled %}<div class="alert alert-info">{{ '"Refer a friend" is switched off. Existing referrals are kept but not processed.'|t }}</div>{% endif %}
+{% set labels = {pending: 'Waiting for payment', review: 'Review', qualified: 'Qualified', rewarded: 'Rewarded', rejected: 'Rejected'} %}
+{% set classes = {pending: 'badge-neutral', review: 'badge-warning', qualified: 'badge-info', rewarded: 'badge-success', rejected: 'badge-danger'} %}
+<div class="card">
+    <div class="card-body"><form method="get" class="filters">
+        {{ f.select('status', 'Status', {'': 'All'}|merge(labels), status ?? '', {'data-autosubmit': true}) }}
+        <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+    </form></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Registered'|t }}</th><th>{{ 'Referrer'|t }}</th><th>{{ 'Referred customer'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Invoice'|t }}</th><th class="text-right">{{ 'Reward'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for r in referrals %}
+            <tr>
+                <td class="nowrap">{{ r.created_at|dt }}{% if r.signup_ip %}<div class="small muted mono">{{ r.signup_ip }}</div>{% endif %}</td>
+                <td><a href="/admin/customers/{{ r.referrer_id }}">{{ r.referrer_email }}</a></td>
+                <td><a href="/admin/customers/{{ r.referred_id }}">{{ r.referred_email }}</a></td>
+                <td><span class="badge badge-sentence {{ classes[r.status] ?? 'badge-neutral' }}">{{ (labels[r.status] ?? r.status)|t }}</span>{% if r.note %}<div class="small muted">{{ r.note|t }}</div>{% endif %}</td>
+                <td>{% if r.invoice_id %}<a class="mono" href="/admin/invoices/{{ r.invoice_id }}">{{ r.invoice_number }}</a>{% if r.qualified_at %}<div class="small muted">{{ r.qualified_at|dt }}</div>{% endif %}{% else %}–{% endif %}</td>
+                <td class="text-right nowrap">{% if r.status == 'rewarded' %}{{ r.reward|money(r.currency) }}{% if r.welcome > 0 %}<div class="small muted">+ {{ r.welcome|money(r.currency) }} {{ 'welcome'|t }}</div>{% endif %}{% else %}–{% endif %}</td>
+                <td class="actions">
+                    {% if can('customers.manage') %}
+                        {% if r.status == 'review' %}
+                        <form method="post" action="/admin/referrals/{{ r.id }}/approve" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-primary" type="submit">{{ 'Approve'|t }}</button></form>
+                        {% endif %}
+                        {% if r.status in ['pending', 'review', 'qualified'] %}
+                        <form method="post" action="/admin/referrals/{{ r.id }}/reject" class="inline" data-confirm="{{ 'Reject this referral? It will not be rewarded.'|t }}">{{ csrf_field() }}<input type="hidden" name="reason" value=""><button class="btn btn-sm btn-outline" type="submit">{{ 'Reject'|t }}</button></form>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No referrals yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

@@ -92,6 +92,11 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Support PIN: 9 random digits, stored encrypted, shown only to the customer, verified – never displayed – for staff (10 checks per customer and 10 minutes, each check audit-logged). It cannot be used to sign in (unlike the removed legacy PIN login). Customers can renew it.
 * Account closure deletes the Discord link, the support PIN and the VIES holder name together with the other personal data.
 
+### Coupons and referrals
+* Coupon rules are enforced on the server only (preview and again inside the order transaction with the coupon row locked: no over-use through parallel orders). Checking codes on the order page is limited to 20 per customer and hour, so codes cannot be found by trying; unknown, inactive and malformed codes give the same message.
+* The coupon form uses its own GET form; the CSRF token of the order form never appears in a URL.
+* Referral rewards are paid only after a payment with real money (not credit, not free orders) and a holding period, are re-checked against refunds inside a locked transaction, are capped per month and referrer, and sign-ups from the referrer's own recent IP address need staff approval. The referral cookie is HttpOnly and SameSite=Lax and only set for valid codes. Referrers never see who registered through their link. The sign-up IP is deleted after the login-history retention.
+
 ### Invoices and taxes
 * Invoice PDFs and XML are only served through user-scoped lookups (customer: own invoices; API: `invoices:read` and own invoices; admin: invoice permissions). File names are reduced to `[A-Za-z0-9._-]` and sent as `attachment`.
 * PDFs are rendered by dompdf from an isolated Twig environment with auto-escaping, remote resources, PHP and JavaScript disabled and the file access restricted (`chroot`) to the PDF template directory; customer-entered values cannot load files or URLs. XML is built with DOM (escaped values).

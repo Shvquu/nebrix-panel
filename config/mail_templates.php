@@ -106,6 +106,18 @@ return [
         'subject' => 'Document {{ document_number }} for invoice {{ invoice_number }}',
         'html' => '<p>Hello {{ name }},</p><p>we have issued the document <strong>{{ document_number }}</strong> over {{ amount }} for invoice {{ invoice_number }} (cancellation or refund). It is attached and available in your customer area.</p><p><a class="button" href="{{ document_url }}">View document</a></p>',
     ],
+    'referral_reward' => [
+        'name' => 'Refer a friend: reward credited',
+        'variables' => ['name', 'amount', 'referrals_url', 'invoices_url'],
+        'subject' => 'Thank you for your recommendation – {{ amount }} credit',
+        'html' => '<p>Hello {{ name }},</p><p>a customer you referred to {{ company_name }} has become a paying customer. As a thank-you we have added <strong>{{ amount }}</strong> to your account credit. It is used for your next invoices.</p><p><a class="button" href="{{ referrals_url }}">View your referrals</a></p>',
+    ],
+    'referral_welcome' => [
+        'name' => 'Refer a friend: welcome credit',
+        'variables' => ['name', 'amount', 'referrals_url', 'invoices_url'],
+        'subject' => 'Your welcome credit of {{ amount }}',
+        'html' => '<p>Hello {{ name }},</p><p>you joined {{ company_name }} through a recommendation. As a welcome we have added <strong>{{ amount }}</strong> to your account credit. It is used for your next invoices.</p><p><a class="button" href="{{ invoices_url }}">View invoices</a></p>',
+    ],
     'ticket_reply' => [
         'name' => 'Support ticket reply',
         'variables' => ['name', 'ticket_subject', 'ticket_url'],

@@ -64,6 +64,28 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for. Every refund creates a correction document (credit note) for the refunded amount.
 * **Webhook events**: every received payment webhook with its processing status.
 
+## Coupons
+
+*Sales → Coupons* (viewing: `products.view`, creating and editing: `products.manage`).
+
+* **Code**: 3–32 letters, digits, `-` or `_`; stored in upper case, customers may type it in any case. Codes are unique.
+* **Discount**: a percentage (e.g. `10` or `12.5`) or a fixed net amount in one currency (fixed coupons only apply to products in that currency). The discount never exceeds the price.
+* **Duration**: *first invoice* (price and setup fee of the order) or *first invoice and renewals* – then the service's renewal price is permanently lowered by the same discount (percent of the recurring price, or the fixed amount).
+* **Conditions**: valid from/until (whole days), only for selected products, maximum uses in total, uses per customer, only for new customers (no previous order that was not cancelled), active switch.
+* Customers enter the code on the order page (*Apply* shows the new price) or send `coupon` with `POST /api/v1/orders`. The rules are checked again inside the order transaction with the coupon locked, so limits hold even for simultaneous orders. A use counts when the order is placed; cancelling the unpaid order (by the customer, staff or the stale-order task) releases it again.
+* The discount is part of the invoice line (net amount after discount, the line text names the coupon), so PDF and XRechnung stay valid. The coupon page lists every use with customer, order and discount.
+* Deactivate a coupon instead of deleting it – past orders keep their discount.
+
+## Refer a friend
+
+Switch it on under *Settings → General → Refer a friend* ([CONFIGURATION.md](CONFIGURATION.md#refer-a-friend-settings--general)). Customers then find *Refer a friend* in their menu with a personal link (`/r/CODE`) and their code.
+
+* **Assignment**: the link remembers the code for 30 days (cookie) and fills it into the registration form, where the visitor can see and remove it. A code can also be typed in during registration. Signed-in customers and unknown codes are ignored.
+* **Qualification**: the referral becomes *qualified* when the referred customer has paid an order or renewal invoice of at least the minimum net amount with real money – Stripe, PayPal or a bank transfer recorded by staff. Payments from account credit and free orders do not count.
+* **Reward**: after the holding period (default 14 days, covers the withdrawal period) the referrer receives the reward as account credit, the referred customer the optional welcome credit; both get an e-mail and the credit ledger shows the booking. If the qualifying invoice was refunded or cancelled in the meantime, the referral goes back to *waiting for payment*.
+* **Abuse protection**: sign-ups from an IP address the referrer signed in from within 90 days are held for **review** – *Customers → Referrals* shows them first; *Approve* (`customers.manage`) lets them continue, *Reject* ends them. A monthly limit caps the rewards per referrer (further rewards wait for the next month). A suspended account (either side) waits; closing an account rejects its open referrals.
+* Referrers see only date, status and reward of their referrals – never names or e-mail addresses of the referred customers.
+
 ## Taxes and invoices
 
 * **Tax decision per invoice** (stored with the invoice: category, country, note): domestic customers and customers without verified VAT ID pay VAT; EU business customers with a VAT ID confirmed by VIES are invoiced net with the reverse charge note; with OSS, EU private customers pay the standard rate of their country; customers outside the EU are invoiced without VAT only if "No VAT outside the EU" is on. With the **small business** switch every invoice is issued without VAT and with the § 19 UStG note.

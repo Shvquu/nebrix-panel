@@ -13,6 +13,7 @@
     {{ f.input('email', 'E-mail address', '', 'email', {required: true, autocomplete: 'email'}) }}
     {{ f.input('password', 'Password', '', 'password', {required: true, autocomplete: 'new-password', help: 'At least 10 characters. Use a passphrase that you do not use anywhere else.'}) }}
     {{ f.input('password_confirmation', 'Repeat password', '', 'password', {required: true, autocomplete: 'new-password'}) }}
+    {% if referrals %}{{ f.input('referral_code', 'Referral code (optional)', referral_code, 'text', {autocomplete: 'off', maxlength: 20, help: referral_code ? 'You were referred by an existing customer. You can remove the code.' : 'If a customer recommended us to you, enter their code.'}) }}{% endif %}
     {% if require_legal %}
         <div class="form-row">
             <label class="checkbox"><input type="checkbox" name="accept_terms" value="1">

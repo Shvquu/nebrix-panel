@@ -10,6 +10,7 @@ use Nebrix\Http\Controller;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
 use Nebrix\Http\SecurityHeaders;
+use Nebrix\Referral\ReferralService;
 use Nebrix\Security\Captcha;
 use Nebrix\Security\ValidationException;
 use Nebrix\Settings\SettingsRepository;
@@ -20,6 +21,7 @@ final class RegisterController extends Controller
         private readonly AuthService $auth,
         private readonly SettingsRepository $settings,
         private readonly Captcha $captcha,
+        private readonly ReferralService $referrals,
     ) {
     }
 
@@ -34,6 +36,9 @@ final class RegisterController extends Controller
         $response = $this->render($request, 'auth/register.twig', [
             'require_legal' => $this->settings->bool('auth.require_legal_acceptance'),
             'captcha' => $this->captcha->widget(),
+            'referrals' => $this->referrals->enabled(),
+            // Remembered from the referral link (/r/{code}); the visitor sees and can remove it.
+            'referral_code' => $this->rememberedCode($request),
         ]);
         if ($this->captcha->enabled()) {
             $response->setHeader('Content-Security-Policy', SecurityHeaders::contentSecurityPolicy($this->captcha->cspSources()));
@@ -50,12 +55,21 @@ final class RegisterController extends Controller
             'company' => 'nullable|string|max:150',
             'email' => 'required|email|max:254',
             'password' => 'required|string|min:10|max:256|confirmed',
+            'referral_code' => 'nullable|string|max:20',
         ];
         if ($this->settings->bool('auth.require_legal_acceptance')) {
             $rules['accept_terms'] = 'bool';
         }
         $data = $this->validate($request, $rules, ['accept_terms' => 'terms']);
         $this->captcha->verify($request);
+
+        $referralCode = $this->referrals->enabled() ? ReferralService::normalize((string) ($data['referral_code'] ?? '')) : '';
+        if ($referralCode !== '' && $this->referrals->referrerByCode($referralCode) === null) {
+            throw new ValidationException(
+                ['referral_code' => ['This referral code is not valid.']],
+                \Nebrix\Security\Validator::safeInput($request->all()),
+            );
+        }
 
         if (($rules['accept_terms'] ?? null) !== null && $data['accept_terms'] !== true) {
             throw new ValidationException(
@@ -71,6 +85,7 @@ final class RegisterController extends Controller
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
                 'company' => $data['company'],
+                'referral_code' => $referralCode,
             ]);
         } catch (AuthenticationException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
@@ -84,6 +99,18 @@ final class RegisterController extends Controller
             $this->flash($request, 'success', 'Your account has been created. Please confirm your e-mail address using the link we sent you.');
         }
 
-        return $this->redirect('/login');
+        $response = $this->redirect('/login');
+        if ($request->cookie(ReferralService::COOKIE) !== null) {
+            $response->withCookie(ReferralService::COOKIE, '', ['expires' => time() - 3600]);
+        }
+
+        return $response;
+    }
+
+    private function rememberedCode(Request $request): string
+    {
+        $code = ReferralService::normalize((string) $request->cookie(ReferralService::COOKIE));
+
+        return ReferralService::isValidCode($code) && $this->referrals->referrerByCode($code) !== null ? $code : '';
     }
 }

@@ -95,6 +95,9 @@ return static function (Router $r): void {
     $r->get('/withdraw-contract', [ContractController::class, 'withdrawForm']);
     $r->post('/withdraw-contract', [ContractController::class, 'withdraw']);
 
+    // Referral link: remembers the code for the registration.
+    $r->get('/r/{code:[A-Za-z0-9]{1,20}}', [Account\ReferralController::class, 'visit']);
+
     // Payment webhooks: authenticated by provider signatures, therefore no CSRF token.
     $r->post('/webhooks/stripe', [WebhookController::class, 'stripe'], ['csrf' => false]);
     $r->post('/webhooks/paypal', [WebhookController::class, 'paypal'], ['csrf' => false]);
@@ -171,6 +174,7 @@ return static function (Router $r): void {
         $r->get('/account/discord/connect', [Account\DiscordController::class, 'connect']);
         $r->get('/account/discord/callback', [Account\DiscordController::class, 'callback']);
         $r->post('/account/discord/unlink', [Account\DiscordController::class, 'unlink']);
+        $r->get('/account/referrals', [Account\ReferralController::class, 'index']);
     });
 
     // -------------------------------------------------------- administration
@@ -213,6 +217,9 @@ return static function (Router $r): void {
             $r->post('/customers/{id:\d+}/close', [Admin\CustomerController::class, 'close']);
             $r->post('/customers/{id:\d+}/support-pin', [Admin\CustomerController::class, 'verifySupportPin']);
             $r->post('/customers/{id:\d+}/discord/unlink', [Admin\CustomerController::class, 'unlinkDiscord']);
+            $r->get('/referrals', [Admin\ReferralController::class, 'index']);
+            $r->post('/referrals/{id:\d+}/approve', [Admin\ReferralController::class, 'approve']);
+            $r->post('/referrals/{id:\d+}/reject', [Admin\ReferralController::class, 'reject']);
         });
 
         $r->group(['middleware' => ['permission:customer_groups.manage']], static function (Router $r): void {

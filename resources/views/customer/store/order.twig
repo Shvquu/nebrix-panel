@@ -12,7 +12,7 @@
             {% if quote.coupon_error %}<div class="field-error">{{ quote.coupon_error|t }}</div>{% endif %}
         </div>
         <button class="btn btn-outline" type="submit">{{ 'Apply'|t }}</button>
-        {% if quote.coupon_code %}<span class="badge badge-success">{{ 'Coupon :code applied'|t({code: quote.coupon_code}) }}{% if quote.coupon_duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span> <a class="small" href="/store/{{ product.slug }}">{{ 'Remove'|t }}</a>{% endif %}
+        {% if quote.coupon_code %}<span class="badge badge-success badge-sentence">{{ 'Coupon :code applied'|t({code: quote.coupon_code}) }}{% if quote.coupon_duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span> <a class="small" href="/store/{{ product.slug }}">{{ 'Remove'|t }}</a>{% endif %}
     </div>
 </form>
 <form method="post" action="/store/{{ product.slug }}" novalidate>

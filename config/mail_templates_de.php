@@ -72,6 +72,14 @@ return [
         'subject' => 'Beleg {{ document_number }} zu Rechnung {{ invoice_number }}',
         'html' => '<p>Hallo {{ name }},</p><p>wir haben den Beleg <strong>{{ document_number }}</strong> über {{ amount }} zur Rechnung {{ invoice_number }} ausgestellt (Storno oder Erstattung). Sie finden ihn im Anhang und in Ihrem Kundenbereich.</p><p><a class="button" href="{{ document_url }}">Beleg ansehen</a></p>',
     ],
+    'referral_reward' => [
+        'subject' => 'Danke für Ihre Empfehlung – {{ amount }} Guthaben',
+        'html' => '<p>Hallo {{ name }},</p><p>ein von Ihnen geworbener Kunde ist jetzt zahlender Kunde bei {{ company_name }}. Als Dankeschön haben wir Ihrem Kundenkonto <strong>{{ amount }}</strong> Guthaben gutgeschrieben. Es wird für Ihre nächsten Rechnungen verwendet.</p><p><a class="button" href="{{ referrals_url }}">Ihre Empfehlungen ansehen</a></p>',
+    ],
+    'referral_welcome' => [
+        'subject' => 'Ihr Willkommensguthaben über {{ amount }}',
+        'html' => '<p>Hallo {{ name }},</p><p>Sie sind über eine Empfehlung zu {{ company_name }} gekommen. Zur Begrüßung haben wir Ihrem Kundenkonto <strong>{{ amount }}</strong> Guthaben gutgeschrieben. Es wird für Ihre nächsten Rechnungen verwendet.</p><p><a class="button" href="{{ invoices_url }}">Rechnungen ansehen</a></p>',
+    ],
     'ticket_reply' => [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',

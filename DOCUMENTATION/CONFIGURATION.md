@@ -145,6 +145,20 @@ See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 
 The redirect URI to register at Discord is shown on the settings page. Set-up: [INTEGRATIONS.md](INTEGRATIONS.md#discord-account-link-and-roles).
 
+### Refer a friend (Settings → General)
+| Setting | Default |
+|---|---|
+| Enable "Refer a friend" (`referral.enabled`) | off |
+| Reward for the referrer (`referral.reward`, credit in the default currency) | 5.00 |
+| Welcome credit for the referred customer (`referral.welcome`, 0 = none) | 0 |
+| Minimum net amount of the qualifying invoice (`referral.min_amount`) | 10.00 |
+| Holding period after payment (`referral.holding_days`) | 14 days |
+| Maximum rewards per referrer and month (`referral.monthly_limit`) | 10 |
+
+Amounts are entered as decimals (`5`, `2.50` or `2,50`) and booked in the default currency. Keep reward and welcome credit together **below** the minimum amount – otherwise a second account of the same person pays off. How referrals qualify: [ADMIN_GUIDE.md](ADMIN_GUIDE.md#refer-a-friend).
+
+Coupon codes have no global settings; they are managed under Sales → Coupons ([ADMIN_GUIDE.md](ADMIN_GUIDE.md#coupons)).
+
 ## Scheduler tasks
 
 `php bin/nebrix schedule:run` (every minute) runs these tasks when due:
@@ -159,6 +173,7 @@ The redirect URI to register at Discord is shown on the settings page. Set-up: [
 | `billing.terminate_suspended` | 60 min | Terminates long-suspended services – only if "terminate after" is > 0. |
 | `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached and whose declaration is still scheduled. |
 | `billing.cancel_stale_orders` | 60 min | Cancels unpaid orders/invoices of new orders after 14 days and releases stock. |
+| `referrals.process` | 60 min | Qualifies referrals whose referred customer has paid with real money, credits rewards after the holding period, resets referrals whose payment was refunded, removes sign-up IP addresses after the login-history retention. Does nothing (except the IP clean-up) while the feature is off. |
 | `discord.sync_roles` | 30 min | Queues a role sync for Discord links whose roles changed (or were not checked for a day). |
 | `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |

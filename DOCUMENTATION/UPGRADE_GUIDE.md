@@ -113,6 +113,19 @@ Migrations are forward-only; to roll back, restore the backup taken in step 2 an
 
 Migration `2026_11_29_000013_add_portal_features` adds the support PIN column and the table `nx_discord_links` (additive). The customer area gets the new layout automatically; PINs are created when customers first open their dashboard. Discord stays off until it is configured (Settings → System → Discord).
 
+### Updating to coupons and refer a friend
+
+Migration `2026_11_29_000014` adds the tables `nx_coupons`, `nx_coupon_redemptions` and `nx_referrals` and the columns `nx_orders.coupon_id/coupon_code/coupon_discount`, `nx_order_items.recurring_discount`, `nx_users.referral_code/referred_by`. It is additive; existing orders and services keep their prices (`recurring_discount` stays `NULL`, which means "as before").
+
+After pulling the code run, as after every update:
+
+```bash
+composer install --no-dev --optimize-autoloader
+php bin/nebrix migrate
+```
+
+Both features are off until you use them: coupons only apply when you create one, "Refer a friend" has to be switched on in Settings → General.
+
 ### Updating to the billing, contract and backup features
 
 This update adds five additive migrations (auto-payment and reminders, e-mail templates per language, cancellations, tax fields, invoice documents) and the Composer package `dompdf/dompdf` (installed by `composer install`; Docker: rebuild the image). No existing data is changed or removed; customised e-mail templates are assigned to the default language.

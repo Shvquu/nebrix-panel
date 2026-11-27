@@ -45,7 +45,7 @@
 {% endif %}
 
 {% for section in sections %}
-<form method="post" action="/admin/settings/{{ page }}" novalidate>
+<form method="post" action="/admin/settings/{{ page }}" id="settings-{{ section.group }}" novalidate>
     {{ csrf_field() }}
     <input type="hidden" name="group" value="{{ section.group }}">
     <div class="card">

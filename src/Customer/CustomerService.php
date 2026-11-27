@@ -159,11 +159,15 @@ class CustomerService
                 'vat_id_name' => null,
                 'support_pin' => null,
                 'support_pin_created_at' => null,
+                'referral_code' => null,
             ]);
             $this->db->run('DELETE FROM `nx_user_tokens` WHERE `user_id` = ?', [$user->id]);
             $this->db->run('UPDATE `nx_api_tokens` SET `revoked_at` = COALESCE(`revoked_at`, ?) WHERE `user_id` = ?', [$this->clock->nowString(), $user->id]);
             $this->db->run("UPDATE `nx_api_tokens` SET `name` = 'closed account', `allowed_ips` = NULL, `created_ip` = NULL, `last_used_ip` = NULL WHERE `user_id` = ?", [$user->id]);
             $this->db->run('UPDATE `nx_login_history` SET `identifier` = NULL, `ip` = NULL, `user_agent` = NULL WHERE `user_id` = ?', [$user->id]);
+            // Open referrals end with the account; rewards already credited stay as booked.
+            $this->db->run("UPDATE `nx_referrals` SET `status` = 'rejected', `note` = 'Account closed.' WHERE (`referred_id` = ? OR `referrer_id` = ?) AND `status` IN ('pending', 'review', 'qualified')", [$user->id, $user->id]);
+            $this->db->run('UPDATE `nx_referrals` SET `signup_ip` = NULL WHERE `referred_id` = ?', [$user->id]);
             $this->sessions->destroyForUser($user->id);
         });
 
