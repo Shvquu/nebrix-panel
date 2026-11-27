@@ -99,6 +99,7 @@ return [
     'mail.host' => ['group' => 'mail', 'type' => 'string', 'default' => '', 'label' => 'SMTP host', 'rules' => 'nullable|hostname'],
     'mail.port' => ['group' => 'mail', 'type' => 'int', 'default' => 587, 'label' => 'SMTP port', 'rules' => 'required|int|min:1|max:65535'],
     'mail.encryption' => ['group' => 'mail', 'type' => 'select', 'default' => 'tls', 'label' => 'Encryption', 'options' => ['tls' => 'STARTTLS', 'ssl' => 'SMTPS (implicit TLS)', 'none' => 'None (not recommended)']],
+    'mail.verify_tls' => ['group' => 'mail', 'type' => 'bool', 'default' => true, 'label' => 'Verify the TLS certificate of the SMTP server', 'help' => 'Only switch this off for a mail server on this machine (host localhost or 127.0.0.1) with a self-signed certificate, e.g. Plesk without a domain certificate.'],
     'mail.username' => ['group' => 'mail', 'type' => 'string', 'default' => '', 'label' => 'SMTP username', 'rules' => 'nullable|string|max:255'],
     'mail.password' => ['group' => 'mail', 'type' => 'string', 'default' => null, 'label' => 'SMTP password', 'secret' => true, 'rules' => 'nullable|string|max:500'],
     'mail.from_address' => ['group' => 'mail', 'type' => 'email', 'default' => '', 'label' => 'Sender address'],

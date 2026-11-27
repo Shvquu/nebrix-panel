@@ -44,6 +44,9 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Customer backups**: Proxmox (vzdump to a backup storage, restore through the provisioning queue, deletion, cleanup on termination) and Pterodactyl (create, restore, download, delete) with per-product limits and strict ownership checks.
 
 ### Added (Plesk)
+- SMTP: option to skip certificate verification for a mail server on the same machine (Plesk without a domain certificate; refused for remote hosts), and the SMTP connection test and test e-mail show the server's answer instead of a generic error.
+- `.env.example` no longer forces `SESSION_SECURE_COOKIE=true`; it follows `APP_URL`, so installations on a plain-HTTP IP address can sign in.
+- Installation guide: running on an IP address without a domain, Plesk mail server settings.
 - Installation guide for Plesk (INSTALLATION.md, option C): document root, PHP handler, Composer, scheduled tasks for scheduler and worker, e-mail, console proxy, updates and backups.
 - `public/uploads/.htaccess` blocks scripts, HTML and SVG in the upload folder on Apache hosts without the Docker configuration.
 

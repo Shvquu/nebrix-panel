@@ -93,13 +93,13 @@ class Mailer
             'to' => $toEmail,
             'to_name' => $toName ?? '',
             'template' => $template,
-        ]);
+        ], true);
     }
 
     /**
      * @param array{to: string, to_name: string, subject: string, html: string, text: string, template: string, attachments?: list<array{filename: string, content: string, mime: string}>} $message
      */
-    private function deliver(array $message): void
+    private function deliver(array $message, bool $diagnose = false): void
     {
         if (filter_var($message['to'], FILTER_VALIDATE_EMAIL) === false) {
             throw new RuntimeException('Invalid recipient address.');
@@ -117,6 +117,10 @@ class Mailer
         }
 
         $mail = $this->createMailer();
+        $lines = [];
+        if ($diagnose) {
+            $this->captureServerDialogue($mail, $lines);
+        }
         try {
             $mail->addAddress($message['to'], $message['to_name']);
             $mail->Subject = $message['subject'];
@@ -127,7 +131,7 @@ class Mailer
             }
             $mail->send();
         } catch (PHPMailerException $exception) {
-            throw new RuntimeException('SMTP delivery failed: ' . $this->sanitizeError($mail->ErrorInfo ?: $exception->getMessage()), 0, $exception);
+            throw new RuntimeException('SMTP delivery failed: ' . $this->diagnosis($mail->ErrorInfo ?: $exception->getMessage(), $lines), 0, $exception);
         }
 
         $this->logger->info('E-mail sent', ['to' => $message['to'], 'template' => $message['template']]);
@@ -142,13 +146,15 @@ class Mailer
     public function testConnection(): void
     {
         $mail = $this->createMailer();
+        $lines = [];
+        $this->captureServerDialogue($mail, $lines);
         try {
             if (!$mail->smtpConnect()) {
-                throw new RuntimeException('Could not connect or authenticate: ' . $this->sanitizeError($mail->ErrorInfo));
+                throw new RuntimeException('Could not connect or authenticate: ' . $this->diagnosis($mail->ErrorInfo, $lines));
             }
             $mail->smtpClose();
         } catch (PHPMailerException $exception) {
-            throw new RuntimeException('SMTP connection failed: ' . $this->sanitizeError($exception->getMessage()), 0, $exception);
+            throw new RuntimeException('SMTP connection failed: ' . $this->diagnosis($exception->getMessage(), $lines), 0, $exception);
         }
     }
 
@@ -167,6 +173,12 @@ class Mailer
         $mail->Timeout = 15;
         $mail->SMTPDebug = SMTP::DEBUG_OFF;
         $mail->isHTML(true);
+
+        // A mail server on this machine may use a self-signed certificate
+        // (e.g. Plesk without a domain); never relaxed for remote servers.
+        if (!$this->settings->bool('mail.verify_tls') && self::isLoopback($host)) {
+            $mail->SMTPOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
+        }
 
         $encryption = $this->settings->string('mail.encryption');
         if ($encryption === 'ssl') {
@@ -196,6 +208,46 @@ class Mailer
         }
 
         return $mail;
+    }
+
+    public static function isLoopback(string $host): bool
+    {
+        $host = strtolower(trim($host, '[] '));
+
+        return $host === 'localhost' || $host === '::1' || str_starts_with($host, '127.');
+    }
+
+    /**
+     * Collects what the SMTP server answered (never what the client sent:
+     * those lines can contain the encoded credentials) for error messages
+     * of the admin tests.
+     *
+     * @param list<string> $lines
+     */
+    private function captureServerDialogue(PHPMailer $mail, array &$lines): void
+    {
+        $mail->SMTPDebug = SMTP::DEBUG_CONNECTION;
+        $mail->Debugoutput = static function (string $line) use (&$lines): void {
+            $line = trim(preg_replace('/\s+/', ' ', $line) ?? '');
+            if (str_starts_with($line, 'CLIENT -> SERVER')) {
+                return;
+            }
+            if (str_starts_with($line, 'SERVER -> CLIENT:') || preg_match('/Connection failed|SMTP ERROR|certificate|SSL|TLS|Error #/i', $line) === 1) {
+                $lines[] = mb_substr(str_replace('SERVER -> CLIENT: ', '', $line), 0, 200);
+            }
+        };
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function diagnosis(string $error, array $lines): string
+    {
+        // The last server answers usually name the cause (e.g. "535 authentication failed").
+        $relevant = array_values(array_filter($lines, static fn (string $line): bool => preg_match('/^[45]\d\d|failed|error|certificate|ssl|tls/i', $line) === 1));
+        $detail = implode(' | ', array_slice($relevant !== [] ? $relevant : $lines, -3));
+
+        return $this->sanitizeError($error . ($detail !== '' ? ' – ' . $detail : ''));
     }
 
     private function sanitizeError(string $error): string

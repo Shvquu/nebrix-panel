@@ -1224,4 +1224,7 @@ return [
     'Role for customers with an active service (role ID)' => 'Rolle für Kunden mit aktivem Dienst (Rollen-ID)',
     'Invite link to the server' => 'Einladungslink zum Server',
     'Prices include the VAT that applies to you.' => 'Die Preise enthalten die für Sie geltende Umsatzsteuer.',
+    'Verify the TLS certificate of the SMTP server' => 'TLS-Zertifikat des SMTP-Servers prüfen',
+    'Only switch this off for a mail server on this machine (host localhost or 127.0.0.1) with a self-signed certificate, e.g. Plesk without a domain certificate.' => 'Nur abschalten für einen Mailserver auf diesem Server (Host localhost oder 127.0.0.1) mit selbstsigniertem Zertifikat, z. B. Plesk ohne Domain-Zertifikat.',
+    'Certificate verification can only be switched off for a mail server on this machine (localhost or 127.0.0.1).' => 'Die Zertifikatsprüfung kann nur für einen Mailserver auf diesem Server (localhost oder 127.0.0.1) abgeschaltet werden.',
 ];

@@ -21,7 +21,7 @@ Configuration is split into two layers:
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SOCKET` | – | Database connection. `DB_SOCKET` takes precedence over host/port. |
 | `SESSION_IDLE_MINUTES` | `60` | Sign-out after inactivity. |
 | `SESSION_LIFETIME_HOURS` | `12` | Absolute session lifetime. |
-| `SESSION_SECURE_COOKIE` | `true` if `APP_URL` is HTTPS | Marks the session cookie `Secure` (and uses the `__Host-` prefix). |
+| `SESSION_SECURE_COOKIE` | `true` if `APP_URL` is HTTPS | Marks the session cookie `Secure` (and uses the `__Host-` prefix). Leave it unset so it follows `APP_URL`; `true` on a plain-HTTP installation makes sign-in impossible (the browser drops the cookie). |
 | `LOG_PATH` | `storage/logs/nebrix.log` | Log file, or `php://stderr` in containers. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `notice`, `warning`, `error`. |
 | `LOG_RETENTION_DAYS` | `30` | Rotated daily log files to keep. |
@@ -108,7 +108,7 @@ Since 1 January 2025 German businesses must be able to receive e-invoices; issui
 Logo and favicon upload (PNG, JPEG, WebP, ICO; max 1 MB), primary/secondary/accent colours, default theme (system/light/dark), login headline and subtitle, dashboard notice, e-mail header colour and footer. Colours are delivered as `/branding.css` so the strict Content Security Policy stays intact.
 
 ### Mail (SMTP)
-Enable SMTP, host, port, encryption (STARTTLS / SMTPS / none), username, password (encrypted), sender address and name. While SMTP is disabled, e-mails are written to the application log. Use "Send test e-mail" after saving. E-mails are sent by the queue worker, so the worker must run.
+Enable SMTP, host, port, encryption (STARTTLS / SMTPS / none), TLS certificate verification (on; can only be switched off for a mail server on this machine – `localhost`/`127.0.0.1` – with a self-signed certificate), username, password (encrypted), sender address and name. *Test connection* shows the SMTP server's answer when the connection or login fails (the client side of the dialogue, which contains the encoded credentials, is never shown). While SMTP is disabled, e-mails are written to the application log. Use "Send test e-mail" after saving. E-mails are sent by the queue worker, so the worker must run.
 
 E-mail texts are edited in Admin → Mail templates (subject, HTML and plain-text body with `{{ variable }}` placeholders; preview and reset to default available). Every template exists in English and German; customers receive the version in their account language (guests: the default language), other languages fall back to English.
 

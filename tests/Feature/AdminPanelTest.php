@@ -83,7 +83,7 @@ final class AdminPanelTest extends FeatureTestCase
         $this->actingAs($this->createUser(Role::ADMIN));
 
         $this->assertRedirect($this->post('/admin/settings/email', [
-            'group' => 'mail', 'mail__host' => 'smtp.example.com', 'mail__port' => '587', 'mail__encryption' => 'tls',
+            'group' => 'mail', 'mail__host' => 'smtp.example.com', 'mail__port' => '587', 'mail__encryption' => 'tls', 'mail__verify_tls' => '1',
             'mail__username' => 'mailer', 'mail__password' => 'super-secret-smtp', 'mail__from_address' => 'noreply@example.com',
         ]), '/admin/settings/email');
 
@@ -98,6 +98,16 @@ final class AdminPanelTest extends FeatureTestCase
         $audit = (string) $this->db->fetchValue("SELECT details FROM nx_audit_log WHERE action = 'settings.updated' ORDER BY id DESC LIMIT 1");
         self::assertStringContainsString('mail.password', $audit);
         self::assertStringNotContainsString('super-secret-smtp', $audit);
+
+        // Certificate checks can only be switched off for a mail server on this machine.
+        $local = ['group' => 'mail', 'mail__port' => '587', 'mail__encryption' => 'tls', 'mail__username' => 'mailer', 'mail__from_address' => 'noreply@example.com'];
+        $this->post('/admin/settings/email', ['mail__host' => 'smtp.example.com'] + $local);
+        $settings->flush();
+        self::assertTrue($settings->bool('mail.verify_tls'), 'Not relaxed for a remote server.');
+        $this->post('/admin/settings/email', ['mail__host' => '127.0.0.1'] + $local);
+        $settings->flush();
+        self::assertFalse($settings->bool('mail.verify_tls'));
+        self::assertSame('127.0.0.1', $settings->string('mail.host'));
     }
 
     public function testSettingsGroupMustBelongToThePage(): void

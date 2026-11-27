@@ -93,6 +93,11 @@ final class SettingsController extends Controller
             throw HttpException::badRequest();
         }
 
+        // Certificate checks may only be relaxed for a mail server on this machine.
+        if ($group === 'mail' && $request->string('mail__verify_tls') === '' && !\Nebrix\Mail\Mailer::isLoopback($request->string('mail__host'))) {
+            throw \Nebrix\Security\ValidationException::withMessages(['mail__verify_tls' => 'Certificate verification can only be switched off for a mail server on this machine (localhost or 127.0.0.1).']);
+        }
+
         // Invoices and correction documents share the unique number column.
         if ($group === 'billing') {
             $credit = mb_strtoupper(trim($request->string('billing__credit_note_prefix')));

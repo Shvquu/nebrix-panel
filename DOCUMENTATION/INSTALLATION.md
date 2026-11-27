@@ -192,13 +192,17 @@ cd /var/www/vhosts/example.com/panel.example.com/nebrix && /opt/plesk/php/8.4/bi
 ```
 
    The second task starts a worker every minute that stops after 55 seconds, so e-mails, provisioning and Discord roles are processed continuously without a process supervisor. Several workers at once are safe (jobs are reserved atomically). With root access you can instead run the worker as a systemd service (see Option B, `User=` = the subscription's system user, `ExecStart=/opt/plesk/php/8.4/bin/php bin/nebrix queue:work --max-time=3600`).
-10. **E-mail**: create a mailbox in Plesk (e.g. `billing@example.com`) and enter it under *Admin → Settings → E-mail* (host = your mail server name, port 587, STARTTLS). Send the test e-mail.
+10. **E-mail with the Plesk mail server**: create a mailbox (*Mail → Create Email Address*, e.g. `billing@example.com`). Under *Admin → Settings → E-mail*: host `127.0.0.1`, port `587` with STARTTLS (enable *SMTP service on port 587* under *Tools & Settings → Mail Server Settings*) or port `465` with SMTPS, user name = the **full** e-mail address, its password. If Plesk's mail server has no certificate for the name you connect to (typical without a domain), switch off *Verify the TLS certificate of the SMTP server* – this is only possible for `localhost`/`127.0.0.1`. Port 25 without encryption usually fails: Postfix only accepts logins over TLS. *Test connection* shows the server's answer (e.g. `535 … authentication failed` = wrong user name or password).
 11. **File permissions**: Plesk runs PHP as the subscription user, which owns the files – `storage/` and `public/uploads/` are writable without changes. `public/uploads/.htaccess` blocks scripts in the upload folder.
 12. **Console proxy** (only for Proxmox consoles, needs root): a systemd service for `bin/nebrix console:proxy --listen=127.0.0.1:8081` and under *Apache & nginx Settings → Additional nginx directives*:
 
 ```nginx
 location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_read_timeout 4h; access_log off; }
 ```
+
+**Without a domain (IP address only)** – fine for trying it out, not for production:
+* Open the panel by IP: *Tools & Settings → IP Addresses* → the IP → *Default site* = your subscription. Set `APP_URL` exactly to the address you open, e.g. `http://203.0.113.10` (the Origin check compares it), and leave `SESSION_SECURE_COOKIE` commented out (it follows `APP_URL`; with `true` the browser drops the login cookie on plain HTTP) and set `APP_HSTS=false`.
+* Plain HTTP sends passwords unencrypted; HTTPS on a bare IP only works with a self-signed certificate (browser warning). Payment webhooks (Stripe, PayPal) need a public HTTPS URL, and e-mails from a server without a domain (no SPF/DKIM, no matching reverse DNS) are usually rejected or end up as spam. Use a domain (with Let's Encrypt) before going live; until then an external SMTP account is the more reliable way to send e-mails.
 
 **Updates**: pull the new version (Plesk *Git* → *Pull updates*, or `git pull`), then run Composer (step 5) and `bin/nebrix migrate`; workers pick up the new code within a minute. In the Git extension you can enter both commands as *additional deployment actions*.
 
