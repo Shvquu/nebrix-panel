@@ -126,6 +126,12 @@ php bin/nebrix migrate
 
 Both features are off until you use them: coupons only apply when you create one, "Refer a friend" has to be switched on in Settings → General.
 
+### Security update (ownership checks, credentials)
+
+* Proxmox: every status read, action, console and package change now checks that the guest still belongs to the service. Guests created by Nebrix carry the line `nebrix-service-<id>` in their notes; guests imported from RED-Host are accepted while their name matches the imported host name. If an imported guest was renamed in Proxmox, its page shows "could not be verified" – add the line `nebrix-service-<service ID>` to the guest's notes (Proxmox → guest → Summary → Notes) once.
+* Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
+* Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
+
 ### Updating to the status page
 
 Migration `2026_11_29_000016_create_status_page` adds the status page tables and grants the new permission `status.manage` to the built-in Administrator and Support roles (custom roles: Admin → Roles). The page `/status` is public right away; add components under *Status page* in the admin area.
