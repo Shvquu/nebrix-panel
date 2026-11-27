@@ -1,51 +1,97 @@
-version: '3'
+# Nebrix Panel – local/production compose file.
+# All credentials come from .env (see .env.example). The database is not
+# published to the host network.
 services:
-  php-apache-environment:
-    container_name: php-apache-redhost
+  app:
     build:
-      context: ./.docker
-      dockerfile: Dockerfile
-    depends_on:
-      - mysql
-    volumes:
-      - '.:/var/www/html'
-    ports:
-      - '8080:80'
-    networks:
-      - sail
-  mysql:
-    image: 'mysql/mysql-server:8.0'
-    ports:
-      - '3306:3306'
+      context: .
+      dockerfile: .docker/Dockerfile
+    image: nebrix-panel:latest
+    env_file: .env
     environment:
-      MYSQL_ROOT_PASSWORD: "b1b3yq2"
-      MYSQL_ROOT_HOST: "%"
-      MYSQL_DATABASE: "redhost"
-      MYSQL_USER: "redhost"
-      MYSQL_PASSWORD: "b1b3yq2"
-      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - 'sail-mysql:/var/lib/mysql'
-    networks:
-      - sail
+      - uploads:/var/www/nebrix/public/uploads
+      - invoices:/var/www/nebrix/storage/invoices
+    restart: unless-stopped
+
+  worker:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["php", "bin/nebrix", "queue:work"]
+    # The image's health check probes Apache, which only runs in "app".
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-p b1b3yq2" ]
-      retries: 3
-      timeout: 5s
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    ports:
-      - '81:80'
-    restart: always
-    environment:
-      PMA_HOST: mysql
+      disable: true
+    volumes:
+      - invoices:/var/www/nebrix/storage/invoices
     depends_on:
-      - mysql
-    networks:
-      - sail
-networks:
-  sail:
-    driver: bridge
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["sh", "-c", "while true; do php bin/nebrix schedule:run; sleep 60; done"]
+    healthcheck:
+      disable: true
+    volumes:
+      - invoices:/var/www/nebrix/storage/invoices
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # WebSocket relay for server consoles. Route CONSOLE_WS_URL (default
+  # <APP_URL>/console/ws) from the TLS reverse proxy to this port.
+  console:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["php", "bin/nebrix", "console:proxy", "--listen=0.0.0.0:8081"]
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8081) ? 0 : 1);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "127.0.0.1:${CONSOLE_PORT:-8081}:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:?set DB_DATABASE in .env}
+      MARIADB_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
-  sail-mysql:
-    driver: local
+  db-data:
+  uploads:
+  invoices:

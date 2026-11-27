@@ -1,0 +1,220 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nebrix\Catalog;
+
+/**
+ * Product categories, their provisioning integration type and the schema of
+ * category-specific settings.
+ *
+ * - "config" fields are set by administrators on the product and copied to
+ *   the service when it is ordered.
+ * - "options" are values the customer chooses when ordering (validated
+ *   server-side with the given rules).
+ *
+ * Adding a category = adding an entry here (+ a provisioner if automated).
+ */
+final class ProductCategory
+{
+    public const VPS = 'vps';
+    public const LXC = 'lxc';
+    public const DEDICATED = 'dedicated';
+    public const WEBHOSTING = 'webhosting';
+    public const DOMAIN = 'domain';
+    public const MINECRAFT = 'minecraft';
+    public const TEAMSPEAK = 'teamspeak';
+    public const NEXTCLOUD = 'nextcloud';
+
+    private const HOSTNAME_RULE = 'required|string|max:63|regex:/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/';
+
+    /**
+     * @return array<string, array{
+     *     label: string,
+     *     integration: string|null,
+     *     config: array<string, array{label: string, rules: string, default?: mixed, help?: string, type?: string}>,
+     *     options: array<string, array{label: string, rules: string, help?: string}>
+     * }>
+     */
+    public static function all(): array
+    {
+        return [
+            self::VPS => [
+                'label' => 'VPS / KVM server',
+                'integration' => 'proxmox',
+                'config' => [
+                    'node' => ['label' => 'Proxmox node (empty = node with most free memory)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/'],
+                    'template_vmid' => ['label' => 'Template VM ID to clone', 'rules' => 'required|int|min:100|max:999999999', 'help' => 'A prepared cloud-init template on the selected node.'],
+                    'storage' => ['label' => 'Target storage', 'rules' => 'required|string|max:64|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'local-lvm'],
+                    'cores' => ['label' => 'CPU cores', 'rules' => 'required|int|min:1|max:128', 'default' => 2],
+                    'memory_mb' => ['label' => 'Memory (MB)', 'rules' => 'required|int|min:256|max:1048576', 'default' => 2048],
+                    'disk_gb' => ['label' => 'Disk size (GB)', 'rules' => 'required|int|min:1|max:65536', 'default' => 40],
+                    'bridge' => ['label' => 'Network bridge', 'rules' => 'required|string|max:32|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'vmbr0'],
+                    'rate_mbps' => ['label' => 'Network rate limit (MB/s, 0 = unlimited)', 'rules' => 'required|int|min:0|max:100000', 'default' => 0],
+                    'vmid_start' => ['label' => 'First VM ID for new servers', 'rules' => 'required|int|min:100|max:999999999', 'default' => 10000],
+                    'ip_pool_id' => ['label' => 'IP pool for static IPv4 addresses', 'rules' => 'nullable|int|min:1', 'type' => 'select', 'options_source' => 'ip_pools', 'help' => 'Empty = DHCP on the bridge.'],
+                    'reinstall_templates' => ['label' => 'Additional templates for reinstall (one per line: VM ID|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. 9001|Ubuntu 24.04 – the product template is always offered.'],
+                    'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
+                    'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
+                ],
+                'options' => [
+                    'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
+                ],
+            ],
+            self::LXC => [
+                'label' => 'LXC container',
+                'integration' => 'proxmox',
+                'config' => [
+                    'node' => ['label' => 'Proxmox node (empty = node with most free memory)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/'],
+                    'ostemplate' => ['label' => 'OS template', 'rules' => 'required|string|max:255|regex:/^[A-Za-z0-9._-]+:vztmpl\/[A-Za-z0-9._+-]+$/', 'help' => 'For example local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst'],
+                    'storage' => ['label' => 'Root disk storage', 'rules' => 'required|string|max:64|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'local-lvm'],
+                    'cores' => ['label' => 'CPU cores', 'rules' => 'required|int|min:1|max:128', 'default' => 1],
+                    'memory_mb' => ['label' => 'Memory (MB)', 'rules' => 'required|int|min:64|max:1048576', 'default' => 1024],
+                    'swap_mb' => ['label' => 'Swap (MB)', 'rules' => 'required|int|min:0|max:1048576', 'default' => 512],
+                    'disk_gb' => ['label' => 'Disk size (GB)', 'rules' => 'required|int|min:1|max:65536', 'default' => 10],
+                    'bridge' => ['label' => 'Network bridge', 'rules' => 'required|string|max:32|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'vmbr0'],
+                    'rate_mbps' => ['label' => 'Network rate limit (MB/s, 0 = unlimited)', 'rules' => 'required|int|min:0|max:100000', 'default' => 0],
+                    'unprivileged' => ['label' => 'Unprivileged container (recommended)', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
+                    'vmid_start' => ['label' => 'First container ID for new servers', 'rules' => 'required|int|min:100|max:999999999', 'default' => 20000],
+                    'ip_pool_id' => ['label' => 'IP pool for static IPv4 addresses', 'rules' => 'nullable|int|min:1', 'type' => 'select', 'options_source' => 'ip_pools', 'help' => 'Empty = DHCP on the bridge.'],
+                    'reinstall_templates' => ['label' => 'Additional OS templates for reinstall (one per line: template|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst|Ubuntu 24.04'],
+                    'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
+                    'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
+                ],
+                'options' => [
+                    'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
+                ],
+            ],
+            self::DEDICATED => [
+                'label' => 'Dedicated server',
+                'integration' => 'hetzner_robot',
+                'config' => [
+                    'hardware' => ['label' => 'Hardware description', 'rules' => 'nullable|string|max:500'],
+                    'mode' => ['label' => 'Hetzner: provisioning mode', 'rules' => 'required|in:pool,order', 'default' => 'pool', 'type' => 'select', 'options' => ['pool' => 'Assign a free server from the pool', 'order' => 'Order a new server at Hetzner']],
+                    'server_product' => ['label' => 'Hetzner: server model (pool filter or order product ID)', 'rules' => 'nullable|string|max:50|regex:/^[A-Za-z0-9._ -]*$/', 'help' => 'Pool: part of the Robot product name, e.g. "AX41". Order: product ID from the Robot order API, e.g. "AX41-NVMe". Leave empty for manual fulfilment.'],
+                    'location' => ['label' => 'Hetzner: location', 'rules' => 'nullable|string|max:20|regex:/^[A-Z0-9-]*$/', 'help' => 'e.g. FSN1, NBG1, HEL1 – empty = any.'],
+                    'image' => ['label' => 'Hetzner: operating system image', 'rules' => 'nullable|string|max:100|regex:/^[A-Za-z0-9 ._()+-]*$/', 'default' => 'Debian 12 base', 'help' => 'Exact image name as listed by Robot (Linux installation).'],
+                    'reinstall_images' => ['label' => 'Hetzner: images offered for reinstall (one per line)', 'rules' => 'nullable|string|max:2000', 'type' => 'text'],
+                ],
+                'options' => [
+                    'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE],
+                ],
+            ],
+            self::WEBHOSTING => [
+                'label' => 'Webhosting',
+                'integration' => 'plesk',
+                'config' => [
+                    'plan' => ['label' => 'Plesk service plan name', 'rules' => 'nullable|string|max:100|regex:/^[^<>&]*$/', 'help' => 'Exact name of the service plan in Plesk (required for automatic provisioning).'],
+                ],
+                'options' => [
+                    'domain' => ['label' => 'Domain', 'rules' => 'required|string|max:253|regex:/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
+                ],
+            ],
+            self::DOMAIN => [
+                'label' => 'Domain',
+                'integration' => 'inwx',
+                'config' => [
+                    'tld' => ['label' => 'Top-level domain', 'rules' => 'required|string|max:63|regex:/^\.?[a-z0-9-]+(\.[a-z0-9-]+)*$/'],
+                ],
+                'options' => [
+                    'domain' => ['label' => 'Domain', 'rules' => 'required|string|max:253|regex:/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
+                    'auth_code' => ['label' => 'Auth code (only for transfers from another provider)', 'rules' => 'nullable|string|max:64|regex:/^[\x21-\x7E]*$/', 'secret' => true],
+                ],
+            ],
+            self::MINECRAFT => [
+                'label' => 'Minecraft / game server',
+                'integration' => 'pterodactyl',
+                'config' => [
+                    'nest_id' => ['label' => 'Nest ID', 'rules' => 'required|int|min:1'],
+                    'egg_id' => ['label' => 'Egg ID', 'rules' => 'required|int|min:1'],
+                    'location_id' => ['label' => 'Location ID', 'rules' => 'required|int|min:1'],
+                    'memory_mb' => ['label' => 'Memory (MB)', 'rules' => 'required|int|min:128|max:1048576', 'default' => 4096],
+                    'swap_mb' => ['label' => 'Swap (MB, -1 = unlimited)', 'rules' => 'required|int|min:-1|max:1048576', 'default' => 0],
+                    'disk_mb' => ['label' => 'Disk (MB)', 'rules' => 'required|int|min:256|max:10485760', 'default' => 20480],
+                    'cpu_percent' => ['label' => 'CPU limit (% of one core, 0 = unlimited)', 'rules' => 'required|int|min:0|max:12800', 'default' => 200],
+                    'io' => ['label' => 'Block IO weight (10-1000)', 'rules' => 'required|int|min:10|max:1000', 'default' => 500],
+                    'databases' => ['label' => 'Databases', 'rules' => 'required|int|min:0|max:100', 'default' => 1],
+                    'allocations' => ['label' => 'Additional ports', 'rules' => 'required|int|min:0|max:100', 'default' => 1],
+                    'backups' => ['label' => 'Backups', 'rules' => 'required|int|min:0|max:100', 'default' => 2],
+                    'docker_image' => ['label' => 'Docker image (empty = egg default)', 'rules' => 'nullable|string|max:255|regex:/^[A-Za-z0-9._\/:@-]*$/'],
+                    'environment' => ['label' => 'Environment overrides (JSON object)', 'rules' => 'nullable|json|max:5000', 'type' => 'json', 'help' => 'Values for egg variables, e.g. {"SERVER_JARFILE": "server.jar"}. Missing variables use the egg defaults.'],
+                ],
+                'options' => [
+                    'server_name' => ['label' => 'Server name', 'rules' => 'required|string|max:60|regex:/^[\p{L}\p{N} ._-]+$/u'],
+                ],
+            ],
+            self::TEAMSPEAK => [
+                'label' => 'TeamSpeak 3 server',
+                'integration' => 'teamspeak',
+                'config' => [
+                    'slots' => ['label' => 'Slots', 'rules' => 'required|int|min:1|max:1024', 'default' => 32],
+                ],
+                'options' => [
+                    'server_name' => ['label' => 'Server name', 'rules' => 'required|string|max:60|regex:/^[\p{L}\p{N} ._-]+$/u'],
+                ],
+            ],
+            self::NEXTCLOUD => [
+                'label' => 'Nextcloud storage',
+                'integration' => 'nextcloud',
+                'config' => [
+                    'quota_gb' => ['label' => 'Storage quota (GB)', 'rules' => 'required|int|min:1|max:1048576', 'default' => 100],
+                    'group' => ['label' => 'Nextcloud group (optional)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9 ._@-]*$/'],
+                ],
+                'options' => [],
+            ],
+        ];
+    }
+
+    /**
+     * Groups of the customer portal (order menu, dashboard tabs, store
+     * filter): key => label, icon and the categories they contain.
+     *
+     * @return array<string, array{label: string, icon: string, categories: list<string>}>
+     */
+    public static function groups(): array
+    {
+        return [
+            'server' => ['label' => 'Server', 'icon' => 'server', 'categories' => [self::VPS, self::LXC, self::DEDICATED]],
+            'teamspeak' => ['label' => 'TeamSpeak', 'icon' => 'headset', 'categories' => [self::TEAMSPEAK]],
+            'web' => ['label' => 'Web & domains', 'icon' => 'globe', 'categories' => [self::WEBHOSTING, self::DOMAIN]],
+            'more' => ['label' => 'More services', 'icon' => 'grid', 'categories' => [self::MINECRAFT, self::NEXTCLOUD]],
+        ];
+    }
+
+    public static function groupOf(string $category): string
+    {
+        foreach (self::groups() as $key => $group) {
+            if (in_array($category, $group['categories'], true)) {
+                return $key;
+            }
+        }
+
+        return 'more';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function labels(): array
+    {
+        return array_map(static fn (array $category): string => $category['label'], self::all());
+    }
+
+    /**
+     * @return array{label: string, integration: string|null, config: array<string, array<string, mixed>>, options: array<string, array<string, mixed>>}
+     */
+    public static function get(string $category): array
+    {
+        $all = self::all();
+        if (!isset($all[$category])) {
+            throw new \InvalidArgumentException(sprintf('Unknown product category "%s".', $category));
+        }
+
+        return $all[$category];
+    }
+
+    public static function exists(string $category): bool
+    {
+        return isset(self::all()[$category]);
+    }
+}
