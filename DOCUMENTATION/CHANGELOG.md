@@ -56,6 +56,9 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Support PIN** for identity checks by phone or chat (encrypted, verified by staff without seeing it, renewable).
 - Account closure now also removes the VIES holder name (previously kept).
 
+### Changed (admin design)
+- The admin area uses the design of the customer portal: sidebar with icons and grouped sections (only those the role may use), customer search in the top bar, shortcuts to the status page and the customer area, avatar with role, dashboard with hero, quick actions and key figure cards; dark/light mode and phone layout.
+
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 

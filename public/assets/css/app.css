@@ -98,7 +98,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 .sidebar { width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .sidebar-brand { display: flex; align-items: center; gap: .6rem; padding: 1.2rem 1.25rem; color: #fff; font-weight: 700; font-size: 1.15rem; letter-spacing: .02em; }
 .sidebar-brand img { max-height: 32px; max-width: 160px; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+.brand-mark { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
 .nav-section { padding: .9rem 1.25rem .35rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: rgba(203, 211, 230, .55); }
 .nav a { display: flex; align-items: center; gap: .6rem; padding: .5rem 1.25rem; color: var(--sidebar-text); border-left: 3px solid transparent; font-size: .93rem; }
 .nav a:hover { background: rgba(255, 255, 255, .05); color: #fff; text-decoration: none; }
