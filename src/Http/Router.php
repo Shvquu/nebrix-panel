@@ -15,11 +15,17 @@ namespace Nebrix\Http;
  *  - stateless: true for token-authenticated API routes (no session, no CSRF,
  *    JSON errors; uses the kernel's stateless middleware stack). Also a group
  *    attribute.
+ *  - fallback: true for catch-all routes (e.g. landing pages at /{slug}) that
+ *    are only matched when no other route matches, whatever the order in
+ *    which the route files were loaded.
  */
 final class Router
 {
     /** @var list<Route> */
     private array $routes = [];
+
+    /** @var list<Route> routes matched only after all others */
+    private array $fallbacks = [];
 
     /** @var list<array{prefix: string, middleware: list<string>, stateless: bool}> */
     private array $groupStack = [];
@@ -29,7 +35,7 @@ final class Router
 
     /**
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool, fallback?: bool} $options
      */
     public function get(string $path, array $handler, array $options = []): Route
     {
@@ -38,7 +44,7 @@ final class Router
 
     /**
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool, fallback?: bool} $options
      */
     public function post(string $path, array $handler, array $options = []): Route
     {
@@ -48,7 +54,7 @@ final class Router
     /**
      * @param list<string> $methods
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool, fallback?: bool} $options
      */
     public function add(array $methods, string $path, array $handler, array $options = []): Route
     {
@@ -71,7 +77,11 @@ final class Router
             $stateless,
         );
 
-        $this->routes[] = $route;
+        if (($options['fallback'] ?? false) === true) {
+            $this->fallbacks[] = $route;
+        } else {
+            $this->routes[] = $route;
+        }
         if (isset($options['name'])) {
             $this->named[$options['name']] = $route;
         }
@@ -116,6 +126,13 @@ final class Router
             }
             $allowed = array_merge($allowed, $route->methods);
         }
+        // Catch-all routes never turn an unknown address into "405 Method not allowed".
+        foreach ($allowed === [] ? $this->fallbacks : [] as $route) {
+            $params = $route->match($path);
+            if ($params !== null && in_array($method, $route->methods, true)) {
+                return [$route, $params];
+            }
+        }
 
         if ($allowed !== []) {
             throw new HttpException(405, 'Method not allowed.');
@@ -141,6 +158,12 @@ final class Router
      */
     public function routes(): array
     {
-        return $this->routes;
+        return [...$this->routes, ...$this->fallbacks];
+    }
+
+    /** Whether the route is a fallback route (matched after all others). */
+    public function isFallback(Route $route): bool
+    {
+        return in_array($route, $this->fallbacks, true);
     }
 }
