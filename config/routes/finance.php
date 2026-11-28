@@ -60,5 +60,13 @@ return static function (Router $r): void {
             $r->post('/partners/payouts/{id:\d+}/paid', [Admin\PartnerController::class, 'markPaid']);
             $r->post('/partners/payouts/sepa', [Admin\PartnerController::class, 'sepa']);
         });
+
+        $r->group(['middleware' => ['permission:customer_groups.manage']], static function (Router $r): void {
+            $r->get('/tiers', [Admin\TierController::class, 'index']);
+            $r->post('/tiers', [Admin\TierController::class, 'store']);
+            $r->post('/tiers/evaluate', [Admin\TierController::class, 'evaluate']);
+            $r->post('/tiers/{id:\d+}', [Admin\TierController::class, 'update']);
+            $r->post('/tiers/{id:\d+}/delete', [Admin\TierController::class, 'delete']);
+        });
     });
 };

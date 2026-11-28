@@ -6,6 +6,7 @@ namespace Nebrix\Finance;
 
 use Nebrix\Finance\Accounting\AccountingSync;
 use Nebrix\Finance\Partner\PartnerService;
+use Nebrix\Finance\Tiers\TierService;
 use Nebrix\Settings\SettingsRepository;
 
 /**
@@ -17,6 +18,7 @@ class FinanceTasks
         private readonly SettingsRepository $settings,
         private readonly AccountingSync $accountingSync,
         private readonly PartnerService $partners,
+        private readonly TierService $tiers,
     ) {
     }
 
@@ -38,6 +40,14 @@ class FinanceTasks
                 $result = $this->partners->process();
 
                 return sprintf('%d commission(s) accrued, %d reversed, %d now payable', $result['accrued'], $result['reversed'], $result['payable']);
+            }],
+            'tiers.evaluate' => [1440, function (): string {
+                if (!$this->tiers->enabled()) {
+                    return 'automatic tiers disabled';
+                }
+                $result = $this->tiers->evaluate();
+
+                return sprintf('%d customer(s) upgraded, %d downgraded, %d downgrade(s) held back', $result['upgraded'], $result['downgraded'], $result['held']);
             }],
         ];
     }
