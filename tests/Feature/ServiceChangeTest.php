@@ -164,6 +164,59 @@ final class ServiceChangeTest extends FeatureTestCase
         self::assertSame(2000, (int) $this->db->fetchValue('SELECT `subtotal` FROM `nx_invoices` WHERE `id` = ?', [$renewal]));
     }
 
+    public function testConfiguredServicesChangeTheirResources(): void
+    {
+        // Configurator: 1 core, 1 GB, 10 GB included for 3.00; +2.00 per core, +1.50 per GB, +0.50 per 10 GB.
+        $flex = $this->product('LXC Flex', 300, ['cores' => 1, 'memory_mb' => 1024, 'swap_mb' => 512, 'disk_gb' => 10, 'configurator' => true,
+            'cfg_max_cores' => 8, 'cfg_price_core' => '2.00', 'cfg_max_memory_gb' => 16, 'cfg_price_memory_gb' => '1.50', 'cfg_max_disk_gb' => 100, 'cfg_disk_step_gb' => 10, 'cfg_price_disk_step' => '0.50'], null, 3);
+        $customer = $this->createUser();
+        $service = $this->service($customer, $flex, 300);
+        $products = $this->app->container()->get(ProductRepository::class);
+
+        $this->actingAs($customer);
+        self::assertStringContainsString('/services/' . $service->id . '/package', $this->get('/services/' . $service->id)->body(), 'Configurable services can change without an upgrade group.');
+        // Preview: 2 cores, 2 GB → 3.00 + 2.00 + 1.50 = 6.50; 15 of 30 days of 3.50 = 1.75 net.
+        $page = $this->get('/services/' . $service->id . '/package', ['configure' => '1', 'cores' => '2', 'memory_gb' => '2', 'disk_gb' => '10'])->body();
+        self::assertStringContainsString('€7.74', $page, '6.50 + 19 % VAT');
+        self::assertStringContainsString('€2.08', $page, '1.75 + 19 % VAT, due today');
+        self::assertStringContainsString('Choose a configuration that differs from the current one.', $this->get('/services/' . $service->id . '/package', ['configure' => '1', 'cores' => '1', 'memory_gb' => '1', 'disk_gb' => '10'])->body());
+
+        // Out of range or step: refused, nothing stored.
+        $this->post('/services/' . $service->id . '/package/configure', ['cores' => '9', 'memory_gb' => '2', 'disk_gb' => '10', 'accept' => '1']);
+        $this->post('/services/' . $service->id . '/package/configure', ['cores' => '2', 'memory_gb' => '2', 'disk_gb' => '15', 'accept' => '1']);
+        self::assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_service_changes`'));
+
+        $response = $this->post('/services/' . $service->id . '/package/configure', ['cores' => '2', 'memory_gb' => '2', 'disk_gb' => '10', 'accept' => '1']);
+        $change = $this->change($service->id);
+        self::assertSame(['upgrade', 'pending_payment', 175, 650, $flex, $flex], [$change['direction'], $change['status'], (int) $change['charge'], (int) $change['new_recurring'], (int) $change['from_product_id'], (int) $change['to_product_id']]);
+        self::assertSame(['cores' => 2, 'memory_gb' => 2, 'disk_gb' => 10], json_decode((string) $change['configuration'], true));
+        $this->assertRedirect($response, '/invoices/' . $change['invoice_id']);
+        self::assertSame(3, (int) ($products->find($flex)['stock'] ?? 0), 'The same product: no unit of stock is taken.');
+        self::assertStringContainsString('2 vCores, 2 GB RAM, 10 GB disk', (string) $this->db->fetchValue('SELECT `description` FROM `nx_invoice_items` WHERE `invoice_id` = ?', [$change['invoice_id']]));
+
+        $total = (int) $this->db->fetchValue('SELECT `total` FROM `nx_invoices` WHERE `id` = ?', [$change['invoice_id']]);
+        self::assertTrue($this->app->container()->get(PaymentService::class)->recordPayment('manual', 'bank-cfg', (int) $change['invoice_id'], $total, 'EUR')->isSuccessful());
+        $this->runChangeJobs();
+        self::assertSame(['2', '2048'], [$this->guest['cores'], $this->guest['memory']]);
+        $updated = $this->app->container()->get(ServiceRepository::class)->find($service->id);
+        self::assertNotNull($updated);
+        self::assertSame([$flex, 650, 2, 2048, 2, 'web01'], [$updated->productId, $updated->recurringAmount, (int) $updated->config('cores'), (int) $updated->config('memory_mb'), $updated->option('cores'), $updated->option('hostname')]);
+        self::assertSame(3, (int) ($products->find($flex)['stock'] ?? 0), 'Completing it does not release stock either.');
+
+        // Fewer resources: scheduled for the end of the period, withdrawn without touching the stock.
+        $changes = $this->app->container()->get(ServiceChangeService::class);
+        $result = $changes->requestConfiguration($updated, $customer, ['cores' => '1', 'memory_gb' => '2', 'disk_gb' => '10'], $customer->id, null);
+        self::assertSame(ServiceChangeService::SCHEDULED, $result['status']);
+        self::assertSame(450, (int) $this->change($service->id)['new_recurring']);
+        $changes->withdraw($updated, $customer->id, null);
+        self::assertSame(3, (int) ($products->find($flex)['stock'] ?? 0));
+        self::assertSame(650, $this->app->container()->get(ServiceRepository::class)->find($service->id)?->recurringAmount);
+
+        // Same configuration again: refused.
+        $this->expectException(\Nebrix\Service\ServiceChangeException::class);
+        $changes->configurationOffer($updated, $customer, ['cores' => '2', 'memory_gb' => '2', 'disk_gb' => '10']);
+    }
+
     public function testARenewalWithdrawsAnUnpaidUpgrade(): void
     {
         $small = $this->product('LXC S', 1000, ['cores' => 1, 'memory_mb' => 1024, 'swap_mb' => 512, 'disk_gb' => 10]);

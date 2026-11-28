@@ -122,6 +122,8 @@ final class ProductCategory
                 'integration_types' => ['inwx', 'skrime'],
                 'config' => [
                     'tld' => ['label' => 'Top-level domain', 'rules' => 'required|string|max:63|regex:/^\.?[a-z0-9-]+(\.[a-z0-9-]+)*$/'],
+                    'register_price' => ['label' => 'First year for new registrations (net, empty = the price above)', 'rules' => 'nullable|regex:/^\d{1,5}([.,]\d{1,2})?$/', 'help' => 'Renewals always cost the product price.'],
+                    'transfer_price' => ['label' => 'First year for transfers (net, empty = the price above)', 'rules' => 'nullable|regex:/^\d{1,5}([.,]\d{1,2})?$/'],
                 ],
                 'options' => [
                     'domain' => ['label' => 'Domain', 'rules' => 'required|string|max:253|regex:/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
@@ -155,7 +157,7 @@ final class ProductCategory
                 'integration' => 'teamspeak',
                 'config' => [
                     'slots' => ['label' => 'Slots', 'rules' => 'required|int|min:1|max:1024', 'default' => 32],
-                ],
+                ] + ProductConfigurator::configFields(self::TEAMSPEAK),
                 'options' => [
                     'server_name' => ['label' => 'Server name', 'rules' => 'required|string|max:60|regex:/^[\p{L}\p{N} ._-]+$/u'],
                 ],

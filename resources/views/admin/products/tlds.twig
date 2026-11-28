@@ -14,7 +14,7 @@
             <div class="card-body form-grid">
                 {{ f.select('integration_id', 'SKRIME integration', integrations, input.integration_id) }}
                 {{ f.select('rounding', 'Rounding', {'none': 'No rounding', '99': 'To x.99', '49': 'To x.49 / x.99'}, input.rounding) }}
-                {{ f.input('markup_percent', 'Markup (%)', input.markup_percent, 'text', {inputmode: 'decimal', help: 'On the highest of registration, renewal and transfer price.'}) }}
+                {{ f.input('markup_percent', 'Markup (%)', input.markup_percent, 'text', {inputmode: 'decimal', help: 'On the SKRIME price of each operation: registration, renewal and transfer (transfers at least the renewal cost).'}) }}
                 {{ f.input('markup_fixed', 'Fixed markup (EUR)', input.markup_fixed, 'text', {inputmode: 'decimal'}) }}
                 {{ f.input('min_price', 'Minimum price (EUR, net)', input.min_price, 'text', {inputmode: 'decimal'}) }}
                 {{ f.input('max_cost', 'Skip TLDs costing more than (EUR, 0 = no limit)', input.max_cost, 'text', {inputmode: 'decimal'}) }}
@@ -51,7 +51,7 @@
     </div>
     {% endif %}
     <div class="table-wrap"><table class="table">
-        <thead><tr><th>{{ 'TLD'|t }}</th><th class="text-right">{{ 'Registration'|t }}</th><th class="text-right">{{ 'Renewal'|t }}</th><th class="text-right">{{ 'Transfer'|t }}</th><th class="text-right">{{ 'Your price (net)'|t }}</th><th>{{ 'Action'|t }}</th></tr></thead>
+        <thead><tr><th>{{ 'TLD'|t }}</th><th class="text-right">{{ 'Registration'|t }}</th><th class="text-right">{{ 'Renewal'|t }}</th><th class="text-right">{{ 'Transfer'|t }}</th><th class="text-right">{{ 'Your prices (net): registration / renewal / transfer'|t }}</th><th>{{ 'Action'|t }}</th></tr></thead>
         <tbody>
         {% for row in preview.rows %}
             <tr>
@@ -59,7 +59,7 @@
                 <td class="text-right nowrap">{{ row.create|money('EUR') }}</td>
                 <td class="text-right nowrap">{{ row.renew|money('EUR') }}</td>
                 <td class="text-right nowrap">{{ row.transfer|money('EUR') }}</td>
-                <td class="text-right nowrap">{% if row.action == 'update' %}<span class="muted">{{ row.current_price|money('EUR') }} →</span> {% endif %}{{ (row.action == 'keep' ? row.current_price : row.price)|money('EUR') }}</td>
+                <td class="text-right nowrap">{% if row.action == 'update' %}<span class="muted">{{ row.current_price|money('EUR') }} →</span> {% endif %}{{ row.register_price|money('EUR') }} / <strong>{{ (row.action == 'keep' ? row.current_price : row.price)|money('EUR') }}</strong> / {{ row.transfer_price|money('EUR') }}</td>
                 <td>{% if row.action == 'create' %}<span class="badge badge-success">{{ 'new'|t }}</span>{% elseif row.action == 'update' %}<span class="badge badge-warning">{{ 'new price'|t }}</span>{% elseif row.action == 'keep' %}<span class="badge badge-neutral">{{ 'unchanged'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'skipped'|t }}</span> <span class="small muted">{{ row.reason|t }}</span>{% endif %}</td>
             </tr>
         {% else %}<tr><td colspan="6" class="empty">{{ 'No TLDs match.'|t }}</td></tr>{% endfor %}

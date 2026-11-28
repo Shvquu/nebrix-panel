@@ -78,13 +78,12 @@ final class WebsiteController extends Controller
         if ($page === 'domains') {
             return $this->domains($request, $catalog, $pages);
         }
-        $products = $catalog->productsOf($page);
-
         return $this->view($request, $catalog, 'website/page.twig', [
             'key' => $page,
             'current' => $pages[$page],
-            'products' => array_values(array_filter($products, static fn (array $p): bool => $p['configurator'] === null)),
-            'configurable' => array_values(array_filter($products, static fn (array $p): bool => $p['configurator'] !== null)),
+            'tabs' => $catalog->tabs($page),
+            'promotion' => $catalog->promotion($page),
+            'benefits' => $this->benefits($page),
         ]);
     }
 
@@ -107,39 +106,61 @@ final class WebsiteController extends Controller
     }
 
     /**
-     * Domain page: search with availability check and the list of endings.
+     * Domain page: search over the popular endings (name only) or for one
+     * domain, availability per ending, and the list of all endings.
      *
      * @param array<string, array<string, mixed>> $pages
      */
     private function domains(Request $request, WebsiteCatalog $catalog, array $pages): Response
     {
         $query = mb_substr(trim($request->string('domain')), 0, 260);
+        $tlds = $catalog->productsOf('domains');
+        $cards = array_slice(array_values(array_filter($tlds, static fn (array $p): bool => $p['popular'] && !$p['sold_out'])), 0, 6);
+        $statuses = [];
         $result = null;
         if ($query !== '') {
             $domain = WebsiteCatalog::normaliseDomain($query);
             $product = $domain !== null ? $catalog->domainProduct($domain) : null;
-            $result = ['query' => $query, 'domain' => $domain, 'product' => $product, 'status' => $domain === null ? 'invalid' : ($product === null ? 'unsupported' : 'unknown')];
-            if ($domain !== null && $product !== null) {
-                $result['status'] = $this->availability($request, $domain, (int) $product['id']);
+            // The name in front of the ending ("projekt" of projekt.co.uk); sub-domains are not checked on the cards.
+            $label = match (true) {
+                $product !== null => substr((string) $domain, 0, -strlen((string) $product['tld']) - 1),
+                $domain !== null => explode('.', $domain, 2)[0],
+                default => WebsiteCatalog::normaliseLabel($query),
+            };
+            if ($label === null) {
+                $result = ['query' => $query, 'domain' => null, 'product' => null, 'status' => 'invalid'];
+            } else {
+                // The popular endings for the name …
+                if (!str_contains($label, '.')) {
+                    foreach ($cards as $card) {
+                        $statuses[$card['tld']] = ['domain' => $label . '.' . $card['tld'], 'status' => $this->availability($request, $label . '.' . $card['tld'], $card['id'])];
+                    }
+                }
+                // … and the exact domain when its ending is not on a card.
+                if ($domain !== null && ($product === null || ($statuses[$product['tld']]['domain'] ?? null) !== $domain)) {
+                    $result = ['query' => $query, 'domain' => $domain, 'product' => $product, 'status' => $product === null ? 'unsupported' : $this->availability($request, $domain, (int) $product['id'])];
+                }
             }
         }
-        $tlds = $catalog->productsOf('domains');
 
         return $this->view($request, $catalog, 'website/domains.twig', [
             'current' => $pages['domains'],
+            'query' => $query,
             'result' => $result,
-            'popular' => array_slice(array_values(array_filter($tlds, static fn (array $p): bool => $p['popular'])), 0, 12),
+            'cards' => $cards,
+            'statuses' => $statuses,
             'tlds' => $tlds,
+            'benefits' => $this->benefits('domains'),
         ]);
     }
 
     /**
-     * available | taken | premium | unknown (registrar not reachable or limit reached)
+     * available | taken | premium | limited | unknown (registrar not reachable)
      */
     private function availability(Request $request, string $domain, int $productId): string
     {
         // Every check is a request to the registrar: limited per visitor network.
-        if (!$this->limiter->attempt('website-domain-check:' . RateLimiter::network($request->clientIp()), 20, 600)) {
+        if (!$this->limiter->attempt('website-domain-check:' . RateLimiter::network($request->clientIp()), 60, 600)) {
             return 'limited';
         }
         $integrationId = (int) ($this->db->fetchValue('SELECT `integration_id` FROM `nx_products` WHERE `id` = ?', [$productId]) ?? 0);
@@ -157,6 +178,24 @@ final class WebsiteController extends Controller
         }
     }
 
+    /**
+     * Advantages of a page from the settings ("Title | Text" per line).
+     *
+     * @return list<array{title: string, text: string}>
+     */
+    private function benefits(string $page): array
+    {
+        $benefits = [];
+        foreach (preg_split('/\R/', $this->settings->string('website.benefits_' . $page)) ?: [] as $line) {
+            $parts = array_map('trim', explode('|', $line, 2));
+            if ($parts[0] !== '') {
+                $benefits[] = ['title' => $parts[0], 'text' => $parts[1] ?? ''];
+            }
+        }
+
+        return array_slice($benefits, 0, 12);
+    }
+
     private function assertEnabled(): void
     {
         if (!$this->settings->bool('website.enabled')) {
@@ -171,6 +210,7 @@ final class WebsiteController extends Controller
     {
         return $this->render($request, $template, $context + [
             'nav_pages' => $catalog->pages(),
+            'nav_menu' => $catalog->menu(),
             'about_page' => trim($this->settings->string('website.about_text')) !== '',
             'small_business' => $catalog->smallBusiness(),
             'trustpilot' => $this->trustpilot(),

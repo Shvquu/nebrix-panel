@@ -1,0 +1,27 @@
+{% import 'macros/icons.twig' as i %}
+<article class="site-plan{{ p.sold_out ? ' is-sold-out' : '' }}{{ p.promo ? ' has-promo' : '' }}">
+    <h2 class="site-plan-title">{{ p.name }}</h2>
+    {% if p.promo and p.promo.saving_gross > 0 %}<div class="site-saving">{{ i.icon('percent') }} {{ 'You save :amount'|t({amount: p.promo.saving_gross|money(p.currency)}) }} {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
+    <div class="site-plan-head">
+        {% if p.promo %}<div class="site-promo-label">{{ 'For a short time, permanently'|t }}</div>{% endif %}
+        <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong>{{ p.price_gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
+        {% if p.promo and p.promo.reference_gross %}<div class="site-was">{{ 'instead of'|t }} <s>{{ p.promo.reference_gross|money(p.currency) }}</s> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
+        {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
+        {% if p.sold_out %}
+            <span class="site-btn site-btn-disabled" aria-disabled="true">{{ i.icon('ban') }} {{ 'Sold out'|t }}</span>
+        {% else %}
+            <a class="site-btn site-btn-primary" href="/store/{{ p.slug }}">{{ i.icon('rocket') }} {{ 'Order now'|t }}</a>
+        {% endif %}
+    </div>
+    <div class="site-plan-body">
+        {% if p.description %}<p class="site-muted site-small">{{ p.description }}</p>{% endif %}
+        {% if p.specs is not empty %}
+        <h4>{{ 'Configuration'|t }}</h4>
+        <ul class="site-checks">{% for spec in p.specs %}<li>{{ i.icon('check') }}<span>{{ spec.text|t(spec.params) }}</span></li>{% endfor %}</ul>
+        {% endif %}
+        {% for section in p.sections %}
+            {% if section.title %}<h4>{{ section.title }}</h4>{% endif %}
+            <ul class="site-checks">{% for item in section.items %}<li>{{ i.icon('check') }}<span>{{ item }}</span></li>{% endfor %}</ul>
+        {% endfor %}
+    </div>
+</article>

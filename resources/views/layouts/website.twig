@@ -22,13 +22,26 @@
         <button class="site-menu-toggle" type="button" data-site-menu aria-controls="site-menu" aria-expanded="false" aria-label="{{ 'Menu'|t }}">{{ i.icon('menu') }}</button>
         <nav class="site-menu" id="site-menu" aria-label="{{ 'Main navigation'|t }}">
             <a class="site-link{{ current_path == '/' ? ' is-active' : '' }}" href="/">{{ i.icon('home') }}<span>{{ 'Home'|t }}</span></a>
-            {% if nav_pages is not empty %}
+            {% if nav_menu is not empty %}
             <div class="site-dropdown">
                 <button class="site-link{{ current_path starts with '/products' ? ' is-active' : '' }}" type="button" aria-haspopup="true">{{ i.icon('box') }}<span>{{ 'Products'|t }}</span>{{ i.icon('chevron', 'site-caret') }}</button>
-                <div class="site-dropdown-menu site-dropdown-wide">
-                    {% for key, page in nav_pages %}
-                        <a href="/products/{{ key }}"><span class="site-dd-icon">{{ i.icon(page.icon) }}</span><span><strong>{{ page.title|t }}</strong><small>{{ page.teaser|t }}</small></span></a>
+                <div class="site-dropdown-menu site-dropdown-groups">
+                    {% for gkey, group in nav_menu %}
+                        {% if group.pages|length == 1 %}
+                            {% for key, page in group.pages %}<a class="site-dd-item{{ current_path == '/products/' ~ key ? ' is-active' : '' }}" href="/products/{{ key }}">{{ page.title|t }}</a>{% endfor %}
+                        {% else %}
+                        <div class="site-sub">
+                            <button class="site-dd-item site-sub-toggle" type="button" aria-haspopup="true">{{ group.label|t }}{{ i.icon('chevron', 'site-sub-caret') }}</button>
+                            <div class="site-submenu">
+                                {% for key, page in group.pages %}
+                                <a href="/products/{{ key }}"><span class="site-dd-icon">{{ i.icon(page.icon) }}</span><span><strong>{{ page.title|t }}</strong><small>{{ page.teaser|t }}</small></span></a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
                     {% endfor %}
+                    <a class="site-dd-item" href="/status">{{ 'Status page'|t }}</a>
+                    <a class="site-dd-item" href="/products">{{ 'All products'|t }}</a>
                 </div>
             </div>
             {% endif %}

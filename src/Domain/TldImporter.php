@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Domain;
 
 use Nebrix\Audit\AuditLogger;
+use Nebrix\Billing\Money;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Database\Connection;
 use Nebrix\Integration\Integration;
@@ -17,11 +18,13 @@ use Nebrix\Repository\ProductRepository;
  * Creates (and optionally re-prices) one domain product per TLD from the
  * SKRIME price list, so that staff do not enter hundreds of TLDs by hand.
  *
- * The selling price is based on the highest of SKRIME's registration,
- * renewal and transfer price (a registration offer must not make the
- * renewals unprofitable), plus the markup, rounded, at least the minimum
- * price. Nothing is ever deleted: TLDs that disappear from the list keep
- * their product; existing services keep their price.
+ * Three selling prices per ending, each SKRIME's cost plus the markup,
+ * rounded, at least the minimum price: the renewal (product price), the
+ * first year of a registration and the first year of a transfer. A
+ * transfer is priced from the higher of transfer and renewal cost, because
+ * transfers that do not extend the term (e.g. .de) need a renewal within
+ * the paid year. Nothing is ever deleted: TLDs that disappear from the list
+ * keep their product; existing services keep their price.
  */
 final class TldImporter
 {
@@ -38,7 +41,7 @@ final class TldImporter
 
     /**
      * @param array{markup_percent: float, markup_fixed: int, rounding: string, min_price: int, max_cost: int, tlds: list<string>, tax_rate_bp: int, visible: bool, update_prices: bool} $options
-     * @return array{rows: list<array{tld: string, create: int, renew: int, transfer: int, offer: bool, cost: int, price: int, action: string, product_id: int|null, current_price: int|null, reason: string|null}>, counts: array<string, int>}
+     * @return array{rows: list<array{tld: string, create: int, renew: int, transfer: int, offer: bool, cost: int, price: int, register_price: int, transfer_price: int, action: string, product_id: int|null, current_price: int|null, reason: string|null}>, counts: array<string, int>}
      *
      * @throws IntegrationException
      */
@@ -61,21 +64,26 @@ final class TldImporter
             $renew = self::cents($entry['renew']);
             $transfer = self::cents($entry['transfer']);
             $cost = max($create, $renew, $transfer);
-            $price = self::sellingPrice($cost, $options);
+            $price = self::sellingPrice($renew, $options);
+            $registerPrice = self::sellingPrice($create, $options);
+            $transferPrice = self::sellingPrice(max($transfer, $renew), $options);
             $current = $existing[$entry['tld']] ?? null;
+            $changed = $current !== null && ((int) $current['price'] !== $price
+                || self::configuredPrice($current, 'register_price') !== ($registerPrice !== $price ? $registerPrice : null)
+                || self::configuredPrice($current, 'transfer_price') !== ($transferPrice !== $price ? $transferPrice : null));
             [$action, $reason] = match (true) {
-                $cost <= 0 => ['skip', 'no price'],
+                $renew <= 0 || $create <= 0 => ['skip', 'no price'],
                 $options['max_cost'] > 0 && $cost > $options['max_cost'] => ['skip', 'above the maximum cost'],
                 $current !== null && (int) $current['integration_id'] !== $integration->id => ['skip', 'sold through another integration'],
                 $current === null && isset($slugs[self::slug($entry['tld'])]) => ['skip', 'product address taken'],
                 $current === null => ['create', null],
-                $options['update_prices'] && (int) $current['price'] !== $price => ['update', null],
+                $options['update_prices'] && $changed => ['update', null],
                 default => ['keep', null],
             };
             $counts[$action]++;
             $rows[] = [
                 'tld' => $entry['tld'], 'create' => $create, 'renew' => $renew, 'transfer' => $transfer, 'offer' => $entry['offer'],
-                'cost' => $cost, 'price' => $price, 'action' => $action, 'product_id' => $current !== null ? (int) $current['id'] : null,
+                'cost' => $cost, 'price' => $price, 'register_price' => $registerPrice, 'transfer_price' => $transferPrice, 'action' => $action, 'product_id' => $current !== null ? (int) $current['id'] : null,
                 'current_price' => $current !== null ? (int) $current['price'] : null, 'reason' => $reason,
             ];
         }
@@ -112,11 +120,14 @@ final class TldImporter
                         'auto_provision' => 1,
                         'integration_id' => $integration->id,
                         'sort_order' => self::rank($row['tld']),
-                        'provisioning_config' => ['tld' => $row['tld']],
+                        'provisioning_config' => ['tld' => $row['tld']] + self::firstYearPrices($row),
                     ]);
                     $created++;
                 } elseif ($row['action'] === 'update' && $row['product_id'] !== null) {
-                    $this->products->update($row['product_id'], ['price' => $row['price']]);
+                    $product = $this->products->find($row['product_id']);
+                    $config = is_array($product['provisioning_config'] ?? null) ? $product['provisioning_config'] : [];
+                    unset($config['register_price'], $config['transfer_price']);
+                    $this->products->update($row['product_id'], ['price' => $row['price'], 'provisioning_config' => $config + self::firstYearPrices($row)]);
                     $updated++;
                 }
             }
@@ -140,6 +151,35 @@ final class TldImporter
         };
 
         return max($price, $options['min_price'], $cost);
+    }
+
+    /**
+     * First-year prices that differ from the renewal price (product config, decimal strings).
+     *
+     * @param array{price: int, register_price: int, transfer_price: int} $row
+     * @return array<string, string>
+     */
+    private static function firstYearPrices(array $row): array
+    {
+        $prices = [];
+        foreach (['register_price', 'transfer_price'] as $key) {
+            if ($row[$key] !== $row['price']) {
+                $prices[$key] = Money::toDecimal($row[$key]);
+            }
+        }
+
+        return $prices;
+    }
+
+    /**
+     * @param array<string, mixed> $product row with provisioning_config (JSON)
+     */
+    private static function configuredPrice(array $product, string $key): ?int
+    {
+        $config = json_decode((string) ($product['provisioning_config'] ?? ''), true);
+        $value = is_array($config) ? trim((string) ($config[$key] ?? '')) : '';
+
+        return $value !== '' && preg_match('/^\d{1,7}([.,]\d{1,2})?$/', $value) === 1 ? Money::parse($value) : null;
     }
 
     public static function slug(string $tld): string

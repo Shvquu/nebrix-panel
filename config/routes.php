@@ -157,6 +157,7 @@ return static function (Router $r): void {
         $r->get('/services/{id:\d+}/package', [Customer\PackageController::class, 'show']);
         $r->post('/services/{id:\d+}/package', [Customer\PackageController::class, 'change']);
         $r->post('/services/{id:\d+}/package/withdraw', [Customer\PackageController::class, 'withdraw']);
+        $r->post('/services/{id:\d+}/package/configure', [Customer\PackageController::class, 'configure']);
         $r->get('/orders', [Customer\ServiceController::class, 'orders']);
 
         $r->get('/tickets', [Customer\TicketController::class, 'index']);

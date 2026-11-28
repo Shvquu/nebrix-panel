@@ -8,11 +8,11 @@
 {% if ranges and cfg %}
 {# Configurator: a GET form, so that the price on this page is always calculated by the server. #}
 <form method="get" action="/store/{{ product.slug }}" class="card p-configurator" novalidate>
-    <div class="card-header"><h2>{{ 'Configure your server'|t }}</h2></div>
+    <div class="card-header"><h2>{{ (ranges.slots is defined ? 'Configure your TeamSpeak server' : 'Configure your server')|t }}</h2></div>
     <div class="card-body">
         {% if coupon %}<input type="hidden" name="coupon" value="{{ coupon }}">{% endif %}
-        {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)'} %}
-        {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB'} %}
+        {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots'} %}
+        {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
         {% for name, range in ranges %}
             {% if range.max > range.min %}
             <div class="form-row cfg-row">
@@ -31,26 +31,26 @@
 {% endif %}
 <form method="get" action="/store/{{ product.slug }}" class="card p-coupon" novalidate>
     <div class="card-body filters">
-        {% if cfg %}{% for name in ['cores', 'memory_gb', 'disk_gb'] %}<input type="hidden" name="{{ name }}" value="{{ cfg[name] }}">{% endfor %}{% endif %}
+        {% if cfg %}{% for name, value in cfg %}{% if name != 'price' %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
         <div class="form-row">
             <label for="f-coupon-code">{{ 'Coupon code'|t }}</label>
             <input id="f-coupon-code" type="text" name="coupon" value="{{ coupon }}" maxlength="40" autocomplete="off" class="{{ quote.coupon_error ? 'is-invalid' : '' }}">
             {% if quote.coupon_error %}<div class="field-error">{{ quote.coupon_error|t }}</div>{% endif %}
         </div>
         <button class="btn btn-outline" type="submit">{{ 'Apply'|t }}</button>
-        {% if quote.coupon_code %}<span class="badge badge-success badge-sentence">{{ 'Coupon :code applied'|t({code: quote.coupon_code}) }}{% if quote.coupon_duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span> <a class="small" href="/store/{{ product.slug }}{% if cfg %}?cores={{ cfg.cores }}&amp;memory_gb={{ cfg.memory_gb }}&amp;disk_gb={{ cfg.disk_gb }}{% endif %}">{{ 'Remove'|t }}</a>{% endif %}
+        {% if quote.coupon_code %}<span class="badge badge-success badge-sentence">{{ 'Coupon :code applied'|t({code: quote.coupon_code}) }}{% if quote.coupon_duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span> <a class="small" href="/store/{{ product.slug }}{% if cfg %}?{{ cfg|filter((v, k) => k != 'price')|url_encode }}{% endif %}">{{ 'Remove'|t }}</a>{% endif %}
     </div>
 </form>
 <form method="post" action="/store/{{ product.slug }}" novalidate>
     {{ csrf_field() }}
     {% if quote.coupon_code %}<input type="hidden" name="coupon" value="{{ quote.coupon_code }}">{% endif %}
-    {% if cfg %}{% for name in ['cores', 'memory_gb', 'disk_gb'] %}<input type="hidden" name="{{ name }}" value="{{ cfg[name] }}">{% endfor %}{% endif %}
+    {% if cfg %}{% for name, value in cfg %}{% if name != 'price' %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
     <div class="grid grid-2">
         <div class="card">
             <div class="card-header"><h2>{{ 'Configuration'|t }}</h2></div>
             <div class="card-body">
                 {% if product.description %}<p>{{ product.description }}</p>{% endif %}
-                {% if cfg %}<p><span class="badge badge-info badge-sentence">{{ ':cores vCores, :memory GB RAM, :disk GB disk'|t({cores: cfg.cores, memory: cfg.memory_gb, disk: cfg.disk_gb}) }}</span></p>{% endif %}
+                {% if cfg and cfg.cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':cores vCores, :memory GB RAM, :disk GB disk'|t({cores: cfg.cores, memory: cfg.memory_gb, disk: cfg.disk_gb}) }}</span></p>{% elseif cfg and cfg.slots is defined %}<p><span class="badge badge-info badge-sentence">{{ ':slots slots'|t({slots: cfg.slots}) }}</span></p>{% endif %}
                 {% for name, option in options %}
                     {{ f.input(name, option.label, prefill[name]|default(''), 'text', option.help is defined ? {required: true, help: option.help} : {required: true}) }}
                 {% else %}
@@ -64,11 +64,15 @@
                 <dl class="details">
                     <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[product.billing_cycle]|default('')|t }}</dd>
                     {% if quote.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ quote.setup_fee|money(product.currency) }}</dd>{% endif %}
-                    {% if quote.discount - quote.coupon_discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ (quote.discount - quote.coupon_discount)|money(product.currency) }}</dd>{% endif %}
+                    {% if quote.first_extra > 0 %}<dt>{{ 'First year surcharge'|t }}</dt><dd>{{ quote.first_extra|money(product.currency) }}</dd>{% endif %}
+                    {% if quote.promo_discount > 0 %}<dt>{{ 'Promotion −:percent %'|t({percent: quote.promo_bp / 100}) }}</dt><dd>−{{ quote.promo_discount|money(product.currency) }} <span class="small muted">{{ 'also on renewals'|t }}</span></dd>{% endif %}
+                    {% if quote.group_discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ quote.group_discount|money(product.currency) }}</dd>{% endif %}
+                    {% if quote.first_discount > 0 %}<dt>{{ 'First year discount'|t }}</dt><dd>−{{ quote.first_discount|money(product.currency) }}</dd>{% endif %}
                     {% if quote.coupon_discount > 0 %}<dt>{{ 'Coupon :code'|t({code: quote.coupon_code}) }}</dt><dd>−{{ quote.coupon_discount|money(product.currency) }} <span class="small muted">{{ 'net'|t }}</span></dd>{% endif %}
                     <dt>{{ 'Tax'|t }} ({{ quote.tax_rate_bp|percent }})</dt><dd>{{ quote.tax|money(product.currency) }}</dd>
                     <dt><strong>{{ 'Due today'|t }}</strong></dt><dd><strong>{{ quote.total|money(product.currency) }}</strong></dd>
                     {% if product.billing_cycle != 'one_time' %}<dt>{{ 'Renews at'|t }}</dt><dd>{{ quote.recurring|money(product.currency) }} {{ cycles[product.billing_cycle]|t }}</dd>{% endif %}
+                    {% if transfer_quote and transfer_quote.total != quote.total %}<dt>{{ 'Due today for a transfer'|t }}</dt><dd>{{ transfer_quote.total|money(product.currency) }} <span class="small muted">{{ 'with auth code'|t }}</span></dd>{% endif %}
                 </dl>
                 <div class="form-row mt-2">
                     <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"> <span>{{ 'I accept the'|t }} {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}.</span></label>

@@ -130,6 +130,11 @@ final class ProductController extends Controller
             'price' => $product !== null ? Money::toDecimal((int) $product['price'], (string) $currency) : '',
             'setup_fee' => $product !== null ? Money::toDecimal((int) $product['setup_fee'], (string) $currency) : '0.00',
             'tax_rate' => $product !== null ? number_format((int) $product['tax_rate_bp'] / 100, 2, '.', '') : '0.00',
+            'promo_percent' => $product !== null && (int) ($product['promo_bp'] ?? 0) > 0 ? rtrim(rtrim(number_format((int) $product['promo_bp'] / 100, 2, '.', ''), '0'), '.') : '',
+            'promo_starts_at' => $this->toLocalInput($product['promo_starts_at'] ?? null),
+            'promo_ends_at' => $this->toLocalInput($product['promo_ends_at'] ?? null),
+            // Previous lowest price that the website shows next to a running promotion (§ 11 PAngV).
+            'reference_price' => $product !== null ? $this->products->lowestPriceBefore((int) $product['id'], (string) ($product['promo_starts_at'] ?? '') !== '' ? (string) $product['promo_starts_at'] : $this->clock()) : null,
         ]);
     }
 
@@ -157,7 +162,27 @@ final class ProductController extends Controller
             'customer_group_id' => 'nullable|int|min:1',
             'sort_order' => 'nullable|int|min:-1000|max:1000',
             'upgrade_group' => 'nullable|string|max:50|regex:/^[A-Za-z0-9 ._-]*$/',
-        ]);
+            'website_line' => 'nullable|string|max:80|regex:/^[^<>]*$/',
+            'promo_percent' => 'nullable|decimal|between:0,90',
+            'promo_starts_at' => 'nullable|string|max:20',
+            'promo_ends_at' => 'nullable|string|max:20',
+        ], ['website_line' => 'Product line on the website', 'promo_percent' => 'Promotion (%)', 'promo_starts_at' => 'Promotion start', 'promo_ends_at' => 'Promotion end']);
+
+        // Promotion: a percentage for orders within a period (always with an end).
+        $promoBp = (int) round((float) ($data['promo_percent'] ?? 0) * 100);
+        $promoStart = trim((string) ($data['promo_starts_at'] ?? '')) !== '' ? $this->toUtc((string) $data['promo_starts_at']) : null;
+        $promoEnd = trim((string) ($data['promo_ends_at'] ?? '')) !== '' ? $this->toUtc((string) $data['promo_ends_at']) : null;
+        if ($promoBp > 0) {
+            if ($promoEnd === null) {
+                throw ValidationException::withMessages(['promo_ends_at' => 'A promotion needs an end.']);
+            }
+            if (trim((string) ($data['promo_starts_at'] ?? '')) !== '' && $promoStart === null) {
+                throw ValidationException::withMessages(['promo_starts_at' => 'Enter a valid date and time.']);
+            }
+            if ($promoStart !== null && $promoStart >= $promoEnd) {
+                throw ValidationException::withMessages(['promo_ends_at' => 'The end must be after the start.']);
+            }
+        }
 
         if ($this->products->slugExists((string) $data['slug'], $id)) {
             throw ValidationException::withMessages(['slug' => 'This slug is already used by another product.']);
@@ -207,7 +232,7 @@ final class ProductController extends Controller
         }
 
         $currency = (string) $data['currency'];
-        $configuratorErrors = ProductConfigurator::configErrors($config, $currency);
+        $configuratorErrors = ProductConfigurator::configErrors($config, $currency, $category);
         if ($configuratorErrors !== []) {
             throw new ValidationException(array_map(static fn (string $message): array => [$message], array_combine(array_map(static fn (string $key): string => 'config_' . $key, array_keys($configuratorErrors)), $configuratorErrors)), Validator::safeInput($request->all()));
         }
@@ -230,8 +255,48 @@ final class ProductController extends Controller
             'customer_group_id' => $data['customer_group_id'],
             'sort_order' => $data['sort_order'] ?? 0,
             'upgrade_group' => trim((string) ($data['upgrade_group'] ?? '')) !== '' ? trim((string) $data['upgrade_group']) : null,
+            'website_line' => trim((string) ($data['website_line'] ?? '')) !== '' ? trim((string) $data['website_line']) : null,
+            'promo_bp' => $promoBp > 0 ? $promoBp : null,
+            // The start is stored (now when empty): the previous lowest price is measured from it.
+            'promo_starts_at' => $promoBp > 0 ? ($promoStart ?? $this->clock()) : null,
+            'promo_ends_at' => $promoBp > 0 ? $promoEnd : null,
             'provisioning_config' => $config,
         ];
+    }
+
+    /** A date and time entered in the panel's time zone as UTC database time (null = invalid). */
+    private function toUtc(string $local): ?string
+    {
+        try {
+            $time = new \DateTimeImmutable($local, $this->zone());
+        } catch (\Exception) {
+            return null;
+        }
+
+        return $time->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    }
+
+    private function toLocalInput(?string $utc): string
+    {
+        if ($utc === null || $utc === '') {
+            return '';
+        }
+
+        return (new \DateTimeImmutable($utc, new \DateTimeZone('UTC')))->setTimezone($this->zone())->format('Y-m-d\\TH:i');
+    }
+
+    private function clock(): string
+    {
+        return $this->container->get(\Nebrix\Core\Clock::class)->nowString();
+    }
+
+    private function zone(): \DateTimeZone
+    {
+        try {
+            return new \DateTimeZone($this->settings->string('general.timezone') ?: 'UTC');
+        } catch (\Exception) {
+            return new \DateTimeZone('UTC');
+        }
     }
 
     /**

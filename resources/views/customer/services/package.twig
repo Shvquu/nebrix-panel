@@ -31,6 +31,56 @@
     </dl></div>
 </div>
 
+{% if configuration %}
+{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots'} %}
+{% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
+<form method="get" action="/services/{{ service.id }}/package" class="card mt-2 p-configurator" novalidate>
+    <input type="hidden" name="configure" value="1">
+    <div class="card-header"><h2>{{ 'Change resources'|t }}</h2></div>
+    <div class="card-body">
+        {% for name, range in configuration.ranges %}
+            {% set value = offer ? offer.configuration[name] : configuration.current[name] %}
+            {% if range.max > range.min %}
+            <div class="form-row cfg-row">
+                <label for="cfg-{{ name }}">{{ labels[name]|t }}: <strong id="cfg-{{ name }}-value">{{ value }}{{ units[name] }}</strong> <span class="small muted">({{ 'currently'|t }} {{ configuration.current[name] }}{{ units[name] }})</span></label>
+                <input id="cfg-{{ name }}" type="range" name="{{ name }}" min="{{ range.min }}" max="{{ range.max }}" step="{{ range.step }}" value="{{ value }}" data-output="#cfg-{{ name }}-value" data-unit="{{ units[name] }}" data-autosubmit>
+            </div>
+            {% else %}
+                <input type="hidden" name="{{ name }}" value="{{ configuration.current[name] }}">
+            {% endif %}
+        {% endfor %}
+        <noscript><button class="btn btn-outline" type="submit">{{ 'Update price'|t }}</button></noscript>
+        {% if offer_error %}<div class="alert alert-warning">{{ offer_error|t }}</div>{% endif %}
+    </div>
+</form>
+{% if offer %}
+<div class="p-card p-package mt-1 {{ offer.direction == 'upgrade' ? 'is-upgrade' : 'is-downgrade' }}">
+    <div class="p-package-head">
+        <span class="badge badge-sentence {{ offer.direction == 'upgrade' ? 'badge-success' : 'badge-info' }}">{{ offer.direction == 'upgrade' ? 'Upgrade'|t : 'Downgrade'|t }}</span>
+        <h3>{{ offer.product.name }}</h3>
+        <div class="p-package-price">{{ offer.recurring_gross|money(service.currency) }} <span class="small muted">/ {{ service.billingCycle|humanize|t }} {{ 'incl. VAT'|t }}</span></div>
+    </div>
+    <p class="small">
+        {% if offer.direction == 'upgrade' %}
+            {{ 'Due today: :amount (prorated until :date). The package changes as soon as the invoice is paid.'|t({amount: offer.charge_gross|money(service.currency), date: service.nextDueAt|d}) }}
+        {% else %}
+            {{ 'Takes effect on :date, at the end of the paid period. There is no refund for the current period.'|t({date: offer.effective_at|d}) }}
+        {% endif %}
+    </p>
+    {% if offer.blocker %}
+        <p class="small text-danger">{{ offer.blocker|t }}</p>
+    {% elseif may_manage and not open and not options.blocker %}
+    <form method="post" action="/services/{{ service.id }}/package/configure" class="p-package-form">
+        {{ csrf_field() }}
+        {% for name, value in offer.configuration %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <label class="checkbox"><input type="checkbox" name="accept" value="1" required><span>{{ offer.direction == 'upgrade' ? 'I order the upgrade with costs.'|t : 'I want to switch to the smaller package.'|t }}</span></label>
+        <button class="btn {{ offer.direction == 'upgrade' ? 'btn-primary' : 'btn-outline' }} btn-block" type="submit">{{ offer.direction == 'upgrade' ? 'Upgrade now'|t : 'Schedule downgrade'|t }}</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
 {% if options.targets|length > 0 %}
 <div class="p-packages mt-2">
     {% for t in options.targets %}
@@ -40,7 +90,7 @@
             <h3>{{ t.product.name }}</h3>
             <div class="p-package-price">{{ t.recurring_gross|money(service.currency) }} <span class="small muted">/ {{ service.billingCycle|humanize|t }} {{ 'incl. VAT'|t }}</span></div>
         </div>
-        {% if t.product.features %}<ul class="p-package-features">{% for line in t.product.features|split("\n") %}{% if line|trim %}<li>{{ line|trim }}</li>{% endif %}{% endfor %}</ul>{% endif %}
+        {% if t.product.features %}<ul class="p-package-features">{% for line in t.product.features|split("\n") %}{% if line|trim and not (line|trim starts with '#') %}<li>{{ line|trim }}</li>{% endif %}{% endfor %}</ul>{% endif %}
         <p class="small">
             {% if t.direction == 'upgrade' %}
                 {{ 'Due today: :amount (prorated until :date). The package changes as soon as the invoice is paid.'|t({amount: t.charge_gross|money(service.currency), date: service.nextDueAt|d}) }}
@@ -61,7 +111,7 @@
     </div>
     {% endfor %}
 </div>
-{% elseif not options.blocker and not open %}
+{% elseif not options.blocker and not open and not configuration %}
 <div class="alert alert-info mt-2">{{ 'There are no other packages for this service.'|t }}</div>
 {% endif %}
 

@@ -244,7 +244,7 @@ The connection test signs in (`account/user`) and shows the account and its bala
 ### Product configuration
 Category *Domain*, integration of type SKRIME, top-level domain (e.g. `de`), billing cycle *annually*. Products can use INWX or SKRIME; the product form lists both.
 
-Instead of entering every ending by hand, use **Admin → Products → Import TLDs**: it reads SKRIME's public price list (`GET /domain/pricelist`, about 1,100 endings, IDN endings as punycode) and creates or re-prices one product per ending with your markup – always with a preview first (details in [ADMIN_GUIDE.md](ADMIN_GUIDE.md#import-tlds-skrime)). Rows with missing or non-numeric prices and invalid endings are ignored.
+Instead of entering every ending by hand, use **Admin → Products → Import TLDs**: it reads SKRIME's public price list (`GET /domain/pricelist`, about 1,100 endings, IDN endings as punycode) and creates or re-prices one product per ending with your markup – renewal price plus first-year prices for registrations and transfers – always with a preview first (details in [ADMIN_GUIDE.md](ADMIN_GUIDE.md#import-tlds-skrime)). Rows with missing or non-numeric prices and invalid endings are ignored.
 
 ### Lifecycle
 * Before the order (before payment): as for INWX (TLD, complete profile, availability at SKRIME, auth code for registered domains, no duplicate in the panel). Refused as well: **premium domains** (registration or transfer), `.it` domains, addresses without a house number, orders while the terms box is not ticked, and – for customers – orders on a **sandbox** integration (staff can test the sandbox through the shop). `.eu` needs a registrant in the EU or the EEA (checked for every registrar).

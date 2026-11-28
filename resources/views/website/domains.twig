@@ -3,20 +3,46 @@
 {% block title %}{{ current.title|t }}{% endblock %}
 {% block description %}{{ current.teaser|t }}{% endblock %}
 {% block content %}
-<section class="site-banner">
+<section class="site-domain-hero">
     <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
     <div class="site-container">
-        <span class="site-icon-tile site-icon-lg">{{ i.icon('globe') }}</span>
-        <h1>{{ 'Find your domain'|t }}</h1>
-        <p class="site-lead">{{ 'Choose from :count endings – register a new domain or transfer your existing one.'|t({count: tlds|length}) }}</p>
+        <h1>{{ 'The right domain for your project'|t }}</h1>
         <form class="site-domain-search site-domain-search-lg" method="get" action="/products/domains" role="search">
             <label class="sr-only" for="domain-query">{{ 'Your desired domain'|t }}</label>
-            {{ i.icon('search') }}
-            <input id="domain-query" type="text" name="domain" value="{{ result.query|default('') }}" placeholder="{{ 'your-desired-domain.de'|t }}" maxlength="253" autocomplete="off" spellcheck="false" required>
-            <button class="site-btn site-btn-primary" type="submit">{{ 'Check'|t }}</button>
+            <input id="domain-query" type="text" name="domain" value="{{ query }}" placeholder="{{ 'your-desired-domain.de'|t }}" maxlength="253" autocomplete="off" spellcheck="false" required>
+            <button class="site-btn site-btn-primary" type="submit">{{ 'Search'|t }} {{ i.icon('chevron', 'site-rot') }}</button>
         </form>
     </div>
 </section>
+
+{% if cards is not empty %}
+<section class="site-domain-cards-wrap">
+    <div class="site-container">
+        <div class="site-domain-cards">
+            {% for p in cards %}
+            {% set st = statuses[p.tld] ?? null %}
+            <div class="site-domain-card">
+                {% if p.register_gross < p.price_gross or p.promo %}<span class="site-ribbon">{{ 'Sale'|t }}</span>{% endif %}
+                <h3>{% if st %}<span class="site-muted">{{ st.domain|slice(0, st.domain|length - p.tld|length - 1) }}</span>{% endif %}.{{ p.tld }}</h3>
+                <p>{{ 'Registration'|t }}: <span class="site-accent">{{ p.register_gross|money(p.currency) }}</span></p>
+                <p>{{ 'Renewal'|t }}: <span class="site-accent">{{ p.price_gross|money(p.currency) }}</span></p>
+                {% if st and st.status == 'available' %}
+                    <a class="site-status site-status-ok" href="/store/{{ p.slug }}?domain={{ st.domain|url_encode }}">{{ i.icon('check') }} {{ 'Available – register'|t }}</a>
+                {% elseif st and st.status == 'taken' %}
+                    <a class="site-status site-status-taken" href="/store/{{ p.slug }}?domain={{ st.domain|url_encode }}">{{ i.icon('x-circle') }} {{ 'Taken – transfer?'|t }}</a>
+                {% elseif st and st.status == 'premium' %}
+                    <span class="site-status site-status-taken">{{ 'Premium domain'|t }}</span>
+                {% elseif st and st.status == 'limited' %}
+                    <span class="site-status">{{ 'Too many checks'|t }}</span>
+                {% else %}
+                    <span class="site-status">? {{ 'Unknown'|t }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
 
 {% if result %}
 <section class="site-section site-section-tight">
@@ -36,7 +62,7 @@
                         {% elseif r.status == 'premium' %}<span class="site-badge site-badge-warn">{{ 'premium domain – not available here'|t }}</span>
                         {% elseif r.status == 'limited' %}<span class="site-badge">{{ 'too many checks – please try again later'|t }}</span>
                         {% else %}<span class="site-badge">{{ 'availability could not be checked'|t }}</span>{% endif %}
-                        <div class="site-small site-muted">{{ r.product.gross|money(r.product.currency) }} {{ include('website/_cycle.twig', {cycle: r.product.billing_cycle}) }}</div>
+                        <div class="site-small site-muted">{{ 'Registration'|t }} {{ r.product.register_gross|money(r.product.currency) }} · {{ 'Renewal'|t }} {{ r.product.price_gross|money(r.product.currency) }} · {{ 'Transfer'|t }} {{ r.product.transfer_gross|money(r.product.currency) }}</div>
                     </div>
                     {% if r.status != 'premium' %}
                     <a class="site-btn site-btn-primary" href="/store/{{ r.product.slug }}?domain={{ r.domain|url_encode }}">{{ i.icon('cart') }} {{ r.status == 'taken' ? 'Transfer'|t : 'Register now'|t }}</a>
@@ -49,35 +75,36 @@
 </section>
 {% endif %}
 
-{% if popular is not empty %}
-<section class="site-section site-section-tight">
-    <div class="site-container">
-        <div class="site-tld-grid">
-            {% for p in popular %}
-            <a class="site-tld" href="/store/{{ p.slug }}"><strong>.{{ p.tld }}</strong><span>{{ p.gross|money(p.currency) }}</span><small>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</small></a>
-            {% endfor %}
-        </div>
-    </div>
-</section>
-{% endif %}
-
-<section class="site-section site-section-alt">
+<section class="site-section">
     <div class="site-container">
         <div class="site-heading">
-            <h2>{{ 'All'|t }} <span class="site-underline">{{ 'endings'|t }}</span></h2>
-            <p>{{ 'Prices per year including VAT. Renewals cost the same as the registration.'|t }}</p>
+            <h2>{{ 'Not found yet?'|t }}</h2>
+            <p>{{ 'With :count endings you will surely find your desired domain. Simply type your ending after the name in the domain search.'|t({count: tlds|length}) }}</p>
         </div>
-        <div class="site-filter"><label class="sr-only" for="tld-filter">{{ 'Filter endings'|t }}</label><input id="tld-filter" type="search" placeholder="{{ 'Filter endings, e.g. .shop'|t }}" data-filter="#tld-table"></div>
-        <div class="site-table-wrap">
-            <table class="site-table" id="tld-table">
-                <thead><tr><th>{{ 'Ending'|t }}</th><th class="site-right">{{ 'Price'|t }}</th><th></th></tr></thead>
+        <div class="site-table-tools"><label for="tld-filter">{{ 'Search'|t }}</label><input id="tld-filter" type="search" placeholder=".shop" data-filter="#tld-table"></div>
+        <div class="site-table-wrap site-table-plain">
+            <table class="site-table" id="tld-table" data-paginate="10">
+                <thead><tr><th>{{ 'Domain'|t }}</th><th>{{ 'Registration'|t }}</th><th>{{ 'Renewal'|t }}</th><th>{{ 'Transfer'|t }}</th><th></th></tr></thead>
                 <tbody>
                 {% for p in tlds %}
-                    <tr data-filter-text=".{{ p.tld }}"><td><strong>.{{ p.tld }}</strong></td><td class="site-right">{{ p.gross|money(p.currency) }} <span class="site-muted site-small">{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></td><td class="site-right"><a href="/store/{{ p.slug }}">{{ 'Order now'|t }}</a></td></tr>
+                    <tr data-filter-text=".{{ p.tld }}"><td><strong>.{{ p.tld }}</strong></td><td>{{ p.register_gross|money(p.currency) }}</td><td>{{ p.price_gross|money(p.currency) }}</td><td>{{ p.transfer_gross|money(p.currency) }}</td><td class="site-right">{% if p.sold_out %}<span class="site-muted">{{ 'Sold out'|t }}</span>{% else %}<a href="/store/{{ p.slug }}">{{ 'Order now'|t }}</a>{% endif %}</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
+        <div class="site-pager" data-pager-for="#tld-table" data-label-prev="{{ 'Previous'|t }}" data-label-next="{{ 'Next'|t }}" data-label-info="{{ ':from to :to of :total entries'|t }}"></div>
+        <p class="site-small site-muted">{{ 'Prices per year including VAT. Registration and transfer prices apply to the first year, renewals to every further year.'|t }}</p>
     </div>
 </section>
+
+{% if benefits is not empty %}
+<section class="site-section site-section-alt site-benefits">
+    <div class="site-container">
+        <div class="site-heading"><h2>{{ 'Your advantages'|t }}</h2></div>
+        <div class="site-benefit-grid">
+            {% for b in benefits %}<div class="site-benefit"><h3>{{ b.title }}</h3>{% if b.text %}<p>{{ b.text }}</p>{% endif %}</div>{% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
 {% endblock %}

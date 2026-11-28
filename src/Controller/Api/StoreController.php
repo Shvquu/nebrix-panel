@@ -89,7 +89,7 @@ final class StoreController extends ApiController
             $options[$name] = $input[$name] ?? null;
         }
         if (ProductConfigurator::enabled($product)) {
-            foreach (ProductConfigurator::OPTIONS as $name) {
+            foreach (ProductConfigurator::optionNames((string) $product['category']) as $name) {
                 $value = $input[$name] ?? null;
                 $options[$name] = is_int($value) ? (string) $value : $value;
             }

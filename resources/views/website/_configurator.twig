@@ -1,0 +1,48 @@
+{% import 'macros/icons.twig' as i %}
+{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory', 'disk_gb': 'Storage', 'slots': 'Slots'} %}
+{% set units = {'cores': '', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
+{% set items = {'cores': ':n cores', 'memory_gb': ':n GB memory', 'disk_gb': ':n GB storage', 'slots': ':n slots'} %}
+<form class="site-config" method="get" action="/store/{{ p.slug }}" data-configurator data-base="{{ p.net }}" data-rate="{{ p.tax_rate_bp }}" data-promo="{{ p.promo ? p.promo.bp : 0 }}" data-reference="{{ p.promo ? p.promo.reference_net : p.net }}" data-currency="{{ p.currency }}" data-locale="{{ locale }}">
+    <div class="site-config-sliders">
+        {% if p.description %}<p class="site-muted">{{ p.description }}</p>{% endif %}
+        {% for name, range in p.configurator %}
+        <div class="site-slider{{ range.max == range.min ? ' is-fixed' : '' }}">
+            <label for="cfg-{{ p.id }}-{{ name }}">{{ labels[name]|t }} <output class="site-pill" id="cfg-{{ p.id }}-{{ name }}-out">{{ range.min }}{{ units[name] }}</output></label>
+            {% if range.max > range.min %}
+            <input id="cfg-{{ p.id }}-{{ name }}" type="range" name="{{ name }}" min="{{ range.min }}" max="{{ range.max }}" step="{{ range.step }}" value="{{ range.min }}" data-step-price="{{ range.price }}" data-output="#cfg-{{ p.id }}-{{ name }}-out" data-unit="{{ units[name] }}" data-item="#cfg-{{ p.id }}-{{ name }}-item">
+            <div class="site-scale">
+                {% for v in range.ticks %}<span>{{ v }}</span>{% endfor %}
+            </div>
+            {% else %}
+            <input type="hidden" name="{{ name }}" value="{{ range.min }}">
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <aside class="site-config-summary">
+        <h2>{{ p.name }}</h2>
+        {% if p.promo %}<div class="site-saving" data-saving-box>{{ i.icon('percent') }} <span>{{ 'You save'|t }} <span data-saving>{{ p.promo.saving_gross|money(p.currency) }}</span> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>{% endif %}
+        <div class="site-plan-head">
+            {% if p.promo %}<div class="site-promo-label">{{ 'For a short time, permanently'|t }}</div>{% endif %}
+            <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong data-price>{{ p.price_gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
+            {% if p.promo %}<div class="site-was" data-was-box>{{ 'instead of'|t }} <s data-was>{{ (p.promo.reference_gross ?? p.price_gross)|money(p.currency) }}</s> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
+            {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
+            {% if p.sold_out %}
+                <span class="site-btn site-btn-disabled" aria-disabled="true">{{ i.icon('ban') }} {{ 'Sold out'|t }}</span>
+            {% else %}
+                <button class="site-btn site-btn-primary" type="submit">{{ i.icon('rocket') }} {{ 'Order now'|t }}</button>
+            {% endif %}
+            <div class="site-small site-muted">{{ 'The binding price is shown before you order.'|t }}</div>
+        </div>
+        <div class="site-plan-body">
+            <h4>{{ 'Configuration'|t }}</h4>
+            <ul class="site-checks">
+                {% for name, range in p.configurator %}<li>{{ i.icon('check') }}<span id="cfg-{{ p.id }}-{{ name }}-item" data-template="{{ items[name]|t({n: '{n}'}) }}">{{ items[name]|t({n: range.min}) }}</span></li>{% endfor %}
+            </ul>
+            {% for section in p.sections %}
+                {% if section.title %}<h4>{{ section.title }}</h4>{% endif %}
+                <ul class="site-checks">{% for item in section.items %}<li>{{ i.icon('check') }}<span>{{ item }}</span></li>{% endfor %}</ul>
+            {% endfor %}
+        </div>
+    </aside>
+</form>

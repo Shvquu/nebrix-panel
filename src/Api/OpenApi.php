@@ -32,7 +32,7 @@ final class OpenApi
                 'properties' => [
                     'product_id' => ['type' => 'integer'],
                     'accept_terms' => ['type' => 'boolean', 'description' => 'Must be true: the customer accepts the terms.'],
-                    'options' => ['type' => 'object', 'description' => 'Order options of the product (see order_options of the product), e.g. {"hostname": "web01"}; configurable servers also take cores, memory_gb and disk_gb.'],
+                    'options' => ['type' => 'object', 'description' => 'Order options of the product (see order_options of the product), e.g. {"hostname": "web01"}; configurable products also take cores, memory_gb and disk_gb (servers) or slots (TeamSpeak).'],
                     'coupon' => ['type' => 'string', 'description' => 'Optional coupon code; an invalid code answers 422 coupon_invalid.'],
                 ],
             ]],
@@ -243,7 +243,7 @@ final class OpenApi
             'id' => $int, 'slug' => $str, 'name' => $str, 'category' => $str, 'description' => $nullableStr, 'features' => ['type' => 'array', 'items' => $str],
             'billing_cycle' => $str, 'currency' => $str, 'tax_rate_bp' => $int, 'pricing' => ['type' => 'object'], 'in_stock' => ['type' => 'boolean'],
             'order_options' => ['type' => 'array', 'items' => ['type' => 'object']],
-            'configurator' => ['type' => 'object', 'nullable' => true, 'description' => 'Configurable servers: ranges of the order options cores, memory_gb and disk_gb ({min, max, step, price}); price = base price + steps above the minimum × step price (net, per billing period). null = fixed package.'],
+            'configurator' => ['type' => 'object', 'nullable' => true, 'description' => 'Configurable products: ranges of the order options cores, memory_gb and disk_gb (servers) or slots (TeamSpeak) ({min, max, step, price}); price = base price + steps above the minimum × step price (net, per billing period). null = fixed package.'],
         ]];
 
         return [

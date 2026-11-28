@@ -51,6 +51,7 @@ php bin/nebrix migrate
 | `000016_create_status_page` | status page components, incidents, updates; permission `status.manage` |
 | `000017_create_hetzner_wipes` | queue of automatic Hetzner disk wipes |
 | `000018_add_cache_and_location_evidence` | encrypted cache (`nx_cache`), payment country and location conflict on invoices |
+| `000019_add_website_catalog` | product line and promotion columns on `nx_products`, `nx_product_price_history` (previous lowest price, § 11 PAngV), `promo_bp` on order items, `configuration` on service changes |
 
 ## Tables
 

@@ -220,9 +220,12 @@ final class ServiceController extends Controller
     {
         $group = $service->productId !== null ? $this->container->get(\Nebrix\Database\Connection::class)->fetchValue('SELECT `upgrade_group` FROM `nx_products` WHERE `id` = ?', [$service->productId]) : null;
 
+        $changes = $this->container->get(\Nebrix\Service\ServiceChangeService::class);
+
         return [
-            'available' => $service->isActive() && is_string($group) && trim($group) !== '',
-            'open' => $this->container->get(\Nebrix\Service\ServiceChangeService::class)->openChange($service->id),
+            // An upgrade group or a configurator (new resources for the same product).
+            'available' => $service->isActive() && ((is_string($group) && trim($group) !== '') || $changes->configurationRanges($service) !== null),
+            'open' => $changes->openChange($service->id),
         ];
     }
 

@@ -12,72 +12,72 @@
     </div>
 </section>
 
-<section class="site-section">
+<section class="site-section site-section-products">
     <div class="site-container">
-        {% if products is not empty and configurable is not empty %}
-        <div class="site-tabs" role="tablist" data-site-tabs>
-            <button type="button" role="tab" class="is-active" aria-selected="true" data-site-tab="tab-packages">{{ i.icon('box') }} {{ 'Packages'|t }}</button>
-            <button type="button" role="tab" aria-selected="false" data-site-tab="tab-configurator">{{ i.icon('sliders') }} {{ 'Configurator'|t }}</button>
+        {% if promotion %}
+        <div class="site-promo-banner">
+            <span class="site-promo-icon">{{ i.icon('percent') }}</span>
+            <div>
+                <h2>{{ 'Promotion'|t }}</h2>
+                <p>{{ (tabs|length > 1 ? 'Order now and get up to :percent % off for the whole term!' : 'Order now and get :percent % off for the whole term!')|t({percent: promotion.percent}) }}</p>
+                <small>{{ (promotion.limited ? 'Offer valid until :date and while stocks last.' : 'Offer valid until :date.')|t({date: promotion.ends_at|dt}) }}</small>
+            </div>
         </div>
         {% endif %}
 
-        {% if products is not empty %}
-        <div id="tab-packages" class="site-plans">
-            {% for p in products %}
-            <article class="site-plan">
-                <h2>{{ p.name }}</h2>
-                {% if p.description %}<p class="site-muted">{{ p.description }}</p>{% endif %}
-                <div class="site-price"><strong>{{ p.gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
-                {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
-                {% if p.specs is not empty %}
-                <dl class="site-specs">{% for spec in p.specs %}<div><dt>{{ spec.label|t }}</dt><dd>{{ spec.value|t }}</dd></div>{% endfor %}</dl>
-                {% endif %}
-                {% if p.features is not empty %}
-                <ul class="site-checks">{% for feature in p.features %}<li>{{ i.icon('check') }}<span>{{ feature }}</span></li>{% endfor %}</ul>
-                {% endif %}
-                <a class="site-btn site-btn-primary site-btn-block" href="/store/{{ p.slug }}">{{ i.icon('cart') }} {{ 'Order now'|t }}</a>
-            </article>
+        {% if tabs|length > 1 %}
+        <div class="site-line-tabs" role="tablist" data-site-tabs>
+            {% for tab in tabs %}
+            <button type="button" role="tab" class="{{ loop.first ? 'is-active' : '' }}" aria-selected="{{ loop.first ? 'true' : 'false' }}" data-site-tab="{{ tab.key }}">
+                <strong>{{ tab.line ?? current.title|t }}</strong>
+                <span>{{ (tab.kind == 'configurator' ? 'Configurator' : 'Packages')|t }}</span>
+            </button>
             {% endfor %}
         </div>
         {% endif %}
 
-        {% if configurable is not empty %}
-        <div id="tab-configurator" class="site-configurators{{ products is not empty ? ' hidden' : '' }}">
-            {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory', 'disk_gb': 'Disk'} %}
-            {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB'} %}
-            {% for p in configurable %}
-            <form class="site-configurator" method="get" action="/store/{{ p.slug }}" data-configurator data-base="{{ p.net }}" data-rate="{{ p.tax_rate_bp }}" data-currency="{{ p.currency }}" data-locale="{{ locale }}">
-                <div class="site-configurator-head">
-                    <div>
-                        <h2>{{ p.name }}</h2>
-                        {% if p.description %}<p class="site-muted">{{ p.description }}</p>{% endif %}
-                    </div>
-                    <div class="site-price site-price-live"><strong data-price>{{ p.gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
+        {% for tab in tabs %}
+        <div id="{{ tab.key }}" class="site-tab-panel{{ loop.first ? '' : ' hidden' }}">
+            {% if tab.sold_out %}
+            <div class="site-soldout-notice">
+                <span class="site-promo-icon">{{ i.icon('box') }}</span>
+                <div><h2>{{ 'Available again soon'|t }}</h2><p>{{ 'These products are currently sold out. Please check back later.'|t }}</p></div>
+            </div>
+            {% endif %}
+
+            {% if tab.kind == 'configurator' %}
+                {% if key == 'teamspeak' %}
+                <div class="site-heading site-heading-tight">
+                    <h2>{{ 'TeamSpeak server configurator'|t }}</h2>
+                    <p>{{ 'Choose the number of slots of your TeamSpeak server. If you need more or fewer later, you can change them at any time in the customer area.'|t }}</p>
                 </div>
-                <div class="site-sliders">
-                    {% for name, range in p.configurator %}
-                    <div class="site-slider{{ range.max == range.min ? ' is-fixed' : '' }}">
-                        <label for="cfg-{{ p.id }}-{{ name }}">{{ i.icon(name == 'cores' ? 'cpu' : (name == 'memory_gb' ? 'layers' : 'database')) }} {{ labels[name]|t }} <output id="cfg-{{ p.id }}-{{ name }}-out">{{ range.min }}{{ units[name] }}</output></label>
-                        {% if range.max > range.min %}
-                        <input id="cfg-{{ p.id }}-{{ name }}" type="range" name="{{ name }}" min="{{ range.min }}" max="{{ range.max }}" step="{{ range.step }}" value="{{ range.min }}" data-step-price="{{ range.price }}" data-output="#cfg-{{ p.id }}-{{ name }}-out" data-unit="{{ units[name] }}">
-                        <div class="site-slider-scale"><span>{{ range.min }}{{ units[name] }}</span><span>{{ range.max }}{{ units[name] }}</span></div>
-                        {% else %}
-                        <input type="hidden" name="{{ name }}" value="{{ range.min }}">
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% if p.features is not empty %}
-                <ul class="site-checks site-checks-inline">{% for feature in p.features %}<li>{{ i.icon('check') }}<span>{{ feature }}</span></li>{% endfor %}</ul>
                 {% endif %}
-                <div class="site-configurator-foot">
-                    <span class="site-small site-muted">{{ 'The binding price is shown before you order.'|t }}{% if p.setup_gross > 0 %} + {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}{% endif %}</span>
-                    <button class="site-btn site-btn-primary" type="submit">{{ i.icon('cart') }} {{ 'Configure & order'|t }}</button>
-                </div>
-            </form>
-            {% endfor %}
+                {% for p in tab.products %}
+                    {% include 'website/_configurator.twig' with {p: p} %}
+                {% endfor %}
+            {% else %}
+            <div class="site-plans">
+                {% for p in tab.products %}
+                    {% include 'website/_plan.twig' with {p: p} %}
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
+        {% endfor %}
     </div>
 </section>
+
+{% if benefits is not empty %}
+<section class="site-section site-section-alt site-benefits">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'Your advantages'|t }}</h2>
+            <p>{{ 'Included with every :product.'|t({product: current.title|t}) }}</p>
+        </div>
+        <div class="site-benefit-grid">
+            {% for b in benefits %}<div class="site-benefit"><h3>{{ b.title }}</h3>{% if b.text %}<p>{{ b.text }}</p>{% endif %}</div>{% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
 {% endblock %}

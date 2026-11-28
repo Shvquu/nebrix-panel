@@ -91,7 +91,8 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 ### Public website
 * Only public products are shown (active, visible, no customer-group restriction, in stock); prices on the website are previews – the order page, the order and the invoice are calculated on the server. Configurator values from the browser are validated against range and step; the API and the shop use the same check.
 * All texts from settings are escaped (`*…*` highlighting is applied after escaping); the about text allows line breaks only.
-* The domain search calls the registrar for at most 20 checks per client network (IPv4 address or IPv6 /64) and 10 minutes; input is normalised to a plain domain name before it is used.
+* The domain search calls the registrar for at most 60 checks per client network (IPv4 address or IPv6 /64) and 10 minutes (a name search checks up to six endings); input is normalised to a plain domain name or label before it is used.
+* Promotions, domain first-year prices and configured prices are calculated on the server for quote, order, invoice and renewal; the browser only previews them. Resource changes of configured services use the locked, single-change flow of package changes (validated range and step, provisioner blockers such as a shrinking disk, prorated invoice before an upgrade is applied).
 * No third-party resources are loaded by default. The Trustpilot TrustBox is a two-click element; `https://widget.trustpilot.com` is added to the CSP (script, frame, connect, image and style sources) only on the start page and only while a TrustBox is configured – never `unsafe-inline`.
 * The address remembered for after the sign-in now keeps simple query values (each ≤ 255 characters, ≤ 1000 in total); it is checked by the redirect guard (same host, path only) when used. Order pages take only non-secret options from the address (never auth codes).
 

@@ -12,6 +12,7 @@ use Nebrix\Billing\InvoiceRepository;
 use Nebrix\Billing\InvoiceService;
 use Nebrix\Billing\Money;
 use Nebrix\Catalog\BillingCycle;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Core\Clock;
 use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
@@ -150,47 +151,169 @@ class ServiceChangeService
                 throw new ServiceChangeException('This package is sold out.');
             }
 
-            $now = $this->clock->nowString();
-            $direction = $offer['direction'];
-            $immediate = $free || ($direction === self::UPGRADE && (int) $offer['charge'] === 0);
-            $status = $immediate ? self::QUEUED : ($direction === self::UPGRADE ? self::PENDING_PAYMENT : self::SCHEDULED);
-            $changeId = $this->db->insert('nx_service_changes', [
-                'service_id' => $service->id,
-                'user_id' => $owner->id,
-                'from_product_id' => $service->productId,
-                'to_product_id' => (int) $product['id'],
-                'direction' => $direction,
-                'status' => $status,
-                'old_recurring' => $service->recurringAmount,
-                'new_recurring' => (int) $offer['recurring'],
-                'charge' => $immediate ? 0 : (int) $offer['charge'],
-                'currency' => $service->currency,
-                'effective_at' => $status === self::SCHEDULED ? $service->nextDueAt : null,
-                'requested_by' => $actorId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            $invoiceId = null;
-            if ($status === self::PENDING_PAYMENT) {
-                [$start, $end] = [$this->clock->now(), $this->periodEnd($service)];
-                $description = $this->translator->translateTo((string) ($owner->attribute('language') ?? 'en'), 'Upgrade :service: :from → :to (:start to :end)', [
-                    'service' => $service->name,
-                    'from' => (string) $offer['from_name'],
-                    'to' => (string) $product['name'],
-                    'start' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $start),
-                    'end' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $end),
-                ]);
-                $invoiceId = $this->invoices->createUpgrade($service, $owner, $product, (int) $offer['charge'], $description, $start, $end);
-                $this->db->update('nx_service_changes', ['invoice_id' => $invoiceId], ['id' => $changeId]);
-            } elseif ($status === self::SCHEDULED) {
-                // The next renewal is already invoiced at the new price.
-                $this->services->update($service->id, ['recurring_amount' => (int) $offer['recurring']]);
-            }
-
-            return ['change_id' => $changeId, 'status' => $status, 'invoice_id' => $invoiceId, 'direction' => $direction, 'to' => (int) $product['id']];
+            return $this->createChange($service, $owner, $product, $offer, null, $actorId, $free);
         });
 
+        return $this->afterRequest($service, $result, $actorId, $ip, $free);
+    }
+
+    /**
+     * Offer for new resources of a configured service (same product): price,
+     * direction and blocker – like a package change.
+     *
+     * @param array<string, mixed> $input option name => value (e.g. slots, or cores/memory_gb/disk_gb)
+     * @return array<string, mixed>
+     *
+     * @throws ServiceChangeException
+     * @throws \Nebrix\Security\ValidationException invalid values
+     */
+    public function configurationOffer(Service $service, User $owner, array $input, bool $selfService = true): array
+    {
+        $product = $service->productId !== null ? $this->products->find($service->productId) : null;
+        if ($product === null || !ProductConfigurator::enabled($product) || !$product['is_active']) {
+            throw new ServiceChangeException('The resources of this service cannot be changed here.');
+        }
+        $choice = ProductConfigurator::resolve($product, $input);
+        $category = (string) $product['category'];
+        $current = ProductConfigurator::choiceOf($category, $service->config);
+        $wanted = array_diff_key($choice, ['price' => true]);
+        if ($wanted === $current) {
+            throw new ServiceChangeException('Choose a configuration that differs from the current one.');
+        }
+        $recurring = $this->recurringPrice($service, $product, $owner, (int) $choice['price']);
+        $difference = $recurring - $service->recurringAmount;
+        $increases = count(array_filter($wanted, static fn (int $value, string $name): bool => $value > ($current[$name] ?? 0), ARRAY_FILTER_USE_BOTH)) > 0;
+        $direction = $difference > 0 || ($difference === 0 && $increases) ? self::UPGRADE : self::DOWNGRADE;
+        $charge = $direction === self::UPGRADE ? $this->prorate($service, max(0, $difference)) : 0;
+        $provisioner = $this->changer($service);
+        $blocker = $provisioner !== null ? $provisioner->packageChangeBlocker($service, $this->configuredConfig($service, $wanted)) : null;
+        if ($blocker === null && $selfService && $provisioner === null) {
+            $blocker = 'Please contact our support to change the package of this service.';
+        }
+        $rate = (int) $product['tax_rate_bp'];
+
+        return [
+            'product' => $product,
+            'from_name' => (string) $product['name'],
+            'direction' => $direction,
+            'recurring' => $recurring,
+            'recurring_gross' => $recurring + Money::tax($recurring, $rate),
+            'charge' => $charge,
+            'charge_gross' => $charge + Money::tax($charge, $rate),
+            'effective_at' => $direction === self::DOWNGRADE ? $service->nextDueAt : null,
+            'blocker' => $blocker,
+            'configuration' => $wanted,
+            'current' => $current,
+        ];
+    }
+
+    /**
+     * Ranges and current resources of a configured service (null = its
+     * product has no configurator).
+     *
+     * @return array{ranges: array<string, array{min: int, max: int, step: int, price: int}>, current: array<string, int>}|null
+     */
+    public function configurationRanges(Service $service): ?array
+    {
+        $product = $service->productId !== null ? $this->products->find($service->productId) : null;
+        $ranges = $product !== null && (bool) $product['is_active'] ? ProductConfigurator::ranges($product) : null;
+
+        return $ranges !== null ? ['ranges' => $ranges, 'current' => ProductConfigurator::choiceOf($service->category, $service->config)] : null;
+    }
+
+    /**
+     * Requests new resources for a configured service (same flow as a
+     * package change: upgrades are invoiced pro rata, downgrades apply at
+     * the end of the period).
+     *
+     * @param array<string, mixed> $input
+     * @return array{change_id: int, status: string, invoice_id: int|null}
+     *
+     * @throws ServiceChangeException
+     * @throws \Nebrix\Security\ValidationException
+     */
+    public function requestConfiguration(Service $service, User $owner, array $input, ?int $actorId, ?string $ip): array
+    {
+        $result = $this->db->transaction(function () use ($service, $owner, $input, $actorId): array {
+            $this->db->fetchValue('SELECT `id` FROM `nx_services` WHERE `id` = ? FOR UPDATE', [$service->id]);
+            $service = $this->services->find($service->id) ?? throw new ServiceChangeException('The service was not found.');
+            if ($this->openChange($service->id) !== null) {
+                throw new ServiceChangeException('A package change is already in progress.');
+            }
+            $blocker = $this->serviceBlocker($service, true);
+            if ($blocker !== null) {
+                throw new ServiceChangeException($blocker);
+            }
+            $offer = $this->configurationOffer($service, $owner, $input);
+            if ($offer['blocker'] !== null) {
+                throw new ServiceChangeException((string) $offer['blocker']);
+            }
+
+            // Same product: the service keeps its unit of stock.
+            return $this->createChange($service, $owner, $offer['product'], $offer, $offer['configuration'], $actorId, false);
+        });
+
+        return $this->afterRequest($service, $result, $actorId, $ip, false);
+    }
+
+    /**
+     * Stores a change (inside the caller's transaction) and its upgrade invoice.
+     *
+     * @param array<string, mixed> $product
+     * @param array<string, mixed> $offer
+     * @param array<string, int>|null $configuration new resources (configured services)
+     * @return array{change_id: int, status: string, invoice_id: int|null, direction: string, to: int}
+     */
+    private function createChange(Service $service, User $owner, array $product, array $offer, ?array $configuration, ?int $actorId, bool $free): array
+    {
+        $now = $this->clock->nowString();
+        $direction = $offer['direction'];
+        $immediate = $free || ($direction === self::UPGRADE && (int) $offer['charge'] === 0);
+        $status = $immediate ? self::QUEUED : ($direction === self::UPGRADE ? self::PENDING_PAYMENT : self::SCHEDULED);
+        $changeId = $this->db->insert('nx_service_changes', [
+            'service_id' => $service->id,
+            'user_id' => $owner->id,
+            'from_product_id' => $service->productId,
+            'to_product_id' => (int) $product['id'],
+            'configuration' => $configuration !== null ? json_encode($configuration, JSON_THROW_ON_ERROR) : null,
+            'direction' => $direction,
+            'status' => $status,
+            'old_recurring' => $service->recurringAmount,
+            'new_recurring' => (int) $offer['recurring'],
+            'charge' => $immediate ? 0 : (int) $offer['charge'],
+            'currency' => $service->currency,
+            'effective_at' => $status === self::SCHEDULED ? $service->nextDueAt : null,
+            'requested_by' => $actorId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $invoiceId = null;
+        if ($status === self::PENDING_PAYMENT) {
+            [$start, $end] = [$this->clock->now(), $this->periodEnd($service)];
+            $description = $this->translator->translateTo((string) ($owner->attribute('language') ?? 'en'), 'Upgrade :service: :from → :to (:start to :end)', [
+                'service' => $service->name,
+                'from' => (string) $offer['from_name'],
+                'to' => (string) $product['name'] . ($configuration !== null ? ' (' . $this->summary($configuration, (string) ($owner->attribute('language') ?? 'en')) . ')' : ''),
+                'start' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $start),
+                'end' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $end),
+            ]);
+            $invoiceId = $this->invoices->createUpgrade($service, $owner, $product, (int) $offer['charge'], $description, $start, $end);
+            $this->db->update('nx_service_changes', ['invoice_id' => $invoiceId], ['id' => $changeId]);
+        } elseif ($status === self::SCHEDULED) {
+            // The next renewal is already invoiced at the new price.
+            $this->services->update($service->id, ['recurring_amount' => (int) $offer['recurring']]);
+        }
+
+        return ['change_id' => $changeId, 'status' => $status, 'invoice_id' => $invoiceId, 'direction' => $direction, 'to' => (int) $product['id']];
+    }
+
+    /**
+     * @param array{change_id: int, status: string, invoice_id: int|null, direction: string, to: int} $result
+     * @return array{change_id: int, status: string, invoice_id: int|null}
+     */
+    private function afterRequest(Service $service, array $result, ?int $actorId, ?string $ip, bool $free): array
+    {
         if ($result['status'] === self::QUEUED) {
             $this->jobs->dispatch(InvoiceService::JOB_APPLY_CHANGE, ['change_id' => $result['change_id']], InvoiceService::JOB_APPLY_CHANGE . ':' . $result['change_id']);
         }
@@ -229,7 +352,9 @@ class ServiceChangeService
             }
             $this->services->update($service->id, ['recurring_amount' => (int) $change['old_recurring']]);
             $this->db->update('nx_service_changes', ['status' => self::CANCELLED, 'error' => 'Withdrawn.', 'updated_at' => $this->clock->nowString()], ['id' => $change['id']]);
-            $this->products->releaseStock((int) $change['to_product_id']);
+            if ($change['configuration'] === null) {
+                $this->products->releaseStock((int) $change['to_product_id']);
+            }
 
             return null;
         });
@@ -279,13 +404,16 @@ class ServiceChangeService
         $product = $this->products->find((int) $change['to_product_id']);
         if ($service === null || $product === null || in_array($service->status, [Service::STATUS_TERMINATED, Service::STATUS_CANCELLED], true)) {
             $this->db->update('nx_service_changes', ['status' => self::CANCELLED, 'error' => 'The service has ended.', 'updated_at' => $this->clock->nowString()], ['id' => $changeId]);
-            $this->products->releaseStock((int) $change['to_product_id']);
+            if ($change['configuration'] === null) {
+                $this->products->releaseStock((int) $change['to_product_id']);
+            }
 
             return;
         }
 
         $provisioner = $this->changer($service);
-        $newConfig = $this->newConfig($service, $product, $provisioner);
+        $configuration = $change['configuration'] !== null ? json_decode((string) $change['configuration'], true) : null;
+        $newConfig = is_array($configuration) ? $this->configuredConfig($service, $configuration) : $this->newConfig($service, $product, $provisioner);
         $note = null;
         if ($provisioner !== null) {
             $blocker = $provisioner->packageChangeBlocker($service, $newConfig);
@@ -307,7 +435,8 @@ class ServiceChangeService
                 'tax_rate_bp' => (int) $product['tax_rate_bp'],
             ]);
             $this->db->update('nx_service_changes', ['status' => self::COMPLETED, 'error' => null, 'completed_at' => $this->clock->nowString(), 'updated_at' => $this->clock->nowString()], ['id' => $change['id']]);
-            if ($change['from_product_id'] !== null) {
+            // A configuration change keeps the product (and its unit of stock).
+            if ($change['from_product_id'] !== null && $change['configuration'] === null) {
                 $this->products->releaseStock((int) $change['from_product_id']);
             }
 
@@ -335,7 +464,7 @@ class ServiceChangeService
             $this->mailer->queue($owner->email, $owner->displayName(), 'service_package_changed', [
                 'name' => $owner->displayName(),
                 'service_name' => $service->name,
-                'package' => (string) $product['name'],
+                'package' => (string) $product['name'] . (is_array($configuration) ? ' (' . $this->summary(array_map('intval', $configuration), $locale) . ')' : ''),
                 'price' => Money::format((int) $change['new_recurring'], $service->currency, $locale),
                 'note' => $note !== null ? $this->translator->translateTo($locale, $note) : '',
                 'service_url' => rtrim($this->config->string('app.url'), '/') . '/services/' . $service->id,
@@ -559,9 +688,13 @@ class ServiceChangeService
      *
      * @param array<string, mixed> $product
      */
-    private function recurringPrice(Service $service, array $product, User $owner): int
+    private function recurringPrice(Service $service, array $product, User $owner, ?int $listPrice = null): int
     {
-        $price = (int) $product['price'];
+        $price = $listPrice ?? (int) $product['price'];
+        // A promotion of the original order stays for new resources of the same product.
+        if ($listPrice !== null && $service->orderItemId !== null && (int) $product['id'] === $service->productId) {
+            $price -= Money::discount($price, (int) ($this->db->fetchValue('SELECT `promo_bp` FROM `nx_order_items` WHERE `id` = ?', [$service->orderItemId]) ?? 0));
+        }
         $group = $owner->customerGroupId !== null ? $this->groups->find($owner->customerGroupId) : null;
         $base = $price - Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
         if ($service->orderItemId !== null) {
@@ -627,6 +760,35 @@ class ServiceChangeService
         }
 
         return $config;
+    }
+
+    /**
+     * Configuration of a configured service with new resources.
+     *
+     * @param array<string, mixed> $choice option name => value
+     * @return array<string, mixed>
+     */
+    private function configuredConfig(Service $service, array $choice): array
+    {
+        $choice = array_map('intval', array_intersect_key($choice, array_flip(ProductConfigurator::optionNames($service->category))));
+        $config = ProductConfigurator::applyChoice($service->category, $service->config, $choice);
+        $config['_options'] = $choice + (is_array($service->config['_options'] ?? null) ? $service->config['_options'] : []);
+
+        return $config;
+    }
+
+    /**
+     * @param array<string, int> $configuration
+     */
+    private function summary(array $configuration, string $locale): string
+    {
+        if (isset($configuration['slots'])) {
+            return $this->translator->translateTo($locale, ':slots slots', ['slots' => (string) $configuration['slots']]);
+        }
+
+        return $this->translator->translateTo($locale, ':cores vCores, :memory GB RAM, :disk GB disk', [
+            'cores' => (string) ($configuration['cores'] ?? 0), 'memory' => (string) ($configuration['memory_gb'] ?? 0), 'disk' => (string) ($configuration['disk_gb'] ?? 0),
+        ]);
     }
 
     /** The provisioner, if the service is managed automatically and supports package changes. */

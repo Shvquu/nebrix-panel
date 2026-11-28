@@ -398,10 +398,13 @@ class InvoiceService
             }
             if ($invoice['type'] === InvoiceRepository::TYPE_UPGRADE) {
                 // The upgrade does not happen; the reserved unit of the target product is free again.
-                $change = $this->db->fetchOne("SELECT `id`, `to_product_id` FROM `nx_service_changes` WHERE `invoice_id` = ? AND `status` = 'pending_payment' FOR UPDATE", [$invoiceId]);
+                $change = $this->db->fetchOne("SELECT `id`, `to_product_id`, `configuration` FROM `nx_service_changes` WHERE `invoice_id` = ? AND `status` = 'pending_payment' FOR UPDATE", [$invoiceId]);
                 if ($change !== null) {
                     $this->db->update('nx_service_changes', ['status' => 'cancelled', 'error' => 'The invoice was cancelled.', 'updated_at' => $this->clock->nowString()], ['id' => $change['id']]);
-                    $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $change['to_product_id']]);
+                    // Configuration changes keep the product and reserved no stock.
+                    if ($change['configuration'] === null) {
+                        $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $change['to_product_id']]);
+                    }
                 }
             }
         });

@@ -55,7 +55,8 @@ final class StoreController extends Controller
                 continue;
             }
             $product['quote'] = $this->orders->quote($product, $user->customerGroupId, $user);
-            $product['feature_list'] = array_values(array_filter(array_map('trim', explode("\n", (string) $product['features']))));
+            // Section headings of the website ("# Network") are not repeated in the shop cards.
+            $product['feature_list'] = array_values(array_filter(array_map('trim', explode("\n", (string) $product['features'])), static fn (string $line): bool => $line !== '' && !str_starts_with($line, '#')));
             $grouped[(string) $product['category']][] = $product;
         }
 
@@ -82,7 +83,7 @@ final class StoreController extends Controller
 
         // A configuration chosen on the website or carried over by the coupon form.
         $configuration = [];
-        foreach (ProductConfigurator::OPTIONS as $name) {
+        foreach (ProductConfigurator::optionNames((string) $product['category']) as $name) {
             $configuration[$name] = mb_substr($request->string($name), 0, 10);
         }
 
@@ -101,6 +102,8 @@ final class StoreController extends Controller
             'options' => ProductCategory::get((string) $product['category'])['options'],
             'ranges' => ProductConfigurator::ranges($product),
             'quote' => $this->orders->quote($product, $user->customerGroupId, $user, $coupon !== '' ? $coupon : null, $configuration),
+            // Domains: the first year of a transfer can cost something else than a registration.
+            'transfer_quote' => $product['category'] === ProductCategory::DOMAIN ? $this->orders->quote($product, $user->customerGroupId, $user, $coupon !== '' ? $coupon : null, [], true) : null,
             'coupon' => $coupon,
             'cycles' => BillingCycle::labels(),
             'require_legal' => true,
@@ -126,7 +129,7 @@ final class StoreController extends Controller
             $options[$name] = $request->input($name);
         }
         if (ProductConfigurator::enabled($product)) {
-            foreach (ProductConfigurator::OPTIONS as $name) {
+            foreach (ProductConfigurator::optionNames((string) $product['category']) as $name) {
                 $options[$name] = $request->input($name);
             }
         }
@@ -165,7 +168,7 @@ final class StoreController extends Controller
             return '';
         }
         $query = [];
-        foreach (ProductConfigurator::OPTIONS as $name) {
+        foreach (ProductConfigurator::optionNames((string) $product['category']) as $name) {
             if (is_string($options[$name] ?? null) && preg_match('/^\d{1,6}$/', $options[$name]) === 1) {
                 $query[$name] = $options[$name];
             }

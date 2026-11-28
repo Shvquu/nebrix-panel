@@ -96,6 +96,9 @@ final class TldImportTest extends FeatureTestCase
         self::assertSame(799, (int) $bySlug['domain-co-uk']['price']);
         self::assertSame('.co.uk', $bySlug['domain-co-uk']['name']);
         self::assertSame(['tld' => 'co.uk'], json_decode((string) $bySlug['domain-co-uk']['provisioning_config'], true));
+        // .com: registration offer 7.49 → 8.99 for the first year; renewal and transfer 9.40 → 11.99 (the product price).
+        self::assertSame(['tld' => 'com', 'register_price' => '8.99'], json_decode((string) $bySlug['domain-com']['provisioning_config'], true));
+        self::assertSame(['tld' => 'de'], json_decode((string) $bySlug['domain-de']['provisioning_config'], true), 'Free .de transfers are priced like a renewal (it follows within the paid year).');
         self::assertSame('annually', $bySlug['domain-de']['billing_cycle']);
         self::assertSame(1900, (int) $bySlug['domain-de']['tax_rate_bp']);
         self::assertSame(1, (int) $bySlug['domain-de']['is_visible']);
@@ -133,6 +136,7 @@ final class TldImportTest extends FeatureTestCase
 
         $this->post('/admin/products/tlds/import', $this->form(['tlds' => 'com', 'update_prices' => '1']));
         self::assertSame(1499, (int) $this->db->fetchValue("SELECT price FROM nx_products WHERE slug = 'domain-com'"), '12.00 × 1.2 = 14.40 → 14.99');
+        self::assertSame(['tld' => 'com', 'register_price' => '8.99'], json_decode((string) $this->db->fetchValue("SELECT provisioning_config FROM nx_products WHERE slug = 'domain-com'"), true));
     }
 
     public function testOnlyProductManagersAndSkrimeIntegrations(): void

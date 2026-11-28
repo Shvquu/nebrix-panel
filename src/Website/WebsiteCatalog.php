@@ -8,13 +8,16 @@ use Nebrix\Billing\Money;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Catalog\ProductConfigurator;
+use Nebrix\Catalog\ProductPricing;
+use Nebrix\Core\Clock;
 use Nebrix\Repository\ProductRepository;
 use Nebrix\Settings\SettingsRepository;
 
 /**
- * Products for the public website: only active, visible products that are
- * not reserved for a customer group, with consumer prices (VAT included,
- * as required for offers to consumers).
+ * Products for the public website: active, visible products that are not
+ * reserved for a customer group (sold-out ones are shown as sold out), with
+ * consumer prices (VAT included, as required for offers to consumers) and
+ * running promotions with the previous lowest price (§ 11 PAngV).
  */
 final class WebsiteCatalog
 {
@@ -43,6 +46,7 @@ final class WebsiteCatalog
     public function __construct(
         private readonly ProductRepository $repository,
         private readonly SettingsRepository $settings,
+        private readonly Clock $clock,
     ) {
     }
 
@@ -52,11 +56,11 @@ final class WebsiteCatalog
      */
     public function forRequest(): self
     {
-        return new self($this->repository, $this->settings);
+        return new self($this->repository, $this->settings, $this->clock);
     }
 
     /**
-     * Pages that have at least one product, with the lowest price.
+     * Pages that have at least one product, with the lowest available price.
      *
      * @return array<string, array{categories: list<string>, title: string, icon: string, teaser: string, count: int, from: array{gross: int, currency: string, cycle: string}|null}>
      */
@@ -70,14 +74,32 @@ final class WebsiteCatalog
             }
             $cheapest = null;
             foreach ($products as $product) {
-                if ($cheapest === null || $product['gross'] < $cheapest['gross']) {
-                    $cheapest = ['gross' => $product['gross'], 'currency' => $product['currency'], 'cycle' => $product['billing_cycle']];
+                if (!$product['sold_out'] && ($cheapest === null || $product['price_gross'] < $cheapest['gross'])) {
+                    $cheapest = ['gross' => $product['price_gross'], 'currency' => $product['currency'], 'cycle' => $product['billing_cycle']];
                 }
             }
             $pages[$key] = $page + ['count' => count($products), 'from' => $cheapest];
         }
 
         return $pages;
+    }
+
+    /**
+     * Pages grouped like the product groups of the customer area (menu).
+     *
+     * @return array<string, array{label: string, icon: string, pages: array<string, array<string, mixed>>}>
+     */
+    public function menu(): array
+    {
+        $menu = [];
+        foreach (ProductCategory::groups() as $key => $group) {
+            $menu[$key] = ['label' => $group['label'], 'icon' => $group['icon'], 'pages' => []];
+        }
+        foreach ($this->pages() as $key => $page) {
+            $menu[ProductCategory::groupOf($page['categories'][0])]['pages'][$key] = $page;
+        }
+
+        return array_filter($menu, static fn (array $group): bool => $group['pages'] !== []);
     }
 
     /**
@@ -102,6 +124,51 @@ final class WebsiteCatalog
     }
 
     /**
+     * Tabs of a product page: one per product line and kind (configurator,
+     * packages), in the order of the products.
+     *
+     * @return list<array{key: string, line: string|null, kind: string, products: list<array<string, mixed>>, sold_out: bool}>
+     */
+    public function tabs(string $page): array
+    {
+        $tabs = [];
+        foreach ($this->productsOf($page) as $product) {
+            $kind = $product['configurator'] !== null ? 'configurator' : 'packages';
+            $key = $kind . ':' . ($product['line'] ?? '');
+            $tabs[$key] ??= ['key' => 'tab-' . substr(hash('sha256', $key), 0, 10), 'line' => $product['line'], 'kind' => $kind, 'products' => [], 'sold_out' => true];
+            $tabs[$key]['products'][] = $product;
+            $tabs[$key]['sold_out'] = $tabs[$key]['sold_out'] && $product['sold_out'];
+        }
+
+        return array_values($tabs);
+    }
+
+    /**
+     * Running promotions of a page: highest discount, earliest end, whether
+     * stock is limited.
+     *
+     * @return array{bp: int, percent: string, ends_at: string, limited: bool}|null
+     */
+    public function promotion(string $page): ?array
+    {
+        $promotion = null;
+        foreach ($this->productsOf($page) as $product) {
+            if ($product['promo'] === null || $product['sold_out']) {
+                continue;
+            }
+            $bp = max($promotion['bp'] ?? 0, $product['promo']['bp']);
+            $promotion = [
+                'bp' => $bp,
+                'percent' => rtrim(rtrim(number_format($bp / 100, 2, '.', ''), '0'), '.'),
+                'ends_at' => min($promotion['ends_at'] ?? $product['promo']['ends_at'], $product['promo']['ends_at']),
+                'limited' => ($promotion['limited'] ?? false) || $product['stock'] !== null,
+            ];
+        }
+
+        return $promotion;
+    }
+
+    /**
      * The domain product for a domain name (longest matching TLD), or null.
      *
      * @return array<string, mixed>|null
@@ -111,7 +178,7 @@ final class WebsiteCatalog
         $best = null;
         foreach ($this->productsOf('domains') as $product) {
             $tld = (string) $product['tld'];
-            if ($tld !== '' && str_ends_with($domain, '.' . $tld) && strlen($domain) > strlen($tld) + 1
+            if ($tld !== '' && !$product['sold_out'] && str_ends_with($domain, '.' . $tld) && strlen($domain) > strlen($tld) + 1
                 && ($best === null || strlen($tld) > strlen((string) $best['tld']))) {
                 $best = $product;
             }
@@ -126,15 +193,24 @@ final class WebsiteCatalog
      */
     public static function normaliseDomain(string $input): ?string
     {
-        $domain = mb_strtolower(trim($input));
-        $domain = (string) preg_replace('#^[a-z][a-z0-9+.-]*://#', '', $domain);
-        $domain = rtrim(explode('/', $domain, 2)[0], '.');
-        if (function_exists('idn_to_ascii') && preg_match('/[^\x20-\x7e]/', $domain) === 1) {
-            $ascii = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
-            $domain = is_string($ascii) ? $ascii : '';
+        $domain = self::lowerAscii($input);
+        // "www.example.de" means the domain example.de.
+        if ($domain !== null && str_starts_with($domain, 'www.') && substr_count($domain, '.') >= 2) {
+            $domain = substr($domain, 4);
         }
 
-        return preg_match('/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/', $domain) === 1 ? $domain : null;
+        return $domain !== null && preg_match('/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/', $domain) === 1 ? $domain : null;
+    }
+
+    /**
+     * A name without ending ("mein-projekt") for the search over the popular
+     * endings, or null.
+     */
+    public static function normaliseLabel(string $input): ?string
+    {
+        $label = self::lowerAscii($input);
+
+        return $label !== null && preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $label) === 1 ? $label : null;
     }
 
     /** VAT included in website prices (0 for small businesses under § 19 UStG). */
@@ -148,12 +224,28 @@ final class WebsiteCatalog
         return $this->settings->bool('tax.small_business');
     }
 
+    private static function lowerAscii(string $input): ?string
+    {
+        $value = mb_strtolower(trim($input));
+        $value = (string) preg_replace('#^[a-z][a-z0-9+.-]*://#', '', $value);
+        $value = rtrim(explode('/', $value, 2)[0], '.');
+        if (preg_match('/[^\x20-\x7e]/', $value) === 1) {
+            if (!function_exists('idn_to_ascii')) {
+                return null;
+            }
+            $ascii = idn_to_ascii($value, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+            $value = is_string($ascii) ? $ascii : '';
+        }
+
+        return $value !== '' ? $value : null;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
     private function publicProducts(): array
     {
-        return $this->products ??= $this->repository->orderable(null);
+        return $this->products ??= $this->repository->publicListing();
     }
 
     /**
@@ -165,60 +257,126 @@ final class WebsiteCatalog
         $rate = $this->taxRate((int) $product['tax_rate_bp']);
         $gross = static fn (int $net): int => $net + Money::tax($net, $rate);
         $config = is_array($product['provisioning_config']) ? $product['provisioning_config'] : [];
+        $list = (int) $product['price'];
+        $promoBp = ProductPricing::promotionBp($product, $this->clock->now());
+        $promo = null;
+        if ($promoBp > 0) {
+            // Previous price = lowest list price of the 30 days before the promotion started (§ 11 PAngV).
+            $start = (string) ($product['promo_starts_at'] ?? '') !== '' ? (string) $product['promo_starts_at'] : $this->clock->nowString();
+            $reference = $this->repository->lowestPriceBefore((int) $product['id'], $start) ?? $list;
+            $promoted = $list - Money::discount($list, $promoBp);
+            $promo = [
+                'bp' => $promoBp,
+                'percent' => rtrim(rtrim(number_format($promoBp / 100, 2, '.', ''), '0'), '.'),
+                'ends_at' => (string) $product['promo_ends_at'],
+                'reference_net' => $reference,
+                'reference_gross' => $reference > $promoted ? $gross($reference) : null,
+                'saving_gross' => $reference > $promoted ? $gross($reference) - $gross($promoted) : 0,
+            ];
+        }
+        $net = $list - Money::discount($list, $promoBp);
         // Net step prices: the browser previews the price like Money::tax(); the order page calculates the binding one.
         $ranges = ProductConfigurator::ranges($product);
+        foreach ($ranges ?? [] as $name => $range) {
+            // Scale below the slider: every value for short ranges, otherwise five evenly spread values.
+            $count = intdiv($range['max'] - $range['min'], $range['step']);
+            $ranges[$name]['ticks'] = $count <= 16
+                ? range($range['min'], $range['max'], $range['step'])
+                : array_values(array_unique(array_map(static fn (int $n): int => $range['min'] + (int) round($count * $n / 4) * $range['step'], range(0, 4))));
+        }
+        $register = ProductPricing::domainFirstYear($product, false);
+        $transfer = ProductPricing::domainFirstYear($product, true);
 
         return [
             'id' => (int) $product['id'],
             'slug' => (string) $product['slug'],
             'name' => (string) $product['name'],
             'category' => (string) $product['category'],
+            'line' => trim((string) ($product['website_line'] ?? '')) !== '' ? trim((string) $product['website_line']) : null,
             'description' => (string) ($product['description'] ?? ''),
-            'features' => array_values(array_filter(array_map('trim', explode("\n", (string) ($product['features'] ?? ''))))),
+            'sections' => self::sections((string) ($product['features'] ?? '')),
             'currency' => (string) $product['currency'],
             'billing_cycle' => (string) $product['billing_cycle'],
             'recurring' => BillingCycle::isRecurring((string) $product['billing_cycle']),
-            'net' => (int) $product['price'],
-            'gross' => $gross((int) $product['price']),
+            'net' => $list,
+            'price_gross' => $gross($net),
             'setup_gross' => $gross((int) $product['setup_fee']),
             'tax_rate_bp' => $rate,
+            'promo' => $promo,
+            'stock' => $product['stock'] !== null ? (int) $product['stock'] : null,
+            'sold_out' => $product['stock'] !== null && (int) $product['stock'] <= 0,
             'specs' => self::specs((string) $product['category'], $config),
             'tld' => $product['category'] === ProductCategory::DOMAIN ? ltrim(mb_strtolower((string) ($config['tld'] ?? '')), '.') : '',
+            'register_gross' => $register !== null ? $gross($register) : $gross($net),
+            'transfer_gross' => $transfer !== null ? $gross($transfer) : $gross($net),
             'configurator' => $ranges,
             'popular' => (int) $product['sort_order'] < 1000,
         ];
     }
 
     /**
-     * Technical data shown on the product cards.
+     * Feature list with optional headings: a line "# Network" starts a
+     * section; lines before the first heading form a section without title.
+     *
+     * @return list<array{title: string|null, items: list<string>}>
+     */
+    public static function sections(string $features): array
+    {
+        $sections = [];
+        $current = ['title' => null, 'items' => []];
+        foreach (preg_split('/\R/', $features) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, '#')) {
+                if ($current['title'] !== null || $current['items'] !== []) {
+                    $sections[] = $current;
+                }
+                $current = ['title' => trim(ltrim($line, '#')), 'items' => []];
+                continue;
+            }
+            $current['items'][] = $line;
+        }
+        if ($current['title'] !== null || $current['items'] !== []) {
+            $sections[] = $current;
+        }
+
+        return $sections;
+    }
+
+    /**
+     * Technical data of a product ("Configuration" on the cards): text to
+     * translate with its values.
      *
      * @param array<string, mixed> $config
-     * @return list<array{label: string, value: string}>
+     * @return list<array{text: string, params: array<string, string>}>
      */
     private static function specs(string $category, array $config): array
     {
         $int = static fn (string $key): int => (int) ($config[$key] ?? 0);
-        $gb = static fn (int $mb): string => $mb % 1024 === 0 ? ($mb / 1024) . ' GB' : $mb . ' MB';
+        $gb = static fn (int $mb): string => $mb % 1024 === 0 ? (string) ($mb / 1024) : number_format($mb / 1024, 1, '.', '');
+        $spec = static fn (string $text, array $params = []): array => ['text' => $text, 'params' => array_map('strval', $params)];
         $specs = match ($category) {
             ProductCategory::VPS, ProductCategory::LXC => [
-                ['label' => 'CPU cores', 'value' => (string) $int('cores')],
-                ['label' => 'Memory', 'value' => $gb($int('memory_mb'))],
-                ['label' => 'Disk', 'value' => $int('disk_gb') . ' GB'],
-                ['label' => 'Bandwidth', 'value' => $int('rate_mbps') > 0 ? $int('rate_mbps') . ' MB/s' : 'unlimited'],
+                $spec(':n cores', ['n' => $int('cores')]),
+                $spec(':n GB memory', ['n' => $gb($int('memory_mb'))]),
+                $spec(':n GB storage', ['n' => $int('disk_gb')]),
+                $int('rate_mbps') > 0 ? $spec(':n MB/s bandwidth', ['n' => $int('rate_mbps')]) : null,
             ],
             ProductCategory::MINECRAFT => [
-                ['label' => 'Memory', 'value' => $gb($int('memory_mb'))],
-                ['label' => 'Disk', 'value' => $gb($int('disk_mb'))],
-                ['label' => 'CPU', 'value' => $int('cpu_percent') > 0 ? $int('cpu_percent') . ' %' : 'unlimited'],
-                ['label' => 'Backups', 'value' => (string) $int('backups')],
-                ['label' => 'Databases', 'value' => (string) $int('databases')],
+                $spec(':n GB memory', ['n' => $gb($int('memory_mb'))]),
+                $spec(':n GB storage', ['n' => $gb($int('disk_mb'))]),
+                $int('cpu_percent') > 0 ? $spec(':n % CPU', ['n' => $int('cpu_percent')]) : null,
+                $int('backups') > 0 ? $spec(':n backups', ['n' => $int('backups')]) : null,
+                $int('databases') > 0 ? $spec(':n databases', ['n' => $int('databases')]) : null,
             ],
-            ProductCategory::TEAMSPEAK => [['label' => 'Slots', 'value' => (string) $int('slots')]],
-            ProductCategory::NEXTCLOUD => [['label' => 'Storage', 'value' => $int('quota_gb') . ' GB']],
-            ProductCategory::DEDICATED => trim((string) ($config['hardware'] ?? '')) !== '' ? [['label' => 'Hardware', 'value' => trim((string) $config['hardware'])]] : [],
+            ProductCategory::TEAMSPEAK => [$spec(':n slots', ['n' => $int('slots')])],
+            ProductCategory::NEXTCLOUD => [$spec(':n GB storage', ['n' => $int('quota_gb')])],
+            ProductCategory::DEDICATED => trim((string) ($config['hardware'] ?? '')) !== '' ? [$spec(':text', ['text' => trim((string) $config['hardware'])])] : [],
             default => [],
         };
 
-        return array_values(array_filter($specs, static fn (array $spec): bool => $spec['value'] !== '0' && $spec['value'] !== '0 GB'));
+        return array_values(array_filter($specs));
     }
 }

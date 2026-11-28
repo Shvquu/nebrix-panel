@@ -87,7 +87,7 @@ final class Resource
         foreach (ProductConfigurator::ranges($product) ?? [] as $name => $range) {
             $options[] = [
                 'name' => $name,
-                'label' => ['cores' => 'CPU cores', 'memory_gb' => 'Memory (GB)', 'disk_gb' => 'Disk size (GB)'][$name] ?? $name,
+                'label' => ['cores' => 'CPU cores', 'memory_gb' => 'Memory (GB)', 'disk_gb' => 'Disk size (GB)', 'slots' => 'Slots'][$name] ?? $name,
                 'rules' => sprintf('nullable|int|min:%d|max:%d', $range['min'], $range['max']) . ($range['step'] > 1 ? sprintf('|step:%d', $range['step']) : ''),
                 'required' => false,
                 'help' => 'Empty = the included minimum.',
@@ -109,7 +109,7 @@ final class Resource
             'name' => (string) $product['name'],
             'category' => $category,
             'description' => self::nullableString($product['description'] ?? null),
-            'features' => array_values(array_filter(array_map('trim', explode("\n", (string) ($product['features'] ?? ''))))),
+            'features' => array_values(array_filter(array_map('trim', explode("\n", (string) ($product['features'] ?? ''))), static fn (string $line): bool => $line !== '' && !str_starts_with($line, '#'))),
             'billing_cycle' => (string) $product['billing_cycle'],
             'currency' => (string) $product['currency'],
             'tax_rate_bp' => $quote['tax_rate_bp'] ?? (int) $product['tax_rate_bp'],

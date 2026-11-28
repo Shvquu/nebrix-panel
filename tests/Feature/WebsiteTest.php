@@ -65,7 +65,7 @@ final class WebsiteTest extends FeatureTestCase
         $this->lxc('vServer S', 349);
         $this->lxc('Hidden', 100, [], ['is_visible' => 0]);
         $this->lxc('Archived', 100, [], ['is_active' => 0]);
-        $this->lxc('Sold out', 100, [], ['stock' => 0]);
+        $this->lxc('Empty stock', 100, [], ['stock' => 0]);
         $group = $this->db->insert('nx_customer_groups', ['name' => 'Resellers', 'discount_bp' => 0, 'can_order' => 1, 'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-01 00:00:00']);
         $this->lxc('Reseller only', 50, [], ['customer_group_id' => $group]);
         $this->product('teamspeak', 'TS 32', 199, ['slots' => 32]);
@@ -83,9 +83,12 @@ final class WebsiteTest extends FeatureTestCase
         $page = $this->get('/products/vserver')->body();
         self::assertStringContainsString('vServer S', $page);
         self::assertStringContainsString('href="/store/', $page);
-        foreach (['Hidden', 'Archived', 'Sold out', 'Reseller only'] as $name) {
+        foreach (['Hidden', 'Archived', 'Reseller only'] as $name) {
             self::assertStringNotContainsString($name, $page);
         }
+        // Sold out: shown as such, without an order link.
+        self::assertStringContainsString('Empty stock', $page);
+        self::assertStringContainsString('site-btn-disabled', $page);
         self::assertSame(404, $this->get('/products/kvm')->status());
         self::assertSame(404, $this->get('/products/unknown')->status());
         self::assertSame(200, $this->get('/products')->status());
@@ -105,9 +108,9 @@ final class WebsiteTest extends FeatureTestCase
         $slug = (string) $this->db->fetchValue('SELECT slug FROM nx_products WHERE id = ?', [$flex]);
 
         $body = $this->get('/products/vserver')->body();
-        self::assertStringContainsString('data-site-tab="tab-configurator"', $body);
+        self::assertStringContainsString('<span>Configurator</span>', $body);
         self::assertStringContainsString('action="/store/' . $slug . '"', $body);
-        self::assertStringContainsString('data-base="249" data-rate="1900"', $body);
+        self::assertStringContainsString('data-configurator data-base="249" data-rate="1900" data-promo="0"', $body);
         self::assertStringContainsString('name="cores" min="1" max="8" step="1" value="1" data-step-price="150"', $body);
         self::assertStringContainsString('<input type="hidden" name="disk_gb" value="10">', $body, 'Resources without a range are fixed.');
 
@@ -127,28 +130,32 @@ final class WebsiteTest extends FeatureTestCase
         $this->skrime->registeredElsewhere = ['taken.de'];
         $this->skrime->premium = ['gold.de'];
 
+        // .de is a popular ending: the result is shown on its card.
         $body = $this->get('/products/domains', ['domain' => 'https://www.Mein-Projekt.DE/path'])->body();
-        self::assertStringContainsString('www.mein-projekt.de', $body);
-        self::assertStringContainsString('href="/store/domain-de?domain=www.mein-projekt.de"', $body);
-        self::assertStringContainsString('site-result-available', $body);
-        self::assertSame(['domain' => 'www.mein-projekt.de'], json_decode((string) $this->http->last()->getBody(), true));
+        self::assertStringContainsString('href="/store/domain-de?domain=mein-projekt.de"', $body);
+        self::assertStringContainsString('site-status-ok', $body);
+        self::assertSame(['domain' => 'mein-projekt.de'], json_decode((string) $this->http->last()->getBody(), true));
 
-        self::assertStringContainsString('site-result-taken', $this->get('/products/domains', ['domain' => 'taken.de'])->body());
+        self::assertStringContainsString('site-status-taken', $this->get('/products/domains', ['domain' => 'taken.de'])->body());
         $premium = $this->get('/products/domains', ['domain' => 'gold.de'])->body();
-        self::assertStringContainsString('site-result-premium', $premium);
+        self::assertStringContainsString('Premium domain', $premium);
         self::assertStringNotContainsString('href="/store/domain-de?domain=gold.de"', $premium);
-        self::assertStringContainsString('href="/store/domain-co-uk?domain=shop.co.uk"', $this->get('/products/domains', ['domain' => 'shop.co.uk'])->body(), 'The longest ending wins.');
+        // Not a popular ending: checked separately; the longest ending wins and the name goes to the cards.
+        $body = $this->get('/products/domains', ['domain' => 'shop.co.uk'])->body();
+        self::assertStringContainsString('href="/store/domain-co-uk?domain=shop.co.uk"', $body);
+        self::assertStringContainsString('site-result-available', $body);
+        self::assertStringContainsString('href="/store/domain-de?domain=shop.de"', $body);
         self::assertStringContainsString('site-result-invalid', $this->get('/products/domains', ['domain' => '<script>alert(1)</script>'])->body());
         self::assertStringContainsString('site-result-unsupported', $this->get('/products/domains', ['domain' => 'example.com'])->body());
         // Umlaut domains need the intl extension; without it they are rejected, never mangled.
         self::assertSame(function_exists('idn_to_ascii') ? 'xn--mller-kva.de' : null, WebsiteCatalog::normaliseDomain('müller.de'));
 
-        // Every check is a registrar request: at most 20 per 10 minutes and network.
-        for ($n = 0; $n < 20; $n++) {
+        // Every check is a registrar request: at most 60 per 10 minutes and network.
+        for ($n = 0; $n < 60; $n++) {
             $this->get('/products/domains', ['domain' => 'free' . $n . '.de']);
         }
         $requests = count($this->http->requests('POST', '/api/domain/check'));
-        self::assertStringContainsString('site-result-limited', $this->get('/products/domains', ['domain' => 'one-more.de'])->body());
+        self::assertStringContainsString('Too many checks', $this->get('/products/domains', ['domain' => 'one-more.de'])->body());
         self::assertSame($requests, count($this->http->requests('POST', '/api/domain/check')));
 
         // The order page takes the domain over (never a secret option such as the auth code).
@@ -157,6 +164,74 @@ final class WebsiteTest extends FeatureTestCase
         self::assertStringContainsString('value="mein-projekt.de"', $order);
         self::assertStringNotContainsString('SECRET-123', $order);
         unset($de);
+    }
+
+    public function testProductLinesSoldOutPackagesMenuAndAdvantages(): void
+    {
+        $this->lxc('EPYC Flex', 249, ['cores' => 1, 'memory_mb' => 1024, 'disk_gb' => 10, 'configurator' => true, 'cfg_max_cores' => 8, 'cfg_price_core' => '1.00'], ['website_line' => 'EPYC 7543', 'sort_order' => 1]);
+        $this->lxc('EPYC 8G', 799, [], ['website_line' => 'EPYC 7543', 'sort_order' => 2, 'features' => "# Network\n1 IPv4 address\n# Host system\nAMD EPYC 7543"]);
+        $this->lxc('RYZEN 4G', 599, [], ['website_line' => 'RYZEN 5950X', 'stock' => 0, 'sort_order' => 3]);
+        $this->product('teamspeak', 'TS 32', 199, ['slots' => 32]);
+        $this->product('vps', 'KVM S', 699, ['template_vmid' => 9000, 'storage' => 'local-lvm', 'bridge' => 'vmbr0', 'cores' => 2, 'memory_mb' => 4096, 'disk_gb' => 40]);
+        $this->settings->set('website.benefits_vserver', "Fast storage | NVMe disks\nNo text\n<b>Bold</b> | <script>x</script>");
+
+        $body = $this->get('/products/vserver')->body();
+        // Tabs: line × kind, in product order.
+        self::assertSame(3, substr_count($body, 'data-site-tab="tab-'));
+        self::assertMatchesRegularExpression('/<strong>EPYC 7543<\/strong>\s*<span>Configurator<\/span>.*<strong>EPYC 7543<\/strong>\s*<span>Packages<\/span>.*<strong>RYZEN 5950X<\/strong>/s', $body);
+        // Sections of the feature list and the generated configuration.
+        self::assertStringContainsString('<h4>Network</h4>', $body);
+        self::assertStringContainsString('<h4>Host system</h4>', $body);
+        self::assertStringContainsString('2 cores', $body);
+        // Sold out: shown, without an order link, with a notice.
+        self::assertStringContainsString('RYZEN 4G', $body);
+        self::assertStringContainsString('Available again soon', $body);
+        self::assertSame(1, substr_count($body, 'Sold out'));
+        self::assertDoesNotMatchRegularExpression('#href="/store/ryzen-4g#', $body);
+        // Advantages (escaped).
+        self::assertStringContainsString('<h3>Fast storage</h3><p>NVMe disks</p>', $body);
+        self::assertStringContainsString('<h3>No text</h3>', $body);
+        self::assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt;', $body);
+        self::assertStringNotContainsString('<script>x</script>', $body);
+
+        // Menu: groups with sub-menus; groups with one page link directly.
+        self::assertStringContainsString('class="site-sub"', $body);
+        self::assertMatchesRegularExpression('#class="site-dd-item[^"]*" href="/products/teamspeak"#', $body);
+        // The cheapest *available* price is the "from" price.
+        self::assertStringContainsString('€2.96', $this->get('/')->body(), '2.49 + VAT; the sold-out 5.99 does not count.');
+        self::assertStringNotContainsString('€0.00', $this->get('/')->body());
+    }
+
+    public function testDomainCardsCheckTheNameForThePopularEndings(): void
+    {
+        $integration = $this->app->container()->get(IntegrationRepository::class)->create('skrime', 'SKRIME', true, ['environment' => 'live', 'accept_terms' => true, 'nameservers' => "ns1.example-dns.de\nns2.example-dns.de"], ['api_key' => FakeSkrime::KEY]);
+        $this->product('domain', '.de', 300, ['tld' => 'de', 'register_price' => '1.50', 'transfer_price' => '3.00'], ['billing_cycle' => 'annually', 'integration_id' => $integration, 'slug' => 'domain-de', 'sort_order' => 0]);
+        $this->product('domain', '.com', 1100, ['tld' => 'com'], ['billing_cycle' => 'annually', 'integration_id' => $integration, 'slug' => 'domain-com', 'sort_order' => 1]);
+        $this->product('domain', '.xyz', 900, ['tld' => 'xyz'], ['billing_cycle' => 'annually', 'integration_id' => $integration, 'slug' => 'domain-xyz', 'sort_order' => 1000]);
+        $this->skrime->registeredElsewhere = ['projekt.com'];
+
+        $body = $this->get('/products/domains')->body();
+        self::assertSame(2, substr_count($body, 'class="site-domain-card"'), 'Only popular endings as cards.');
+        self::assertStringContainsString('Registration: <span class="site-accent">€1.79</span>', $body);
+        self::assertStringContainsString('Renewal: <span class="site-accent">€3.57</span>', $body);
+        self::assertStringContainsString('class="site-ribbon"', $body, 'Cheaper first year: sale.');
+        self::assertStringContainsString('<td>€1.79</td><td>€3.57</td><td>€3.57</td>', $body, 'Registration, renewal and transfer in the list.');
+        self::assertStringContainsString('data-paginate="10"', $body);
+        self::assertSame([], $this->http->requests('POST', '/api/domain/check'), 'Nothing is checked without a search.');
+
+        // A name: every popular ending is checked.
+        $body = $this->get('/products/domains', ['domain' => 'Projekt'])->body();
+        self::assertStringContainsString('href="/store/domain-de?domain=projekt.de"', $body);
+        self::assertStringContainsString('site-status-ok', $body);
+        self::assertStringContainsString('site-status-taken', $body);
+        self::assertCount(2, $this->http->requests('POST', '/api/domain/check'));
+
+        // A domain with an ending that is not on a card: checked as well.
+        $body = $this->get('/products/domains', ['domain' => 'projekt.xyz'])->body();
+        self::assertStringContainsString('site-result-available', $body);
+        self::assertStringContainsString('href="/store/domain-xyz?domain=projekt.xyz"', $body);
+        self::assertCount(5, $this->http->requests('POST', '/api/domain/check'));
+        self::assertStringContainsString('site-result-invalid', $this->get('/products/domains', ['domain' => '-bad-'])->body());
     }
 
     public function testTrustpilotIsLoadedOnlyOnRequestAndAllowedOnlyThere(): void
