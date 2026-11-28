@@ -21,4 +21,19 @@
     {% else %}<tr><td colspan="7" class="empty">{{ 'No invoices yet.'|t }}</td></tr>{% endfor %}
     </tbody>
 </table></div></div>
+{% if shared_invoices is not empty %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Invoices of shared accounts'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Number'|t }}</th><th>{{ 'Account'|t }}</th><th>{{ 'Due'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for i in shared_invoices %}
+            <tr><td class="mono">{{ i.number }}</td><td>{{ i.owner_name }}</td><td>{{ i.due_at|d }}</td><td class="text-right">{{ i.total|money(i.currency) }}</td>
+                <td><span class="badge {{ i.status|status_class }}">{{ i.status|t }}</span></td>
+                <td class="actions"><a class="btn btn-sm {{ i.status == 'unpaid' ? 'btn-primary' : 'btn-outline' }}" href="/invoices/{{ i.id }}">{{ i.status == 'unpaid' ? 'Pay now'|t : 'View'|t }}</a></td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
 {% endblock %}

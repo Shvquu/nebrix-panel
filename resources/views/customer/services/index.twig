@@ -10,4 +10,17 @@
     {% else %}<tr><td colspan="6" class="empty">{{ 'You have no services yet.'|t }} <a href="/store">{{ 'Order your first service'|t }}</a></td></tr>{% endfor %}
     </tbody>
 </table></div></div>
+{% if shared is not empty %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Shared with me'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Service'|t }}</th><th>{{ 'Account'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for entry in shared %}
+            <tr><td><a href="/services/{{ entry.service.id }}"><strong>{{ entry.service.name }}</strong></a> <span class="small muted">{{ entry.service.category|humanize|t }}</span></td><td>{{ entry.owner }}</td><td><span class="badge {{ entry.service.status|status_class }}">{{ entry.service.status|t }}</span></td><td class="actions"><a class="btn btn-sm btn-outline" href="/services/{{ entry.service.id }}">{{ 'Open'|t }}</a></td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
 {% endblock %}

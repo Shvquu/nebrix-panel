@@ -1,0 +1,22 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Team invitation'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Team invitation'|t }}</h1></div></div>
+<div class="card">
+    <div class="card-body">
+        <p>{{ ':owner invites you to their account with these permissions:'|t({owner: owner}) }}</p>
+        <ul>
+            {% for p in invitation.permission_list %}<li>{{ permissions[p]|t }}</li>{% endfor %}
+            <li>{{ invitation.all_services ? 'All services'|t : ':count selected'|t({count: invitation.service_list|length}) }}</li>
+        </ul>
+        {% if matches %}
+        <form method="post" action="/team/invitations/{{ token }}/accept">
+            {{ csrf_field() }}
+            <button class="btn btn-primary" type="submit">{{ 'Accept invitation'|t }}</button>
+        </form>
+        {% else %}
+        <div class="alert alert-warning">{{ 'This invitation was sent to another e-mail address. Please sign in with that address.'|t }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

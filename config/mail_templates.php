@@ -178,4 +178,10 @@ return [
         'subject' => 'Please confirm the payment for invoice {{ invoice_number }}',
         'html' => '<p>Hello {{ name }},</p><p>your bank asks for an additional confirmation of the payment of <strong>{{ invoice_total }}</strong> for invoice <strong>{{ invoice_number }}</strong>, so it could not be collected automatically.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Pay invoice</a></p>',
     ],
+    'team_invitation' => [
+        'name' => 'Team invitation',
+        'variables' => ['owner_name', 'invitation_url', 'expires_days'],
+        'subject' => '{{ owner_name }} invites you to their account',
+        'html' => '<p>Hello,</p><p><strong>{{ owner_name }}</strong> invites you to access services of their customer account.</p><p>Sign in with this e-mail address (or register with it) and accept the invitation. The link is valid for {{ expires_days }} days.</p><p><a class="button" href="{{ invitation_url }}">Accept invitation</a></p><p>If you do not know the sender, you can ignore this e-mail.</p>',
+    ],
 ];

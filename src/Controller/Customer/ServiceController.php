@@ -47,7 +47,10 @@ final class ServiceController extends Controller
 
     public function index(Request $request): Response
     {
-        return $this->render($request, 'customer/services/index.twig', ['services' => $this->services->forUser($this->user($request)->id)]);
+        return $this->render($request, 'customer/services/index.twig', [
+            'services' => $this->services->forUser($this->user($request)->id),
+            'shared' => $this->team()->sharedServices($this->user($request)),
+        ]);
     }
 
     public function show(Request $request, int $id): Response
@@ -61,7 +64,7 @@ final class ServiceController extends Controller
             $provisioner = $this->provisioners->for($service->category);
             try {
                 $live = $provisioner->status($service);
-                $actions = $this->mayManage($request) ? $this->runner->available($service) : [];
+                $actions = $this->mayManage($request, $service) ? $this->runner->available($service) : [];
             } catch (IntegrationException $exception) {
                 // Customers get a generic message; details are in the integration log.
                 $this->logger->notice('Live status unavailable', ['service' => $id, 'message' => $exception->getMessage()]);
@@ -75,8 +78,10 @@ final class ServiceController extends Controller
             'live_error' => $liveError,
             'actions' => $actions,
             'renewal' => $this->invoices->openRenewalFor($id),
-            'has_credentials' => $service->hasCredentials && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true),
-            'console' => $this->mayManage($request) && $this->consoles->supports($service),
+            'has_credentials' => $service->hasCredentials && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true) && $this->allows($request, $service, 'services.credentials'),
+            'console' => $this->mayManage($request, $service) && $this->consoles->supports($service),
+            // Shared with the signed-in user by another account (team access): owner-only parts are hidden.
+            'shared' => $service->userId !== $this->user($request)->id,
             'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
             'can_withdraw_cancellation' => $this->container->get(\Nebrix\Contract\CancellationService::class)->canWithdraw($service),
             'package_change' => $this->packageChange($service),
@@ -88,7 +93,7 @@ final class ServiceController extends Controller
      */
     public function credentials(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
+        $service = $this->find($request, $id, 'services.credentials');
         if (!in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true)) {
             throw HttpException::notFound();
         }
@@ -102,9 +107,9 @@ final class ServiceController extends Controller
 
     public function action(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
+        $service = $this->find($request, $id, 'services.manage');
         $data = $this->validate($request, ['action' => 'required|alpha_dash|max:30']);
-        if (!$service->isActive() || !$this->mayManage($request) || !$this->provisioners->supportsService($service)) {
+        if (!$service->isActive() || !$this->mayManage($request, $service) || !$this->provisioners->supportsService($service)) {
             throw HttpException::forbidden();
         }
 
@@ -143,7 +148,8 @@ final class ServiceController extends Controller
     /** Takes back a scheduled cancellation before it takes effect. */
     public function withdrawCancellation(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
+        // Owner only (team members cannot change the contract).
+        $service = $this->services->findForUser($id, $this->user($request)->id) ?? throw HttpException::notFound();
         try {
             $this->container->get(\Nebrix\Contract\CancellationService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
             $this->flash($request, 'success', 'The cancellation has been taken back. The service will be renewed as usual.');
@@ -158,8 +164,8 @@ final class ServiceController extends Controller
 
     public function console(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
-        if (!$this->mayManage($request) || !$this->consoles->supports($service)) {
+        $service = $this->find($request, $id, 'services.manage');
+        if (!$this->mayManage($request, $service) || !$this->consoles->supports($service)) {
             throw HttpException::notFound();
         }
 
@@ -172,8 +178,8 @@ final class ServiceController extends Controller
     /** Issues a single-use console session (JSON for the console page). */
     public function consoleSession(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
-        if (!$this->mayManage($request) || !$this->consoles->supports($service)) {
+        $service = $this->find($request, $id, 'services.manage');
+        if (!$this->mayManage($request, $service) || !$this->consoles->supports($service)) {
             return Response::json(['error' => 'not_available'], 404);
         }
         if (!$this->limiter->attempt('console:' . $this->user($request)->id, 10, 300)) {
@@ -229,19 +235,43 @@ final class ServiceController extends Controller
         ];
     }
 
-    private function mayManage(Request $request): bool
+    /**
+     * Whether the services may be managed: the owner's customer group allows
+     * it and, for a shared service, the team member has the manage permission.
+     */
+    private function mayManage(Request $request, Service $service): bool
     {
         $user = $this->user($request);
-        if ($user->customerGroupId === null) {
+        if (!$this->allows($request, $service, 'services.manage')) {
+            return false;
+        }
+        $groupId = $service->userId === $user->id
+            ? $user->customerGroupId
+            : $this->container->get(\Nebrix\Repository\UserRepository::class)->find($service->userId)?->customerGroupId;
+        if ($groupId === null) {
             return true;
         }
-        $group = $this->groups->find($user->customerGroupId);
+        $group = $this->groups->find($groupId);
 
         return $group === null || (bool) $group['can_manage_services'];
     }
 
-    private function find(Request $request, int $id): Service
+    /** Own services allow everything; shared ones what the owner granted. */
+    private function allows(Request $request, Service $service, string $permission): bool
     {
-        return $this->services->findForUser($id, $this->user($request)->id) ?? throw HttpException::notFound();
+        $user = $this->user($request);
+
+        return $service->userId === $user->id || in_array($permission, $this->team()->sharedPermissions($service, $user), true);
+    }
+
+    /** An own service or one shared with the user with the given permission (IDOR protection). */
+    private function find(Request $request, int $id, string $permission = 'services.view'): Service
+    {
+        return $this->team()->service($id, $this->user($request), $permission) ?? throw HttpException::notFound();
+    }
+
+    private function team(): \Nebrix\Account\TeamService
+    {
+        return $this->container->get(\Nebrix\Account\TeamService::class);
     }
 }

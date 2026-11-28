@@ -37,7 +37,10 @@ final class InvoiceController extends Controller
 
     public function index(Request $request): Response
     {
-        return $this->render($request, 'customer/invoices/index.twig', ['invoices' => $this->invoices->forUser($this->user($request)->id)]);
+        return $this->render($request, 'customer/invoices/index.twig', [
+            'invoices' => $this->invoices->forUser($this->user($request)->id),
+            'shared_invoices' => $this->container->get(\Nebrix\Account\TeamService::class)->sharedInvoices($this->user($request)),
+        ]);
     }
 
     public function show(Request $request, int $id): Response
@@ -50,8 +53,8 @@ final class InvoiceController extends Controller
             'invoice' => $invoice,
             'items' => $this->invoices->items($id),
             'billing' => is_array($billing) ? $billing : [],
-            'gateways' => $invoice['status'] === InvoiceRepository::STATUS_UNPAID ? $this->gateways->availableFor($invoice, $user) : [],
-            'transactions' => $this->db->fetchAll('SELECT `gateway`, `type`, `status`, `amount`, `currency`, `created_at` FROM `nx_transactions` WHERE `invoice_id` = ? AND `user_id` = ? ORDER BY `id`', [$id, $user->id]),
+            'gateways' => $invoice['status'] === InvoiceRepository::STATUS_UNPAID ? $this->gatewaysFor($invoice, $user) : [],
+            'transactions' => $this->db->fetchAll('SELECT `gateway`, `type`, `status`, `amount`, `currency`, `created_at` FROM `nx_transactions` WHERE `invoice_id` = ? AND `user_id` = ? ORDER BY `id`', [$id, (int) $invoice['user_id']]),
             'company' => [
                 'name' => $this->settings->string('general.company_name'),
                 'address' => $this->settings->string('general.company_address'),
@@ -104,7 +107,7 @@ final class InvoiceController extends Controller
             return $this->redirect('/invoices/' . $id);
         }
 
-        $gateway = $this->gateways->availableFor($invoice, $user)[(string) $data['gateway']] ?? null;
+        $gateway = $this->gatewaysFor($invoice, $user)[(string) $data['gateway']] ?? null;
         if ($gateway === null) {
             throw ValidationException::withMessages(['gateway' => 'This payment method is not available for this invoice.']);
         }
@@ -179,10 +182,28 @@ final class InvoiceController extends Controller
     }
 
     /**
+     * Payment methods for an invoice. Team members paying an invoice of
+     * another account cannot use their own account credit for it.
+     *
+     * @param array<string, mixed> $invoice
+     * @return array<string, \Nebrix\Payment\PaymentGateway>
+     */
+    private function gatewaysFor(array $invoice, \Nebrix\Auth\User $user): array
+    {
+        $gateways = $this->gateways->availableFor($invoice, $user);
+        if ((int) $invoice['user_id'] !== $user->id) {
+            unset($gateways['credit']);
+        }
+
+        return $gateways;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function find(Request $request, int $id): array
     {
-        return $this->invoices->findForUser($id, $this->user($request)->id) ?? throw HttpException::notFound();
+        // Own invoices or those of an account that granted the billing permission (team access).
+        return $this->container->get(\Nebrix\Account\TeamService::class)->invoice($id, $this->user($request)) ?? throw HttpException::notFound();
     }
 }

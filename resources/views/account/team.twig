@@ -1,0 +1,97 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Team'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Team'|t }}</h1><p class="muted">{{ 'Give colleagues access to your services without sharing your password. Cancellations, orders, payment methods and account settings stay with you.'|t }}</p></div></div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Team members'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Member'|t }}</th><th>{{ 'Permissions'|t }}</th><th>{{ 'Services'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for m in members %}
+                <tr>
+                    <td>{% if m.member_id %}{{ (m.first_name ~ ' ' ~ m.last_name)|trim ?: m.member_email }}<div class="small muted">{{ m.member_email }}</div>{% else %}{{ m.email }}{% endif %}</td>
+                    <td class="small">{% for p in m.permission_list %}{{ permissions[p]|t }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                    <td class="small">{% if m.all_services %}{{ 'All services'|t }}{% else %}{{ ':count selected'|t({count: m.service_list|length}) }}{% endif %}</td>
+                    <td>{% if m.status == 'active' %}<span class="badge badge-success">{{ 'active'|t }}</span>{% else %}<span class="badge badge-info">{{ 'invited'|t }}</span>{% endif %}</td>
+                    <td class="actions">
+                        <details>
+                            <summary class="btn btn-sm btn-outline">{{ 'Edit'|t }}</summary>
+                            <form method="post" action="/account/team/{{ m.id }}/update" class="mt-1">
+                                {{ csrf_field() }}
+                                {% for key, label in permissions %}
+                                <label class="checkbox"><input type="checkbox" name="permissions[]" value="{{ key }}"{% if key in m.permission_list %} checked{% endif %}><span>{{ label|t }}</span></label>
+                                {% endfor %}
+                                <label class="checkbox"><input type="checkbox" name="all_services" value="1"{% if m.all_services %} checked{% endif %}><span>{{ 'All services, including future ones'|t }}</span></label>
+                                {% for s in services %}
+                                <label class="checkbox"><input type="checkbox" name="services[]" value="{{ s.id }}"{% if s.id in m.service_list %} checked{% endif %}><span>{{ s.name }}</span></label>
+                                {% endfor %}
+                                <button class="btn btn-sm btn-primary" type="submit">{{ 'Save'|t }}</button>
+                            </form>
+                        </details>
+                        <form method="post" action="/account/team/{{ m.id }}/remove" class="inline" data-confirm="{{ 'Remove this team member? Access ends immediately.'|t }}">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-danger" type="submit">{{ 'Remove'|t }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5" class="muted">{{ 'You have not invited anyone yet.'|t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Invite a team member'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/account/team" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('email', 'E-mail address', '', 'email', {required: true, maxlength: 190, help: 'The person signs in with their own account (or registers with this address) and accepts the invitation.'}) }}
+            <div class="form-row">
+                <label>{{ 'Permissions'|t }}</label>
+                {% for key, label in permissions %}
+                <label class="checkbox"><input type="checkbox" name="permissions[]" value="{{ key }}"{% if key == 'services.view' %} checked{% endif %}><span>{{ label|t }}</span></label>
+                {% endfor %}
+            </div>
+            <div class="form-row">
+                <label>{{ 'Services'|t }}</label>
+                <label class="checkbox"><input type="checkbox" name="all_services" value="1" checked><span>{{ 'All services, including future ones'|t }}</span></label>
+                {% for s in services %}
+                <label class="checkbox"><input type="checkbox" name="services[]" value="{{ s.id }}"><span>{{ s.name }} <span class="small muted">{{ s.category|humanize|t }}</span></span></label>
+                {% endfor %}
+                <div class="help">{{ 'Untick "All services" to share only the services you select.'|t }}</div>
+            </div>
+            <button class="btn btn-primary" type="submit">{{ 'Send invitation'|t }}</button>
+        </form>
+    </div>
+</div>
+
+{% if memberships is not empty %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Accounts I am a member of'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Account'|t }}</th><th>{{ 'Permissions'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for m in memberships %}
+                <tr>
+                    <td>{{ m.company ?: (m.first_name ~ ' ' ~ m.last_name)|trim ?: m.owner_email }}</td>
+                    <td class="small">{% for p in m.permission_list %}{{ permissions[p]|t }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                    <td class="actions">
+                        <form method="post" action="/account/team/memberships/{{ m.id }}/leave" data-confirm="{{ 'Leave this account? You lose access to its services.'|t }}">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-outline" type="submit">{{ 'Leave'|t }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

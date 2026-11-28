@@ -120,4 +120,8 @@ return [
         'subject' => 'Bitte bestätigen Sie die Zahlung für Rechnung {{ invoice_number }}',
         'html' => '<p>Hallo {{ name }},</p><p>Ihre Bank verlangt für die Zahlung von <strong>{{ invoice_total }}</strong> für die Rechnung <strong>{{ invoice_number }}</strong> eine zusätzliche Bestätigung. Deshalb konnte sie nicht automatisch eingezogen werden.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Rechnung bezahlen</a></p>',
     ],
+    'team_invitation' => [
+        'subject' => '{{ owner_name }} lädt Sie zu seinem Kundenkonto ein',
+        'html' => '<p>Hallo,</p><p><strong>{{ owner_name }}</strong> lädt Sie ein, auf Dienste seines Kundenkontos zuzugreifen.</p><p>Melden Sie sich mit dieser E-Mail-Adresse an (oder registrieren Sie sich damit) und nehmen Sie die Einladung an. Der Link ist {{ expires_days }} Tage gültig.</p><p><a class="button" href="{{ invitation_url }}">Einladung annehmen</a></p><p>Wenn Sie den Absender nicht kennen, können Sie diese E-Mail ignorieren.</p>',
+    ],
 ];
