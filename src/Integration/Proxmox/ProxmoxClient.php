@@ -338,6 +338,112 @@ class ProxmoxClient
         return $this->upid($this->api->request('POST', $this->nodePath($node) . '/' . $type, ['form_params' => $params, 'action' => $type . '.restore']));
     }
 
+    /**
+     * Snapshots of a guest ("current" – the running state – is left out).
+     *
+     * @return list<array{name: string, description: string, snaptime: int, parent: string|null}>
+     */
+    public function snapshots(string $node, string $type, int $vmid): array
+    {
+        $data = $this->data($this->api->request('GET', $this->guestPath($node, $type, $vmid) . '/snapshot', ['action' => $type . '.snapshot.list']));
+        $snapshots = [];
+        foreach (is_array($data) ? $data : [] as $entry) {
+            if (!is_array($entry) || !is_string($entry['name'] ?? null) || $entry['name'] === 'current' || !self::isSnapshotName($entry['name'])) {
+                continue;
+            }
+            $snapshots[] = [
+                'name' => $entry['name'],
+                'description' => mb_substr(trim((string) ($entry['description'] ?? '')), 0, 255),
+                'snaptime' => (int) ($entry['snaptime'] ?? 0),
+                'parent' => isset($entry['parent']) && is_string($entry['parent']) ? $entry['parent'] : null,
+            ];
+        }
+
+        return $snapshots;
+    }
+
+    /**
+     * @return string task UPID
+     */
+    public function createSnapshot(string $node, string $type, int $vmid, string $name, string $description): string
+    {
+        $params = ['snapname' => $this->snapshotName($name), 'description' => $description];
+        if ($type === self::TYPE_QEMU) {
+            $params['vmstate'] = 0; // disk state only; RAM is not saved
+        }
+
+        return $this->upid($this->api->request('POST', $this->guestPath($node, $type, $vmid) . '/snapshot', ['form_params' => $params, 'action' => $type . '.snapshot.create']));
+    }
+
+    /**
+     * Rolls the guest back to a snapshot (the current state is lost).
+     *
+     * @return string task UPID
+     */
+    public function rollbackSnapshot(string $node, string $type, int $vmid, string $name, bool $start = false): string
+    {
+        $options = ['action' => $type . '.snapshot.rollback'];
+        if ($start) {
+            $options['form_params'] = ['start' => 1]; // start the guest again after the rollback
+        }
+
+        return $this->upid($this->api->request('POST', $this->guestPath($node, $type, $vmid) . '/snapshot/' . $this->snapshotName($name) . '/rollback', $options));
+    }
+
+    /**
+     * @return string task UPID
+     */
+    public function deleteSnapshot(string $node, string $type, int $vmid, string $name): string
+    {
+        return $this->upid($this->api->request('DELETE', $this->guestPath($node, $type, $vmid) . '/snapshot/' . $this->snapshotName($name), ['action' => $type . '.snapshot.delete']));
+    }
+
+    /** Proxmox snapshot names: a letter, then letters, digits, "_" and "-" (at most 40). */
+    public static function isSnapshotName(string $name): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_-]{1,39}$/', $name) === 1 && $name !== 'current' && $name !== 'vzdump';
+    }
+
+    /**
+     * Usage history of a guest (rrddata, averages).
+     *
+     * @return list<array<string, float|int>>
+     */
+    public function rrdData(string $node, string $type, int $vmid, string $timeframe): array
+    {
+        if (!in_array($timeframe, ['hour', 'day', 'week', 'month', 'year'], true)) {
+            throw new IntegrationException('Invalid time frame.');
+        }
+        $data = $this->data($this->api->request('GET', $this->guestPath($node, $type, $vmid) . '/rrddata', [
+            'query' => ['timeframe' => $timeframe, 'cf' => 'AVERAGE'],
+            'action' => $type . '.rrddata',
+        ]));
+        $points = [];
+        foreach (is_array($data) ? $data : [] as $entry) {
+            if (!is_array($entry) || !is_numeric($entry['time'] ?? null)) {
+                continue;
+            }
+            $point = ['time' => (int) $entry['time']];
+            foreach (['cpu', 'maxcpu', 'mem', 'maxmem', 'netin', 'netout', 'diskread', 'diskwrite'] as $key) {
+                if (isset($entry[$key]) && is_numeric($entry[$key])) {
+                    $point[$key] = (float) $entry[$key];
+                }
+            }
+            $points[] = $point;
+        }
+
+        return $points;
+    }
+
+    private function snapshotName(string $name): string
+    {
+        if (!self::isSnapshotName($name)) {
+            throw new IntegrationException('Invalid snapshot name.');
+        }
+
+        return $name;
+    }
+
     public static function isBackupVolume(string $volid, string $storage): bool
     {
         return str_starts_with($volid, $storage . ':backup/') && preg_match('#^[A-Za-z0-9._-]+:backup/[A-Za-z0-9._/:+-]{1,200}$#', $volid) === 1 && !str_contains($volid, '..');

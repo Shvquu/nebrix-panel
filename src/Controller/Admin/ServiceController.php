@@ -94,6 +94,8 @@ final class ServiceController extends Controller
             'package_open' => $this->changes->openChange($id),
             'package_targets' => $this->can($request, Permission::SERVICES_MANAGE) && ($owner = $this->users->find($service->userId)) !== null
                 ? $this->changes->adminTargets($service, $owner) : [],
+            // Graphs and additional IPv4 addresses (server self-service).
+            'server_features' => $this->container->get(\Nebrix\Server\ServerFeatures::class)->forService($service),
         ]);
     }
 

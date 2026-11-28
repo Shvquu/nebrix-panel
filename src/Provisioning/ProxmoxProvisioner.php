@@ -7,13 +7,17 @@ namespace Nebrix\Provisioning;
 use DateTimeImmutable;
 use DateTimeZone;
 use Nebrix\Auth\User;
+use Nebrix\Billing\OrderException;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Database\Connection;
+use Nebrix\Integration\Integration;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
 use Nebrix\Integration\Proxmox\NodeShell;
 use Nebrix\Network\IpPoolService;
+use Nebrix\Server\SshKeys\SshKeyRepository;
+use Nebrix\Server\Templates\ServerTemplateRepository;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 use Psr\Log\LoggerInterface;
@@ -42,8 +46,16 @@ use Psr\Log\LoggerInterface;
  * customer's data. A restore runs through the provisioning queue (steps
  * "restore" and "restore_start") and keeps the guest's VMID and address.
  * Terminating the service deletes its backups.
+ *
+ * Templates and SSH keys: besides the product's template (and the lines of
+ * "reinstall_templates") a product can offer server templates (Admin →
+ * Server templates); the customer chooses one when ordering and reinstalling
+ * (option "os_template", reinstall value "t:<id>"). Chosen SSH keys of the
+ * service owner are installed through cloud-init ("sshkeys", KVM) or
+ * "ssh-public-keys" (LXC). Additional IPv4 addresses (add-ons) are attached
+ * as further interfaces (net1 …) and re-attached after a reinstall.
  */
-final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageChangeable
+final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageChangeable, OrderPrecheck
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -52,7 +64,32 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         private readonly Connection $db,
         private readonly LoggerInterface $logger,
         private readonly NodeShell $nodeShell,
+        private readonly SshKeyRepository $sshKeys,
+        private readonly ServerTemplateRepository $templates,
     ) {
+    }
+
+    /**
+     * Order check: the chosen template must be offered by the product and the
+     * chosen SSH keys must belong to the customer.
+     */
+    public function checkOrder(Integration $integration, array $config, User $user, array $options): void
+    {
+        $template = null;
+        $templateId = (int) ($options['os_template'] ?? 0);
+        if ($templateId > 0) {
+            $template = $this->templates->offeredTemplate((int) ($config['_product_id'] ?? 0), $templateId);
+            if ($template === null) {
+                throw new OrderException('Choose one of the offered operating systems.');
+            }
+        }
+        $keys = is_array($options['ssh_keys'] ?? null) ? array_map('intval', $options['ssh_keys']) : [];
+        if ($keys !== [] && !$this->sshKeys->ownsAll($user->id, $keys)) {
+            throw new OrderException('Choose one of your SSH keys.');
+        }
+        if ($keys !== [] && $template !== null && !$template['ssh_keys']) {
+            throw new OrderException('The chosen operating system does not support SSH keys.');
+        }
     }
 
     private function client(Service $service): ProxmoxClient
@@ -103,6 +140,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             $remote['vmid'] = (int) $service->config('vmid_start', $type === ProxmoxClient::TYPE_LXC ? 20000 : 10000) + $service->id;
             $remote['type'] = $type;
             $remote['step'] = 'create';
+            // Template and SSH keys chosen with the order (checked again: offered templates and the owner's keys only).
+            $remote += $this->orderChoices($service);
             $this->services->mergeRemote($service->id, $remote);
         }
 
@@ -182,7 +221,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
                 }
 
                 if (($credentials['password'] ?? '') === '') {
-                    $credentials = ['username' => 'root', 'password' => self::generatePassword()];
+                    $credentials = ['username' => $this->loginUser($service, $remote), 'password' => self::generatePassword()];
                     $this->services->setCredentials($service->id, $credentials);
                 }
 
@@ -368,8 +407,93 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         if (($remote['dns'] ?? '') !== '') {
             $parameters['nameserver'] = (string) $remote['dns'];
         }
+        $keys = $this->installKeys($service, $remote);
+        if ($keys !== []) {
+            // Plain newline-separated authorized_keys lines (form-encoded once like every value).
+            $parameters['ssh-public-keys'] = implode("\n", $keys);
+        }
+        // Additional IPv4 addresses (add-ons): one interface each, without a gateway.
+        foreach ($this->ipPools->additionalAddresses($service->id) as $extra) {
+            $parameters[$extra['guest_interface']] = self::lxcExtraInterface($extra, (string) $service->config('bridge', 'vmbr0'), $rate);
+        }
 
         return $parameters;
+    }
+
+    /**
+     * Template and SSH keys of the order (only an active template the product
+     * offers; key IDs are resolved against the owner when the guest is created).
+     *
+     * @return array<string, mixed>
+     */
+    private function orderChoices(Service $service): array
+    {
+        $choices = [];
+        $templateId = (int) $service->option('os_template', 0);
+        if ($templateId > 0 && $service->productId !== null) {
+            $template = $this->templates->offeredTemplate($service->productId, $templateId);
+            if ($template !== null && $template['integration_id'] === $service->integrationId) {
+                $choices['template'] = (string) $template['source'];
+                $choices['template_id'] = $template['id'];
+            } else {
+                $this->logger->warning('Ordered server template is not offered (anymore); the product template is used', ['service' => $service->id, 'template' => $templateId]);
+            }
+        }
+        $keys = $service->option('ssh_keys', []);
+        if (is_array($keys) && $keys !== []) {
+            $choices['ssh_key_ids'] = array_values(array_filter(array_map('intval', $keys), static fn (int $id): bool => $id > 0));
+        }
+
+        return $choices;
+    }
+
+    /**
+     * Public keys to install: the chosen keys of the service owner (never of
+     * anyone else), unless the template does not support SSH keys.
+     *
+     * @param array<string, mixed> $remote
+     * @return list<string>
+     */
+    private function installKeys(Service $service, array $remote): array
+    {
+        $ids = is_array($remote['ssh_key_ids'] ?? null) ? array_map('intval', $remote['ssh_key_ids']) : [];
+        if ($ids === []) {
+            return [];
+        }
+        $template = isset($remote['template_id']) ? $this->templates->find((int) $remote['template_id']) : null;
+        if ($template !== null && !$template['ssh_keys']) {
+            return [];
+        }
+
+        return $this->sshKeys->publicKeys($service->userId, $ids);
+    }
+
+    /**
+     * Login of the server: the template's cloud-init user (KVM) or root.
+     *
+     * @param array<string, mixed> $remote
+     */
+    private function loginUser(Service $service, array $remote): string
+    {
+        if ($this->type($service) !== ProxmoxClient::TYPE_QEMU || !isset($remote['template_id'])) {
+            return 'root';
+        }
+        $user = (string) ($this->templates->find((int) $remote['template_id'])['cloud_init_user'] ?? '');
+
+        return preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', $user) === 1 ? $user : 'root';
+    }
+
+    /**
+     * @param array{address: string, prefix: int, guest_interface: string} $extra
+     */
+    public static function lxcExtraInterface(array $extra, string $bridge, int $rate): string
+    {
+        return sprintf('name=eth%d,bridge=%s,ip=%s/%d%s', (int) substr($extra['guest_interface'], 3), $bridge, $extra['address'], $extra['prefix'], $rate > 0 ? ',rate=' . $rate : '');
+    }
+
+    public static function kvmExtraInterface(string $bridge, int $rate): string
+    {
+        return sprintf('virtio,bridge=%s%s', $bridge, $rate > 0 ? ',rate=' . $rate : '');
     }
 
     /**
@@ -382,7 +506,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         $parameters = [
             'cores' => (int) $service->config('cores', 2),
             'memory' => (int) $service->config('memory_mb', 2048),
-            'ciuser' => 'root',
+            'ciuser' => $this->loginUser($service, $remote),
             'cipassword' => $password,
             'ipconfig0' => (isset($remote['ipv4']) ? sprintf('ip=%s,gw=%s', (string) $remote['ipv4'], (string) ($remote['gateway'] ?? '')) : 'ip=dhcp') . ',' . self::ipv6Setting($remote),
             'net0' => sprintf('virtio,bridge=%s%s', (string) $service->config('bridge', 'vmbr0'), $rate > 0 ? ',rate=' . $rate : ''),
@@ -390,6 +514,17 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         ];
         if (($remote['dns'] ?? '') !== '') {
             $parameters['nameserver'] = (string) $remote['dns'];
+        }
+        $keys = $this->installKeys($service, $remote);
+        if ($keys !== []) {
+            // Proxmox expects "sshkeys" URL-encoded (spaces as %20, not "+"); the form
+            // encoding of the request then encodes it a second time.
+            $parameters['sshkeys'] = rawurlencode(implode("\n", $keys));
+        }
+        // Additional IPv4 addresses (add-ons): an extra NIC with a static address (cloud-init, no gateway).
+        foreach ($this->ipPools->additionalAddresses($service->id) as $extra) {
+            $parameters[$extra['guest_interface']] = self::kvmExtraInterface((string) $service->config('bridge', 'vmbr0'), $rate);
+            $parameters['ipconfig' . substr($extra['guest_interface'], 3)] = sprintf('ip=%s/%d', $extra['address'], $extra['prefix']);
         }
 
         return $parameters;
@@ -524,6 +659,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
                 'Hostname' => $this->hostname($service),
                 'IPv4' => isset($service->remote['ipv4']) ? strtok((string) $service->remote['ipv4'], '/') : '',
                 'IPv6' => isset($service->remote['ipv6']) ? strtok((string) $service->remote['ipv6'], '/') : '',
+                'Operating system' => isset($service->remote['template_id']) ? (string) ($this->templates->find((int) $service->remote['template_id'])['name'] ?? '') : '',
                 'Node' => $node,
                 'ID' => (string) $vmid,
             ], static fn (string|false $value): bool => $value !== '' && $value !== false),
@@ -542,9 +678,16 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             $actions['reset_password'] = ServiceAction::simple('Reset root password', 'Set a new root password? The current password stops working.');
         }
         $templates = $this->reinstallTemplates($service);
-        $actions['reinstall'] = new ServiceAction('Reinstall', [
-            'template' => ['label' => 'Operating system', 'rules' => 'required|string|max:255', 'type' => 'select', 'options' => $templates, 'default' => (string) array_key_first($templates)],
-        ], 'Reinstall the server? ALL data on the server will be deleted.', ServiceAction::REINSTALL, true);
+        $current = isset($service->remote['template_id']) ? 't:' . (int) $service->remote['template_id'] : '';
+        $fields = [
+            'template' => ['label' => 'Operating system', 'rules' => 'required|string|max:255', 'type' => 'select', 'options' => $templates, 'default' => array_key_exists($current, $templates) ? $current : (string) array_key_first($templates)],
+        ];
+        // The owner's SSH keys only (whitelist), also when staff reinstall the server.
+        $keys = $this->sshKeys->options($service->userId);
+        if ($keys !== []) {
+            $fields['ssh_keys'] = ['label' => 'SSH keys', 'rules' => 'nullable|array|max:10|ids', 'type' => 'checkboxes', 'options' => array_map('strval', $keys), 'help' => 'Installed for the login of the server. Templates without SSH key support ignore them.'];
+        }
+        $actions['reinstall'] = new ServiceAction('Reinstall', $fields, 'Reinstall the server? ALL data on the server will be deleted.', ServiceAction::REINSTALL, true);
 
         return $actions + $this->backupActions($service);
     }
@@ -677,9 +820,12 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
 
         if ($action === 'reset_password' && $type === ProxmoxClient::TYPE_QEMU) {
             $password = self::generatePassword();
+            // The login of the server: root or the cloud-init user of its template.
+            $login = (string) ($this->services->credentials($service)['username'] ?? 'root');
+            $login = preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', $login) === 1 ? $login : 'root';
             try {
                 // Immediate change through the QEMU guest agent …
-                $client->setUserPassword($node, $vmid, 'root', $password);
+                $client->setUserPassword($node, $vmid, $login, $password);
                 $message = 'A new root password has been set. You can view it under access data.';
             } catch (IntegrationException) {
                 // … or through cloud-init, applied at the next boot – only if the VM has a cloud-init drive.
@@ -724,6 +870,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         if (!isset($service->remote['node'], $service->remote['vmid'])) {
             throw new ServiceStateException('The server has not been created yet.');
         }
+        $this->assertNoSnapshotTask($service);
 
         // Restore: the backup was offered from the service's own backups
         // (select whitelist); the provisioning job checks it again.
@@ -744,18 +891,90 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             throw new ServiceStateException('Choose one of the offered operating systems.');
         }
 
+        $templateId = null;
+        if (str_starts_with($template, 't:')) {
+            // A server template: offered by the product (checked again) – the source is stored, so a
+            // later change of the template does not affect this reinstall.
+            $chosen = $service->productId !== null ? $this->templates->offeredTemplate($service->productId, (int) substr($template, 2)) : null;
+            if ($chosen === null) {
+                throw new ServiceStateException('Choose one of the offered operating systems.');
+            }
+            $templateId = $chosen['id'];
+            $template = (string) $chosen['source'];
+        }
+        $keys = is_array($input['ssh_keys'] ?? null) ? array_values(array_map('intval', $input['ssh_keys'])) : [];
+        if (!$this->sshKeys->ownsAll($service->userId, $keys)) {
+            throw new ServiceStateException('Choose one of your SSH keys.');
+        }
+
         // New root password; the provisioning run destroys and re-creates the guest.
         $this->services->setCredentials($service->id, []);
-        $this->services->mergeRemote($service->id, ['step' => 'destroy', 'upid' => null, 'destroy_upid' => null, 'template' => $template]);
+        $this->services->mergeRemote($service->id, ['step' => 'destroy', 'upid' => null, 'destroy_upid' => null, 'template' => $template, 'template_id' => $templateId, 'ssh_key_ids' => $keys === [] ? null : $keys]);
+    }
+
+    /**
+     * Snapshots and reinstalls/restores must not overlap (the guest is locked
+     * or replaced while a snapshot task runs).
+     */
+    private function assertNoSnapshotTask(Service $service): void
+    {
+        $open = (int) $this->db->fetchValue("SELECT COUNT(*) FROM `nx_server_snapshot_tasks` WHERE `service_id` = ? AND `status` IN ('queued', 'running')", [$service->id]);
+        if ($open > 0) {
+            throw new ServiceStateException('A snapshot task is still running. Please wait until it is finished.');
+        }
+    }
+
+    /**
+     * Client, node, VMID and type of the service's guest after the ownership
+     * check (marker) – for snapshots, graphs and additional addresses.
+     *
+     * @return array{0: ProxmoxClient, 1: string, 2: int, 3: string}
+     *
+     * @throws IntegrationException
+     */
+    public function verifiedGuest(Service $service): array
+    {
+        $client = $this->client($service);
+        [$node, $vmid, $type] = $this->ownedGuest($service, $client);
+
+        return [$client, $node, $vmid, $type];
+    }
+
+    /** Whether the guest exists on Proxmox (false before creation and after deletion). */
+    public function guestExists(Service $service): bool
+    {
+        if (!isset($service->remote['node'], $service->remote['vmid'])) {
+            return false;
+        }
+
+        return $this->client($service)->findGuest((int) $service->remote['vmid']) !== null;
     }
 
     /**
      * Templates offered for reinstalling: the product's template first, then
-     * the lines "value|Label" of the product setting "reinstall_templates".
+     * the lines "value|Label" of the product setting "reinstall_templates",
+     * then the server templates the product offers ("t:<id>").
      *
      * @return array<string, string> template => label
      */
     private function reinstallTemplates(Service $service): array
+    {
+        $templates = $this->legacyTemplates($service);
+        if ($service->productId !== null) {
+            foreach ($this->templates->offeredBy($service->productId) as $template) {
+                if ($template['integration_id'] === $service->integrationId) {
+                    $templates['t:' . $template['id']] = mb_substr((string) $template['name'], 0, 80);
+                }
+            }
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @return array<string, string> template => label
+     */
+    private function legacyTemplates(Service $service): array
     {
         $isVm = $this->type($service) === ProxmoxClient::TYPE_QEMU;
         $pattern = $isVm ? '/^\d{3,9}$/' : '/^[A-Za-z0-9._-]+:vztmpl\/[A-Za-z0-9._+-]+$/';
@@ -811,7 +1030,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
     public function packageKeys(Service $service): array
     {
         // The backup storage stays as it is: its archives must remain reachable (and are deleted on termination).
-        $keys = ['cores', 'memory_mb', 'disk_gb', 'rate_mbps', 'max_backups'];
+        $keys = ['cores', 'memory_mb', 'disk_gb', 'rate_mbps', 'max_backups', 'max_snapshots'];
 
         return $this->type($service) === ProxmoxClient::TYPE_LXC ? [...$keys, 'swap_mb'] : $keys;
     }

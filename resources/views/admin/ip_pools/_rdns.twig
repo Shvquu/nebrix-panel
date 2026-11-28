@@ -1,0 +1,18 @@
+{# Reverse DNS of a pool through Hetzner Robot. Parameters: pool, robot_integrations. #}
+{% import 'macros/forms.twig' as f %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Reverse DNS'|t }}</h2></div>
+    <div class="card-body">
+        {% if can('integrations.manage') and robot_integrations|length > 0 %}
+        <form method="post" action="/admin/ip-pools/{{ pool.id }}/rdns" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.select('rdns_integration_id', 'Reverse DNS through Hetzner Robot', robot_integrations, pool.rdns_integration_id|default(''), {placeholder: '– none (no reverse DNS for customers) –', help: 'For addresses routed to your servers by Hetzner (e.g. an additional subnet): customers set the PTR records of their addresses themselves.'}) }}
+            <button class="btn btn-outline" type="submit">{{ 'Save'|t }}</button>
+        </form>
+        {% elseif pool.rdns_integration_id %}
+            <p>{{ 'Customers set the PTR records of their addresses through Hetzner Robot.'|t }}</p>
+        {% else %}
+            <p class="muted small">{{ 'Customers cannot set reverse DNS for the addresses of this pool.'|t }}</p>
+        {% endif %}
+    </div>
+</div>

@@ -124,7 +124,7 @@ class ServiceManager
             ['service_id' => $service->id],
             ProvisioningService::JOB_PROVISION . ':' . $service->id . ':reinstall:' . $this->clock->now()->getTimestamp(),
         );
-        $this->audit->log($actorId, 'service.reinstall_requested', 'service', $service->id, array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $input));
+        $this->audit->log($actorId, 'service.reinstall_requested', 'service', $service->id, array_map(static fn (mixed $v): string => mb_substr(is_array($v) ? implode(',', array_map('strval', $v)) : (string) $v, 0, 100), $input));
     }
 
     /**

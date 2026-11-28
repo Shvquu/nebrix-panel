@@ -1,0 +1,21 @@
+{# Self-service links and additional addresses on the customer service page. Parameters: service, features. #}
+{% if features.snapshots or features.graphs or features.rdns or features.additional_ips|length > 0 %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Server tools'|t }}</h2></div>
+    <div class="card-body">
+        <div class="gap">
+            {% if features.graphs %}<a class="btn btn-outline" href="/services/{{ service.id }}/graphs">{{ 'Resource graphs'|t }}</a>{% endif %}
+            {% if features.snapshots %}<a class="btn btn-outline" href="/services/{{ service.id }}/snapshots">{{ 'Snapshots'|t }}</a>{% endif %}
+            {% if features.rdns %}<a class="btn btn-outline" href="/services/{{ service.id }}/rdns">{{ 'Reverse DNS'|t }}</a>{% endif %}
+        </div>
+        {% if features.additional_ips|length > 0 %}
+        <h3 class="mt-2">{{ 'Additional IPv4 addresses'|t }}</h3>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Address'|t }}</th><th>{{ 'Netmask'|t }}</th><th>{{ 'Gateway'|t }}</th><th>{{ 'Interface'|t }}</th></tr></thead>
+            <tbody>{% for a in features.additional_ips %}<tr><td class="mono">{{ a.address }}</td><td class="mono">{{ a.netmask }}</td><td class="mono">{{ a.gateway }}</td><td class="mono">{{ a.guest_interface }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        <p class="small muted">{{ 'Each additional address is configured on its own network interface without a gateway. Virtual machines (KVM) apply it through cloud-init after the next restart.'|t }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

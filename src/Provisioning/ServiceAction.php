@@ -29,7 +29,8 @@ final class ServiceAction
     public const REDIRECT = 'redirect';
 
     /**
-     * @param array<string, array{label: string, rules: string, type?: string, options?: array<string, string>, help?: string}> $fields
+     * @param array<string, array{label: string, rules: string, type?: string, options?: array<int|string, string>, help?: string}> $fields
+     *        type "select" (one of the options) or "checkboxes" (a list of options, rules with "array")
      */
     public function __construct(
         public readonly string $label,
@@ -63,8 +64,11 @@ final class ServiceAction
 
         foreach ($this->fields as $name => $field) {
             $value = $values[$name] ?? null;
-            if (isset($field['options']) && $value !== null && $value !== '' && !array_key_exists((string) $value, $field['options'])) {
-                throw ValidationException::withMessages([$name => 'Choose one of the offered options.']);
+            // Lists (type "checkboxes"): every chosen value must be offered.
+            foreach (is_array($value) ? $value : [$value] as $item) {
+                if (isset($field['options']) && $item !== null && $item !== '' && (!is_scalar($item) || !array_key_exists((string) $item, $field['options']))) {
+                    throw ValidationException::withMessages([$name => 'Choose one of the offered options.']);
+                }
             }
         }
 

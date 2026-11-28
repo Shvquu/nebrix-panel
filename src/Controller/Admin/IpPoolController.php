@@ -34,7 +34,7 @@ final class IpPoolController extends Controller
     {
         $this->authorize($request, Permission::INTEGRATIONS_MANAGE);
 
-        return $this->render($request, 'admin/ip_pools/form.twig', ['integrations' => $this->integrationOptions()]);
+        return $this->render($request, 'admin/ip_pools/form.twig', ['integrations' => $this->integrationOptions(), 'robot_integrations' => $this->robotOptions()]);
     }
 
     public function store(Request $request): Response
@@ -48,10 +48,14 @@ final class IpPoolController extends Controller
             'first' => 'nullable|ip',
             'last' => 'nullable|ip',
             'integration_id' => 'nullable|int|min:1',
+            'rdns_integration_id' => 'nullable|int|min:1',
             'note' => 'nullable|string|max:255',
         ]);
         if ($data['integration_id'] !== null && !array_key_exists((int) $data['integration_id'], $this->integrationOptions())) {
             throw ValidationException::withMessages(['integration_id' => 'Choose a Proxmox integration.']);
+        }
+        if ($data['rdns_integration_id'] !== null && !array_key_exists((int) $data['rdns_integration_id'], $this->robotOptions())) {
+            throw ValidationException::withMessages(['rdns_integration_id' => 'Choose a Hetzner Robot integration.']);
         }
 
         try {
@@ -68,7 +72,10 @@ final class IpPoolController extends Controller
         } catch (ValidationException $exception) {
             throw new ValidationException($exception->errors(), Validator::safeInput($request->all()));
         }
-        $this->audit($request, 'ip_pool.created', 'ip_pool', $id, ['network' => $data['network']]);
+        if ($data['rdns_integration_id'] !== null) {
+            $this->pools->setRdnsIntegration($id, (int) $data['rdns_integration_id']);
+        }
+        $this->audit($request, 'ip_pool.created', 'ip_pool', $id, ['network' => $data['network'], 'rdns_integration' => $data['rdns_integration_id']]);
         $this->flash($request, 'success', 'IP pool created.');
 
         return $this->redirect('/admin/ip-pools/' . $id);
@@ -78,7 +85,23 @@ final class IpPoolController extends Controller
     {
         $pool = $this->pools->find($id) ?? throw HttpException::notFound();
 
-        return $this->render($request, 'admin/ip_pools/show.twig', ['pool' => $pool, 'addresses' => $this->pools->addresses($id)]);
+        return $this->render($request, 'admin/ip_pools/show.twig', ['pool' => $pool, 'addresses' => $this->pools->addresses($id), 'robot_integrations' => $this->robotOptions()]);
+    }
+
+    /** Reverse DNS of the pool's addresses through a Hetzner Robot integration (or none). */
+    public function updateRdns(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::INTEGRATIONS_MANAGE);
+        $this->pools->find($id) ?? throw HttpException::notFound();
+        $data = $this->validate($request, ['rdns_integration_id' => 'nullable|int|min:1']);
+        if ($data['rdns_integration_id'] !== null && !array_key_exists((int) $data['rdns_integration_id'], $this->robotOptions())) {
+            throw ValidationException::withMessages(['rdns_integration_id' => 'Choose a Hetzner Robot integration.']);
+        }
+        $this->pools->setRdnsIntegration($id, $data['rdns_integration_id'] !== null ? (int) $data['rdns_integration_id'] : null);
+        $this->audit($request, 'ip_pool.rdns_changed', 'ip_pool', $id, ['rdns_integration' => $data['rdns_integration_id']]);
+        $this->flash($request, 'success', 'The reverse DNS setting of the pool has been saved.');
+
+        return $this->redirect('/admin/ip-pools/' . $id);
     }
 
     public function updateAddress(Request $request, int $id, int $address): Response
@@ -107,6 +130,19 @@ final class IpPoolController extends Controller
         $this->flash($request, 'success', 'IP pool deleted.');
 
         return $this->redirect('/admin/ip-pools');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function robotOptions(): array
+    {
+        $options = [];
+        foreach ($this->db->fetchAll("SELECT `id`, `name` FROM `nx_integrations` WHERE `type` = 'hetzner_robot' ORDER BY `name`") as $row) {
+            $options[(int) $row['id']] = (string) $row['name'];
+        }
+
+        return $options;
     }
 
     /**

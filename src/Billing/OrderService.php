@@ -104,6 +104,12 @@ class OrderService
 
         $category = ProductCategory::get((string) $product['category']);
         $options = Validator::validate($input, array_map(static fn (array $o): string => $o['rules'], $category['options']), array_map(static fn (array $o): string => $o['label'], $category['options']));
+        // Optional choices that were not made are not stored (e.g. no server template, no SSH key).
+        foreach ($category['options'] as $name => $definition) {
+            if (($definition['omit_empty'] ?? false) === true && ($options[$name] ?? null) === null) {
+                unset($options[$name]);
+            }
+        }
         // Secret options (e.g. a domain transfer auth code) are never stored in plaintext.
         foreach ($category['options'] as $name => $definition) {
             if (($definition['secret'] ?? false) === true && is_string($options[$name] ?? null) && $options[$name] !== '') {

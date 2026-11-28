@@ -1,0 +1,22 @@
+{# Resource graphs of a Proxmox server, drawn by assets/js/server-graphs.js from the JSON endpoint. Parameters: service, data_url, back_url, timeframes. #}
+<div class="page-header"><div><h1>{{ 'Resource graphs'|t }}</h1><p class="muted">{{ service.name }} · <a href="{{ back_url }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+<div class="server-graphs" data-server-graphs data-url="{{ data_url }}"
+     data-labels="{{ {
+        cpu: 'CPU'|t, memory: 'Memory'|t, network: 'Network'|t, disk: 'Disk I/O'|t,
+        used: 'used'|t, total: 'total'|t, in: 'in'|t, out: 'out'|t, read: 'read'|t, write: 'write'|t,
+        loading: 'Loading …'|t, failed: 'The graph data could not be loaded. Please try again later.'|t, empty: 'No data for this period yet.'|t
+     }|json_encode }}">
+    <div class="tabs" role="tablist">
+        {% set names = {'hour': 'Hour', 'day': 'Day', 'week': 'Week', 'month': 'Month'} %}
+        {% for tf in timeframes %}<button class="tab{{ loop.first ? ' is-active' : '' }}" type="button" role="tab" data-timeframe="{{ tf }}" aria-selected="{{ loop.first ? 'true' : 'false' }}">{{ names[tf]|t }}</button>{% endfor %}
+    </div>
+    <p class="muted small" data-graph-status>{{ 'Loading …'|t }}</p>
+    <div class="grid grid-2">
+        <div class="card"><div class="card-header"><h2>{{ 'CPU'|t }}</h2><span class="small muted">%</span></div><div class="card-body"><div class="graph" data-graph="cpu" role="img" aria-label="{{ 'CPU usage'|t }}"></div></div></div>
+        <div class="card"><div class="card-header"><h2>{{ 'Memory'|t }}</h2></div><div class="card-body"><div class="graph" data-graph="memory" role="img" aria-label="{{ 'Memory usage'|t }}"></div></div></div>
+        <div class="card"><div class="card-header"><h2>{{ 'Network'|t }}</h2><span class="small muted">{{ 'per second'|t }}</span></div><div class="card-body"><div class="graph" data-graph="network" role="img" aria-label="{{ 'Network traffic'|t }}"></div></div></div>
+        <div class="card"><div class="card-header"><h2>{{ 'Disk I/O'|t }}</h2><span class="small muted">{{ 'per second'|t }}</span></div><div class="card-body"><div class="graph" data-graph="disk" role="img" aria-label="{{ 'Disk reads and writes'|t }}"></div></div></div>
+    </div>
+    <noscript><div class="alert alert-info">{{ 'The graphs need JavaScript.'|t }}</div></noscript>
+</div>
+<script src="{{ asset('js/server-graphs.js') }}" defer></script>

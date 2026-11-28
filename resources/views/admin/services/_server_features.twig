@@ -1,0 +1,23 @@
+{# Graphs and additional IPv4 addresses on the admin service page. Parameters: service, features. #}
+{% if features.graphs or features.ipv4_pool or features.additional_ips|length > 0 %}
+<div class="card"><div class="card-header"><h2>{{ 'Server tools'|t }}</h2>{% if features.graphs %}<a class="btn btn-sm btn-outline" href="/admin/services/{{ service.id }}/graphs">{{ 'Resource graphs'|t }}</a>{% endif %}</div>
+    {% if features.ipv4_pool or features.additional_ips|length > 0 %}
+    <div class="card-body">
+        <h3>{{ 'Additional IPv4 addresses'|t }}</h3>
+        {% if features.additional_ips|length > 0 %}
+        <div class="table-wrap"><table class="table"><tbody>
+            {% for a in features.additional_ips %}<tr>
+                <td class="mono">{{ a.address }}/{{ a.prefix }}</td><td class="mono small">{{ a.guest_interface }}</td>
+                <td class="small">{{ a.addon_key starts with 'manual:' ? 'added by staff'|t : 'add-on'|t }}</td>
+                <td>{% if can('services.manage') and a.addon_key starts with 'manual:' %}<form method="post" action="/admin/services/{{ service.id }}/ipv4/{{ a.id }}/remove" class="inline" data-confirm="{{ 'Remove this address from the server and return it to the pool?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-danger" type="submit">{{ 'Remove'|t }}</button></form>{% endif %}</td>
+            </tr>{% endfor %}
+        </tbody></table></div>
+        {% else %}<p class="muted small">{{ 'No additional addresses.'|t }}</p>{% endif %}
+        {% if can('services.manage') and features.ipv4_pool and service.status not in ['terminated', 'cancelled'] %}
+        <form method="post" action="/admin/services/{{ service.id }}/ipv4" class="mt-1" data-confirm="{{ 'Assign an additional IPv4 address from the pool of the product to this server?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Add IPv4 address'|t }}</button></form>
+        <p class="small muted">{{ 'Runs through the job queue; the price is not changed (book add-ons for billing).'|t }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

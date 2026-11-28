@@ -1,0 +1,53 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Reverse DNS'|t }} · {{ service.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Reverse DNS'|t }}</h1><p class="muted">{{ service.name }} · <a href="/services/{{ service.id }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+<p class="muted">{{ 'The reverse DNS entry (PTR record) maps an IP address to a host name, e.g. for mail servers. The host name should also resolve to the address (A/AAAA record).'|t }}</p>
+{% if error %}<div class="alert alert-warning">{{ error|t }}</div>{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Addresses'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'IP address'|t }}</th><th>{{ 'Host name (PTR)'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for a in overview.addresses %}
+            <tr>
+                <td class="mono">{{ a.ip }}</td>
+                <td>
+                    <form method="post" action="/services/{{ service.id }}/rdns" class="filters filters-inline" novalidate>
+                        {{ csrf_field() }}<input type="hidden" name="ip" value="{{ a.ip }}">
+                        <input type="text" name="ptr" value="{{ a.ptr }}" maxlength="253" class="input-inline mono" placeholder="server1.example.com" aria-label="{{ 'Host name (PTR)'|t }}">
+                        <button class="btn btn-sm btn-outline" type="submit">{{ 'Save'|t }}</button>
+                    </form>
+                </td>
+                <td>{% if a.ptr %}
+                    <form method="post" action="/services/{{ service.id }}/rdns/delete" class="inline" data-confirm="{{ 'Remove the reverse DNS entry of this address?'|t }}">
+                        {{ csrf_field() }}<input type="hidden" name="ip" value="{{ a.ip }}"><button class="btn btn-sm btn-danger" type="submit">{{ 'Remove'|t }}</button>
+                    </form>
+                {% endif %}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="3" class="muted">{{ 'No addresses with reverse DNS.'|t }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+{% if overview.subnets|length > 0 %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'IPv6 address'|t }}</h2></div>
+    <div class="card-body">
+        <p class="small muted">{{ 'Set the entry for a single address of your IPv6 subnets:'|t }} <span class="mono">{{ overview.subnets|join(', ') }}</span></p>
+        <form method="post" action="/services/{{ service.id }}/rdns" novalidate>
+            {{ csrf_field() }}
+            <div class="form-grid">
+                {{ f.input('ip', 'IP address', '', 'text', {required: true, maxlength: 45, placeholder: '2001:db8::1'}) }}
+                {{ f.input('ptr', 'Host name', '', 'text', {required: true, maxlength: 253, placeholder: 'server1.example.com'}) }}
+            </div>
+            <button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

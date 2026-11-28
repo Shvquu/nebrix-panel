@@ -43,6 +43,7 @@ class OrderPrechecks
             throw new OrderException('This product is currently not available.');
         }
         $config = is_array($product['provisioning_config'] ?? null) ? $product['provisioning_config'] : [];
-        $provisioner->checkOrder($integration, $config, $user, $options);
+        // The product ID for checks of product-specific choices (e.g. offered server templates).
+        $provisioner->checkOrder($integration, ['_product_id' => (int) $product['id']] + $config, $user, $options);
     }
 }

@@ -4,12 +4,13 @@
 <div class="page-header"><div><h1>{{ pool.name }}</h1><p class="muted"><span class="mono">{{ pool.network }}</span> · {{ 'Gateway'|t }} <span class="mono">{{ pool.gateway }}</span>{% if pool.dns %} · DNS <span class="mono">{{ pool.dns }}</span>{% endif %} · <a href="/admin/ip-pools">&larr; {{ 'IP pools'|t }}</a></p></div>
     {% if can('integrations.manage') %}<form method="post" action="/admin/ip-pools/{{ pool.id }}/delete" data-confirm="{{ 'Delete this pool?'|t }}">{{ csrf_field() }}<button class="btn btn-danger" type="submit">{{ 'Delete pool'|t }}</button></form>{% endif %}
 </div>
+{% include 'admin/ip_pools/_rdns.twig' with {pool: pool, robot_integrations: robot_integrations|default({})} only %}
 <div class="card"><div class="table-wrap"><table class="table">
     <thead><tr><th>{{ 'Address'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Service'|t }}</th><th>{{ 'Note'|t }}</th><th></th></tr></thead>
     <tbody>{% for a in addresses %}
         <tr><td class="mono">{{ a.address }}</td>
             <td><span class="badge {{ a.status == 'free' ? 'badge-success' : (a.status == 'assigned' ? 'badge-info' : 'badge-warning') }}">{{ a.status|t }}</span></td>
-            <td>{% if a.service_id %}<a href="/admin/services/{{ a.service_id }}">#{{ a.service_id }} {{ a.service_name }}</a>{% endif %}</td>
+            <td>{% if a.service_id %}<a href="/admin/services/{{ a.service_id }}">#{{ a.service_id }} {{ a.service_name }}</a>{% if a.addon_key|default(null) %} <span class="badge badge-neutral">{{ 'additional address'|t }}</span>{% endif %}{% endif %}</td>
             <td class="small">{{ a.note }}</td>
             <td class="actions">{% if can('integrations.manage') and a.status != 'assigned' %}
                 <form method="post" action="/admin/ip-pools/{{ pool.id }}/addresses/{{ a.id }}" class="filters filters-inline">{{ csrf_field() }}

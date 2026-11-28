@@ -57,10 +57,11 @@ final class ProductCategory
                     'reinstall_templates' => ['label' => 'Additional templates for reinstall (one per line: VM ID|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. 9001|Ubuntu 24.04 – the product template is always offered.'],
                     'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
                     'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
+                    'max_snapshots' => ['label' => 'Snapshots per server (0 = none)', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0, 'help' => 'Needs a storage with snapshot support (e.g. ZFS, LVM-thin, Ceph).'],
                 ] + ProductConfigurator::configFields(),
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
-                ],
+                ] + self::serverOptions(),
             ],
             self::LXC => [
                 'label' => 'LXC container',
@@ -82,10 +83,11 @@ final class ProductCategory
                     'reinstall_templates' => ['label' => 'Additional OS templates for reinstall (one per line: template|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst|Ubuntu 24.04'],
                     'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
                     'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
+                    'max_snapshots' => ['label' => 'Snapshots per server (0 = none)', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0, 'help' => 'Needs a storage with snapshot support (e.g. ZFS, LVM-thin, Ceph).'],
                 ] + ProductConfigurator::configFields(),
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
-                ],
+                ] + self::serverOptions(),
             ],
             self::DEDICATED => [
                 'label' => 'Dedicated server',
@@ -171,6 +173,21 @@ final class ProductCategory
                 ],
                 'options' => [],
             ],
+        ];
+    }
+
+    /**
+     * Order options of Proxmox servers: a server template the product offers
+     * and SSH keys of the customer (both checked by the provisioner's order
+     * check and again when the server is created). Rendered by type.
+     *
+     * @return array<string, array{label: string, rules: string, help?: string, type: string}>
+     */
+    private static function serverOptions(): array
+    {
+        return [
+            'os_template' => ['label' => 'Operating system', 'rules' => 'nullable|int|min:1', 'type' => 'os_template', 'omit_empty' => true],
+            'ssh_keys' => ['label' => 'SSH keys', 'rules' => 'nullable|array|max:10|ids', 'type' => 'ssh_keys', 'omit_empty' => true, 'help' => 'Installed for the login of the server (Account → SSH keys).'],
         ];
     }
 
