@@ -25,6 +25,12 @@ final class FakeRobot
     /** @var array<string, array{name: string, fingerprint: string, data: string}> SSH keys by fingerprint */
     public array $keys = [];
 
+    /** A reset boots an activated rescue system (Robot then reports it as no longer active). */
+    public bool $resetBootsRescue = false;
+
+    /** How the rescue activation reports host keys: "data" (key), "fingerprint" (MD5 only) or "none". */
+    public string $rescueHostKeys = 'data';
+
     /** @var array<int, list<string>> authorized keys of the last rescue activation per server */
     public array $rescueKeys = [];
 
@@ -95,8 +101,13 @@ final class FakeRobot
                 $n = (int) $m['n'];
                 $keys = FakeHttp::form($r)['authorized_key'] ?? [];
                 $this->rescueKeys[$n] = is_array($keys) ? array_values($keys) : [];
+                $hostKey = match ($this->rescueHostKeys) {
+                    'none' => [],
+                    'fingerprint' => [['key' => ['fingerprint' => implode(':', str_split(md5('rescue-host-key-' . $n), 2)), 'type' => 'ED25519', 'size' => 256]]],
+                    default => [['key' => ['fingerprint' => 'ab:cd', 'type' => 'ED25519', 'size' => 256, 'data' => 'ssh-ed25519 HOSTKEY' . $n . ' root@rescue']]],
+                };
                 $this->rescue[$n] = ['active' => true, 'password' => $this->rescueKeys[$n] === [] ? 'rescuePw' . (++$this->passwordCounter) : null,
-                    'authorized_key' => $this->rescueKeys[$n], 'host_key' => [['key' => ['fingerprint' => 'ab:cd', 'type' => 'ED25519', 'size' => 256, 'data' => 'ssh-ed25519 HOSTKEY' . $n . ' root@rescue']]]];
+                    'authorized_key' => $this->rescueKeys[$n], 'host_key' => $hostKey];
 
                 return $json(['rescue' => $this->rescue[$n]]);
             })
@@ -117,6 +128,9 @@ final class FakeRobot
             })
             ->on('POST', '/reset/(?<n>\d+)', function (RequestInterface $r, array $m) use ($json): Response {
                 $this->resets[] = ['server' => (int) $m['n'], 'type' => FakeHttp::form($r)['type']];
+                if ($this->resetBootsRescue && ($this->rescue[(int) $m['n']]['active'] ?? false) === true) {
+                    $this->rescue[(int) $m['n']]['active'] = false;
+                }
 
                 return $json(['reset' => ['server_number' => (int) $m['n'], 'type' => FakeHttp::form($r)['type']]]);
             })

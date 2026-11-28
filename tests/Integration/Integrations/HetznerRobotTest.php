@@ -370,6 +370,69 @@ final class HetznerRobotTest extends IntegrationTestCase
         $this->provisioner()->provision($this->reload($unlimited->id), $owner);
     }
 
+    public function testAuctionOffersWithoutAClearPriceAreNeverBought(): void
+    {
+        $offer = static fn (int $id, mixed $price, mixed $setup = '0.0000'): array => array_filter([
+            'id' => $id, 'cpu' => 'Intel Core i7-8700', 'cpu_benchmark' => 10000, 'memory_size' => 64, 'hdd_size' => 1024,
+            'datacenter' => 'FSN1-DC5', 'price' => $price, 'price_setup' => $setup, 'dist' => ['Debian 12 base'],
+        ], static fn (mixed $v): bool => $v !== null);
+        $limits = ['mode' => 'market', 'market_max_price' => '40', 'image' => 'Debian 12 base'];
+        $service = $this->dedicated($this->integration(['allow_orders' => true, 'order_test_mode' => false]), $limits);
+        $products = [
+            $offer(1, null),             // no price
+            $offer(2, ''),               // empty
+            $offer(3, 'n/a'),            // not a number
+            $offer(4, '1.234,00'),       // localized – would read as 1.23
+            $offer(5, '0'),              // free is not a real price
+            $offer(6, '29.00', '49.00'), // setup fee
+            $offer(7, '39.00', 'x'),     // unknown setup fee
+        ];
+        try {
+            $this->provisioner()->pickMarketProduct($this->reload($service->id), $products);
+            self::fail('An offer without a clear price was chosen.');
+        } catch (RetryLaterException) {
+        }
+        $products[] = $offer(8, '39.00');
+        self::assertSame(8, $this->provisioner()->pickMarketProduct($this->reload($service->id), $products)['id']);
+    }
+
+    public function testTerminationWaitsForAServerThatIsStillBeingDelivered(): void
+    {
+        $this->robot->market = [1001 => ['id' => 1001, 'cpu' => 'Ryzen 5', 'cpu_benchmark' => 9000, 'memory_size' => 64, 'hdd_size' => 1024, 'datacenter' => 'FSN1-DC1', 'price' => '30.0000', 'price_setup' => '0.0000', 'dist' => ['Debian 12 base']]];
+        $integrationId = $this->integration(['allow_orders' => true, 'order_test_mode' => false, 'cancel_on_terminate' => true]);
+        $service = $this->dedicated($integrationId, ['mode' => 'market', 'market_max_price' => '40', 'image' => 'Debian 12 base']);
+        $owner = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($service->userId);
+        self::assertNotNull($owner);
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+        } catch (RetryLaterException) {
+        }
+        $transaction = (string) array_key_first($this->robot->marketTransactions);
+
+        // Ordering switched off meanwhile: the purchase is still followed up.
+        $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class)->storeGenerated($integrationId, [], ['allow_orders' => false]);
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+            self::fail('Expected to wait for the delivery.');
+        } catch (RetryLaterException $exception) {
+            self::assertStringContainsString('deliver', $exception->getMessage());
+        }
+
+        // The customer cancels before the delivery: the termination waits …
+        try {
+            $this->provisioner()->terminate($this->reload($service->id));
+            self::fail('Terminated while the server is still on its way.');
+        } catch (RetryLaterException $exception) {
+            self::assertStringContainsString('not delivered yet', $exception->getMessage());
+        }
+        // … and handles the delivered server like any other (rescue, wipe queue name, cancellation).
+        $this->robot->addServer(950, '');
+        $this->robot->marketTransactions[$transaction] = ['status' => 'ready', 'server_number' => 950, 'server_ip' => '198.51.100.95'] + $this->robot->marketTransactions[$transaction];
+        $this->provisioner()->terminate($this->reload($service->id));
+        self::assertSame('nebrix-wipe-950', $this->robot->servers[950]['server_name']);
+        self::assertArrayHasKey(950, $this->robot->cancelled, 'Bought servers are cancelled when the option is on.');
+    }
+
     public function testReinstallInstallsTheChosenImageWithANewPassword(): void
     {
         $integrationId = $this->integration();

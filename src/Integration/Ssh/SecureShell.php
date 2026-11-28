@@ -39,7 +39,7 @@ class SecureShell
             if ($serverKey === false) {
                 throw new IntegrationException('The server did not present an SSH host key.');
             }
-            if ($hostKeys !== [] && !in_array(self::normalize((string) $serverKey), array_map(self::normalize(...), $hostKeys), true)) {
+            if ($hostKeys !== [] && !self::hostKeyMatches((string) $serverKey, $hostKeys)) {
                 throw new IntegrationException('The SSH host key of the server does not match the stored key.');
             }
             $key = PublicKeyLoader::load($privateKey);
@@ -125,6 +125,31 @@ class SecureShell
         }
 
         return array_values(array_unique($keys));
+    }
+
+    /**
+     * Whether the server's host key ("type base64") is one of the pins: full
+     * keys ("type base64 [comment]"), "MD5:aa:bb:…" or "SHA256:…" fingerprints.
+     *
+     * @param list<string> $pins
+     */
+    public static function hostKeyMatches(string $serverKey, array $pins): bool
+    {
+        $normalized = self::normalize($serverKey);
+        $blob = base64_decode(explode(' ', $normalized)[1] ?? '', true);
+        if ($blob === false || $blob === '') {
+            return false;
+        }
+        $md5 = 'MD5:' . implode(':', str_split(md5($blob), 2));
+        $sha256 = 'SHA256:' . rtrim(base64_encode(hash('sha256', $blob, true)), '=');
+        foreach ($pins as $pin) {
+            $pin = trim($pin);
+            if (str_starts_with($pin, 'MD5:') ? hash_equals($md5, 'MD5:' . strtolower(substr($pin, 4))) : (str_starts_with($pin, 'SHA256:') ? hash_equals($sha256, rtrim($pin, '=')) : hash_equals($normalized, self::normalize($pin)))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

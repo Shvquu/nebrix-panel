@@ -65,9 +65,10 @@ class HetznerWipeService
     public function enqueue(Integration $integration, int $serverNumber, ?int $serviceId): ?int
     {
         return $this->db->transaction(function () use ($integration, $serverNumber, $serviceId): ?int {
+            // One open wipe per server, also across integrations of the same Robot account.
             $open = $this->db->fetchValue(
-                "SELECT `id` FROM `nx_hetzner_wipes` WHERE `integration_id` = ? AND `server_number` = ? AND `status` IN ('pending', 'booting', 'running') FOR UPDATE",
-                [$integration->id, $serverNumber],
+                "SELECT `id` FROM `nx_hetzner_wipes` WHERE `server_number` = ? AND `status` IN ('pending', 'booting', 'running') FOR UPDATE",
+                [$serverNumber],
             );
             if ($open !== null) {
                 return null;
@@ -112,7 +113,12 @@ class HetznerWipeService
     public function process(): array
     {
         $result = ['started' => 0, 'running' => 0, 'done' => 0, 'failed' => 0];
-        $rows = $this->db->fetchAll("SELECT * FROM `nx_hetzner_wipes` WHERE `status` IN ('pending', 'booting', 'running') ORDER BY `id` LIMIT 20");
+        // Only entries of enabled integrations with automatic wiping (others wait), so they cannot block the queue.
+        $rows = $this->db->fetchAll(
+            "SELECT w.* FROM `nx_hetzner_wipes` w JOIN `nx_integrations` i ON i.`id` = w.`integration_id`
+             WHERE w.`status` IN ('pending', 'booting', 'running') AND i.`is_enabled` = 1 AND i.`type` = 'hetzner_robot'
+             ORDER BY w.`updated_at`, w.`id` LIMIT 50",
+        );
         foreach ($rows as $wipe) {
             try {
                 $integration = $this->integrationRepository->find((int) $wipe['integration_id']);
@@ -120,6 +126,15 @@ class HetznerWipeService
                     continue; // switched off: the entry waits
                 }
                 $outcome = $this->step($wipe, $integration);
+            } catch (IntegrationException $exception) {
+                if ($exception->isNotFound()) {
+                    // The server left the account (cancelled, moved): nothing to wipe here any more.
+                    $outcome = $this->fail($wipe, 'Hetzner Robot no longer knows this server (cancelled or moved); it was not wiped by the panel.');
+                } else {
+                    $this->logger->warning('Hetzner disk wipe step failed', ['wipe' => $wipe['id'], 'server' => $wipe['server_number'], 'message' => $exception->getMessage()]);
+                    $this->db->update('nx_hetzner_wipes', ['error' => mb_substr($exception->getMessage(), 0, 500), 'updated_at' => $this->clock->nowString()], ['id' => $wipe['id']]);
+                    continue;
+                }
             } catch (Throwable $exception) {
                 // Robot or SSH errors: logged, the step is retried on the next run.
                 $this->logger->warning('Hetzner disk wipe step failed', ['wipe' => $wipe['id'], 'server' => $wipe['server_number'], 'message' => $exception->getMessage()]);
@@ -137,10 +152,25 @@ class HetznerWipeService
     /** Staff restart a failed wipe. */
     public function retry(int $id, int $actorId, ?string $ip): bool
     {
-        $changed = $this->db->run(
-            "UPDATE `nx_hetzner_wipes` SET `status` = 'pending', `attempts` = 0, `error` = NULL, `updated_at` = ? WHERE `id` = ? AND `status` = 'failed'",
-            [$this->clock->nowString(), $id],
-        )->rowCount() > 0;
+        // Starts from the beginning (new boot, new host keys, new 72-hour window), with the
+        // integration's current method, and only if no other wipe of the server is open.
+        $changed = $this->db->transaction(function () use ($id): bool {
+            $wipe = $this->db->fetchOne("SELECT w.*, i.`config` FROM `nx_hetzner_wipes` w JOIN `nx_integrations` i ON i.`id` = w.`integration_id` WHERE w.`id` = ? AND w.`status` = 'failed' FOR UPDATE", [$id]);
+            if ($wipe === null) {
+                return false;
+            }
+            $open = $this->db->fetchValue("SELECT `id` FROM `nx_hetzner_wipes` WHERE `server_number` = ? AND `id` <> ? AND `status` IN ('pending', 'booting', 'running') FOR UPDATE", [(int) $wipe['server_number'], $id]);
+            if ($open !== null) {
+                return false;
+            }
+            $integration = $this->integrationRepository->find((int) $wipe['integration_id']);
+            $method = $integration !== null && (string) $integration->config('wipe_method', 'full') === 'quick' ? 'quick' : 'full';
+
+            return $this->db->run(
+                "UPDATE `nx_hetzner_wipes` SET `status` = 'pending', `attempts` = 0, `error` = NULL, `method` = ?, `host_keys` = NULL, `reset_at` = NULL, `started_at` = NULL, `finished_at` = NULL, `log` = NULL, `updated_at` = ? WHERE `id` = ? AND `status` = 'failed'",
+                [$method, $this->clock->nowString(), $id],
+            )->rowCount() > 0;
+        });
         if ($changed) {
             $this->audit->log($actorId, 'hetzner.wipe_retried', 'hetzner_wipe', $id, [], $ip);
         }
@@ -176,22 +206,17 @@ class HetznerWipeService
                 return $this->fail($wipe, 'The rescue system could not be reached after several resets.');
             }
             [$fingerprint] = $this->key($integration, $client);
-            // A firewall left by a suspension would block SSH to the rescue system, and the
-            // former customer's rules must not reach the next one.
-            if (!$client->clearFirewallIfConfigured($number)) {
-                return 'running'; // Robot is applying a firewall change: next run
-            }
             // Only one boot configuration can be active; a rescue system without our key is replaced.
             if (($client->rescue($number)['active'] ?? false) === true) {
                 $client->deactivateRescue($number);
             }
             $rescue = $client->activateRescue($number, [$fingerprint]);
-            $hostKeys = [];
-            foreach (is_array($rescue['host_key'] ?? null) ? $rescue['host_key'] : [] as $entry) {
-                $data = is_array($entry) ? (string) (($entry['key']['data'] ?? $entry['data'] ?? '')) : '';
-                if ($data !== '') {
-                    $hostKeys[] = $data;
-                }
+            $hostKeys = self::hostKeyPins($rescue['host_key'] ?? null);
+            if ($hostKeys === []) {
+                // Without a host key the rescue system cannot be told apart from anything else answering on the IP.
+                $client->deactivateRescue($number);
+
+                return $this->fail($wipe, 'Hetzner Robot reported no host key for the rescue system, so it cannot be verified; wipe this server by hand.');
             }
             $client->reset($number, 'hw');
             $this->update($wipe, [
@@ -211,6 +236,21 @@ class HetznerWipeService
         if ($wipe['status'] === self::BOOTING) {
             if ($since < self::BOOT_WAIT_SECONDS) {
                 return 'running';
+            }
+            // The rescue activation is consumed when the server boots it; while it is still
+            // active the server has booted something else (e.g. its own disk) and nothing on
+            // the IP is trusted.
+            if (($client->rescue($number)['active'] ?? false) === true) {
+                if ($since > self::BOOT_TIMEOUT_SECONDS) {
+                    $this->update($wipe, ['status' => self::PENDING, 'error' => 'The server did not boot the rescue system.']);
+                }
+
+                return 'running';
+            }
+            // In the rescue system now: a firewall left by a suspension would block SSH, and the
+            // former customer's rules must not reach the next customer.
+            if (!$client->clearFirewallIfConfigured($number)) {
+                return 'running'; // Robot is applying a firewall change: next run
             }
             try {
                 $this->shell->run($ip, $this->privateKey($integration), $this->hostKeys($wipe), self::startCommand((string) $wipe['method']));
@@ -306,6 +346,31 @@ class HetznerWipeService
     }
 
     /**
+     * Pins for the rescue system's host keys as Robot reports them: the key
+     * itself when present, otherwise its fingerprint (MD5 or SHA256).
+     *
+     * @return list<string>
+     */
+    public static function hostKeyPins(mixed $entries): array
+    {
+        $pins = [];
+        foreach (is_array($entries) ? $entries : [] as $entry) {
+            $key = is_array($entry) ? (is_array($entry['key'] ?? null) ? $entry['key'] : $entry) : [];
+            $data = trim((string) ($key['data'] ?? ''));
+            $fingerprint = trim((string) ($key['fingerprint'] ?? ''));
+            if ($data !== '' && preg_match('#^(ssh-[a-z0-9-]+|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/=]+#', $data) === 1) {
+                $pins[] = $data;
+            } elseif (preg_match('/^(MD5:)?([0-9a-f]{2}:){15}[0-9a-f]{2}$/i', $fingerprint) === 1) {
+                $pins[] = 'MD5:' . strtolower((string) preg_replace('/^MD5:/i', '', $fingerprint));
+            } elseif (preg_match('#^SHA256:[A-Za-z0-9+/]{43}=?$#', $fingerprint) === 1) {
+                $pins[] = rtrim($fingerprint, '=');
+            }
+        }
+
+        return array_values(array_unique($pins));
+    }
+
+    /**
      * @param array<string, mixed> $wipe
      * @return list<string>
      */
@@ -362,36 +427,60 @@ class HetznerWipeService
 STATE=/root/nebrix-wipe.state
 LOG=/root/nebrix-wipe.log
 METHOD={$method}
+ERRORS=0
 echo running > "\$STATE"
 : > "\$LOG"
+fail() { echo "ERROR: \$*" >> "\$LOG"; ERRORS=\$((ERRORS + 1)); }
 # Release RAID arrays and volume groups the rescue system may have assembled from the old installation.
 mdadm --stop --scan >> "\$LOG" 2>&1
 vgchange -an >> "\$LOG" 2>&1
 DISKS=\$(lsblk -dnpo NAME,TYPE | awk '\$2 == "disk" {print \$1}')
 if [ -z "\$DISKS" ]; then echo "no disks found" >> "\$LOG"; echo failed > "\$STATE"; exit 1; fi
+# Zeroes the first and last 64 MiB in units of the logical sector size (also 4Kn disks).
 edges() {
-  dd if=/dev/zero of="\$1" bs=1M count=64 oflag=direct status=none >> "\$LOG" 2>&1
-  SECTORS=\$(blockdev --getsz "\$1")
-  if [ "\$SECTORS" -gt 131072 ]; then
-    dd if=/dev/zero of="\$1" bs=512 seek=\$((SECTORS - 131072)) count=131072 oflag=direct status=none >> "\$LOG" 2>&1
+  SS=\$(blockdev --getss "\$1") || { fail "\$1: sector size unknown"; return; }
+  BYTES=\$(blockdev --getsize64 "\$1") || { fail "\$1: size unknown"; return; }
+  COUNT=\$((67108864 / SS))
+  TOTAL=\$((BYTES / SS))
+  if [ "\$TOTAL" -lt "\$COUNT" ]; then COUNT=\$TOTAL; fi
+  dd if=/dev/zero of="\$1" bs="\$SS" count="\$COUNT" oflag=direct conv=notrunc status=none >> "\$LOG" 2>&1 || fail "\$1: zeroing the start failed"
+  dd if=/dev/zero of="\$1" bs="\$SS" count="\$COUNT" seek=\$((TOTAL - COUNT)) oflag=direct conv=notrunc status=none >> "\$LOG" 2>&1 || fail "\$1: zeroing the end failed"
+}
+# Overwrites the whole disk with zeros; dd must write exactly the disk size without an error.
+overwrite() {
+  BYTES=\$(blockdev --getsize64 "\$1") || { fail "\$1: size unknown"; return; }
+  echo "overwriting \$BYTES bytes with zeros" >> "\$LOG"
+  if dd if=/dev/zero of="\$1" bs=4M count="\$BYTES" iflag=count_bytes oflag=direct conv=notrunc status=none >> "\$LOG" 2>&1; then
+    echo "overwrite finished" >> "\$LOG"
+  else
+    fail "\$1: overwrite failed"
   fi
+}
+# Reads 1 MiB at the start, in the middle and at the end: all of it must be zero.
+zeroed() {
+  BYTES=\$(blockdev --getsize64 "\$1") || return 1
+  for OFFSET in 0 \$((BYTES / 2097152)) \$((BYTES / 1048576 - 1)); do
+    dd if="\$1" bs=1M count=1 skip="\$OFFSET" iflag=direct status=none 2>> "\$LOG" | cmp -s -n 1048576 - /dev/zero || return 1
+  done
+  return 0
 }
 for DISK in \$DISKS; do
   echo "== \$DISK" >> "\$LOG"
-  wipefs -af "\$DISK" >> "\$LOG" 2>&1
+  wipefs -af "\$DISK" >> "\$LOG" 2>&1 || fail "\$DISK: wipefs failed"
   if [ "\$METHOD" = "quick" ]; then edges "\$DISK"; continue; fi
   case "\$DISK" in
     /dev/nvme*)
-      if nvme format "\$DISK" --ses=1 --force >> "\$LOG" 2>&1; then echo "nvme format ok" >> "\$LOG"; edges "\$DISK"; continue; fi ;;
+      if nvme format "\$DISK" --ses=1 --force >> "\$LOG" 2>&1; then echo "nvme format ok" >> "\$LOG"; edges "\$DISK"; continue; fi
+      echo "nvme format not possible, falling back" >> "\$LOG" ;;
   esac
   ROT=\$(cat "/sys/block/\$(basename "\$DISK")/queue/rotational" 2>/dev/null || echo 1)
-  if [ "\$ROT" = "0" ] && blkdiscard -f "\$DISK" >> "\$LOG" 2>&1; then echo "discard ok" >> "\$LOG"; edges "\$DISK"; continue; fi
-  echo "overwriting with zeros" >> "\$LOG"
-  dd if=/dev/zero of="\$DISK" bs=4M oflag=direct status=none >> "\$LOG" 2>&1
-  echo "overwrite finished" >> "\$LOG"
+  if [ "\$ROT" = "0" ] && blkdiscard -f "\$DISK" >> "\$LOG" 2>&1 && zeroed "\$DISK"; then
+    echo "discard ok (reads back zeros)" >> "\$LOG"; edges "\$DISK"; continue
+  fi
+  overwrite "\$DISK"
 done
 sync
-echo done > "\$STATE"
+if [ "\$ERRORS" -eq 0 ]; then echo done > "\$STATE"; else echo "\$ERRORS error(s)" >> "\$LOG"; echo failed > "\$STATE"; fi
 
 SH;
     }

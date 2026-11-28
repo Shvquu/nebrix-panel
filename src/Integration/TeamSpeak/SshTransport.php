@@ -45,7 +45,7 @@ final class SshTransport implements Transport
             if ($serverKey === false) {
                 throw new IntegrationException('The TeamSpeak server did not present an SSH host key.');
             }
-            if (!in_array(SecureShell::normalize((string) $serverKey), array_map(SecureShell::normalize(...), $this->hostKeys), true)) {
+            if (!SecureShell::hostKeyMatches((string) $serverKey, $this->hostKeys)) {
                 throw new IntegrationException('The SSH host key of the TeamSpeak server does not match the stored key.');
             }
             if (!$ssh->login($this->user, $this->password)) {

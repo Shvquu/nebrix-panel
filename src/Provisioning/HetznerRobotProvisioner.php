@@ -212,7 +212,10 @@ final class HetznerRobotProvisioner implements Provisioner
     public function terminate(Service $service): void
     {
         if (!isset($service->remote['server_number'])) {
-            return; // nothing was assigned or ordered (an order still in process is handled by staff)
+            $this->awaitPurchasedServer($service);
+            if (!isset($service->remote['server_number'])) {
+                return; // nothing was assigned or bought
+            }
         }
         [$integration, $client] = $this->client($service);
         $number = (int) $service->remote['server_number'];
@@ -251,6 +254,35 @@ final class HetznerRobotProvisioner implements Provisioner
         }
         if ((bool) $integration->config('auto_wipe', false)) {
             $this->wipes->enqueue($integration, $number, $service->id);
+        }
+    }
+
+    /**
+     * A server bought for the service but not delivered yet must not stay
+     * unclaimed (and billed) after the termination: the termination waits for
+     * the delivery and then handles the server like any other.
+     */
+    private function awaitPurchasedServer(Service &$service): void
+    {
+        $remote = $service->remote;
+        if (!isset($remote['transaction_id']) || ($remote['order_test'] ?? false) === true) {
+            return;
+        }
+        [, $client] = $this->client($service);
+        $market = ($remote['mode'] ?? '') === 'market';
+        $transaction = $market ? $client->marketTransaction((string) $remote['transaction_id']) : $client->orderTransaction((string) $remote['transaction_id']);
+        $status = (string) ($transaction['status'] ?? '');
+        if ($status === 'cancelled') {
+            return;
+        }
+        if ($status !== 'ready' || (int) ($transaction['server_number'] ?? 0) < 1) {
+            throw new RetryLaterException(sprintf('The server bought for this service (order %s) is not delivered yet; the termination continues after the delivery.', (string) $remote['transaction_id']), 1800);
+        }
+        $this->merge($service, ['server_number' => (int) $transaction['server_number'], 'ordered' => true, 'terminating' => true]);
+        $service = $this->services->find($service->id) ?? $service;
+        // Not installed for the customer yet: the marker is set so that the regular termination can claim it.
+        if ((string) ($client->server((int) $transaction['server_number'])['server_name'] ?? '') !== self::marker($service)) {
+            $client->renameServer((int) $transaction['server_number'], self::marker($service));
         }
     }
 
@@ -380,7 +412,8 @@ final class HetznerRobotProvisioner implements Provisioner
      */
     private function order(Service $service, Integration $integration, RobotClient $client, array $remote): array
     {
-        if (!(bool) $integration->config('allow_orders', false)) {
+        // An order already placed is followed up even if ordering was switched off meanwhile.
+        if (!isset($remote['transaction_id']) && !(bool) $integration->config('allow_orders', false)) {
             throw new IntegrationException('Ordering new servers is disabled for this Hetzner integration.');
         }
         if (($remote['order_test'] ?? false) === true) {
@@ -441,7 +474,7 @@ final class HetznerRobotProvisioner implements Provisioner
      */
     private function orderFromMarket(Service $service, Integration $integration, RobotClient $client, array $remote): array
     {
-        if (!(bool) $integration->config('allow_orders', false)) {
+        if (!isset($remote['transaction_id']) && !(bool) $integration->config('allow_orders', false)) {
             throw new IntegrationException('Ordering new servers is disabled for this Hetzner integration.');
         }
         $test = (bool) $integration->config('order_test_mode', true);
@@ -525,10 +558,16 @@ final class HetznerRobotProvisioner implements Provisioner
 
         $matching = array_values(array_filter($products, static function (array $product) use ($maxCents, $minMemory, $minDisk, $cpu, $location, $image, $skip): bool {
             $dists = array_map('strval', (array) ($product['dist'] ?? []));
+            // Only offers with a clear monthly price and no setup fee: anything else could cost more than the limit.
+            $price = $product['price'] ?? null;
+            $setup = $product['price_setup'] ?? '0';
+            if (!is_numeric($price) || (float) $price <= 0 || !is_numeric($setup) || (float) $setup != 0.0) {
+                return false;
+            }
 
             return (int) ($product['id'] ?? 0) > 0
                 && !in_array((int) $product['id'], $skip, true)
-                && (int) round((float) ($product['price'] ?? PHP_INT_MAX) * 100) <= $maxCents
+                && (int) round((float) $price * 100) <= $maxCents
                 && (int) ($product['memory_size'] ?? 0) >= $minMemory
                 && (int) ($product['hdd_size'] ?? 0) >= $minDisk
                 && ($cpu === '' || str_contains(mb_strtolower((string) ($product['cpu'] ?? '')), $cpu))

@@ -132,7 +132,7 @@ class RobotClient
      */
     public function addKey(string $name, string $publicKey): array
     {
-        if (preg_match('/^[A-Za-z0-9 ._-]{1,50}$/', $name) !== 1 || preg_match('#^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+( .*)?$#', trim($publicKey)) !== 1) {
+        if (preg_match('/^[A-Za-z0-9 ._-]{1,50}$/', $name) !== 1 || preg_match('#^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$#', trim($publicKey)) !== 1) {
             throw new IntegrationException('Invalid SSH key.');
         }
 
