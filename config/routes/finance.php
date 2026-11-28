@@ -17,5 +17,17 @@ return static function (Router $r): void {
             $r->post('/accounting/export', [Admin\AccountingController::class, 'download']);
             $r->post('/accounting/lexoffice/sync', [Admin\AccountingController::class, 'syncNow']);
         });
+
+        $r->group(['middleware' => ['permission:bank.import']], static function (Router $r): void {
+            $r->get('/bank', [Admin\BankImportController::class, 'index']);
+            $r->post('/bank/import', [Admin\BankImportController::class, 'import']);
+            $r->get('/bank/entries/{id:\d+}', [Admin\BankImportController::class, 'show']);
+            $r->post('/bank/entries/{id:\d+}/assign', [Admin\BankImportController::class, 'assign']);
+            $r->post('/bank/entries/{id:\d+}/credit', [Admin\BankImportController::class, 'credit']);
+            $r->post('/bank/entries/{id:\d+}/ignore', [Admin\BankImportController::class, 'ignore']);
+            $r->get('/bank/profiles', [Admin\BankImportController::class, 'profiles']);
+            $r->post('/bank/profiles', [Admin\BankImportController::class, 'saveProfile']);
+            $r->post('/bank/profiles/{id:\d+}/delete', [Admin\BankImportController::class, 'deleteProfile']);
+        });
     });
 };

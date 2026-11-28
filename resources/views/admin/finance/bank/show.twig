@@ -1,0 +1,69 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set e = entry %}
+{% block title %}{{ 'Bank transfer'|t }}{% endblock %}
+{% block content %}
+{% set labels = {review: 'To review', matched: 'Booked automatically', assigned: 'Assigned by staff', credited: 'Booked as credit', ignored: 'Ignored', debit: 'Outgoing'} %}
+{% set reasons = {partial: 'Less than the invoice total', overpaid: 'More than the invoice total', multiple: 'Several invoice numbers', paid: 'Invoice no longer open', cancelled: 'Invoice cancelled', unknown: 'No invoice number found', currency: 'Different currency', reversal: 'Reversal by the bank', confirm: 'Clear match – please confirm'} %}
+<div class="page-header"><div><h1>{{ e.direction == 'debit' ? '−' : '' }}{{ e.amount|money(e.currency) }}</h1><p class="muted"><a href="/admin/bank">&larr; {{ 'Bank transfers'|t }}</a> · {{ e.booking_date|d }} · <span class="badge {{ e.status == 'review' ? 'badge-warning' : 'badge-neutral' }}">{{ labels[e.status]|t }}</span></p></div></div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Entry'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'Booked'|t }}</dt><dd>{{ e.booking_date|d }}{% if e.value_date %} ({{ 'value date'|t }} {{ e.value_date|d }}){% endif %}</dd>
+                <dt>{{ 'Direction'|t }}</dt><dd>{{ e.direction == 'credit' ? 'Incoming'|t : 'Outgoing'|t }}</dd>
+                <dt>{{ 'Payer / payee'|t }}</dt><dd>{{ e.counterparty_name ?: '–' }}{% if e.counterparty_iban %} · <span class="mono">{{ e.counterparty_iban }}</span>{% endif %}</dd>
+                <dt>{{ 'Reference'|t }}</dt><dd>{{ e.remittance ?: '–' }}</dd>
+                <dt>{{ 'Bank reference'|t }}</dt><dd class="mono small">{{ e.entry_reference ?: '–' }}</dd>
+                {% if e.status == 'review' and e.reason %}<dt>{{ 'Why it needs a review'|t }}</dt><dd>{{ reasons[e.reason]|default(e.reason)|t }}</dd>{% endif %}
+                {% if e.invoice_number %}<dt>{{ e.status == 'review' ? 'Suggested invoice'|t : 'Invoice'|t }}</dt><dd><a class="mono" href="/admin/invoices/{{ e.invoice_id }}">{{ e.invoice_number }}</a> · {{ e.invoice_total|money(e.currency) }} · {{ e.invoice_status|t }}</dd>{% endif %}
+                {% if e.processed_at %}<dt>{{ 'Processed'|t }}</dt><dd>{{ e.processed_at|dt }}{% if e.processed_by_email %} · {{ e.processed_by_email }}{% endif %}</dd>{% endif %}
+                {% if e.note %}<dt>{{ 'Note'|t }}</dt><dd>{{ e.note }}</dd>{% endif %}
+            </dl>
+        </div>
+    </div>
+
+    {% if e.status == 'review' and e.direction == 'credit' %}
+    <div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Book as invoice payment'|t }}</h2></div>
+            <div class="card-body">
+                <form method="post" action="/admin/bank/entries/{{ e.id }}/assign" novalidate>
+                    {{ csrf_field() }}
+                    {{ f.input('invoice', 'Invoice number', e.invoice_status == 'unpaid' ? e.invoice_number : '', 'text', {required: true, maxlength: 32, help: 'The amount must equal the invoice total. Partial payments are booked as account credit instead.'}) }}
+                    {{ f.checkbox('excess_as_credit', 'Book an amount above the invoice total as account credit') }}
+                    {{ f.input('note', 'Note (optional)', '', 'text', {maxlength: 255}) }}
+                    <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Book payment'|t }}</button></div>
+                </form>
+            </div>
+        </div>
+        <div class="card mt-2">
+            <div class="card-header"><h2>{{ 'Book as account credit'|t }}</h2></div>
+            <div class="card-body">
+                <form method="post" action="/admin/bank/entries/{{ e.id }}/credit" novalidate>
+                    {{ csrf_field() }}
+                    {{ f.input('customer', 'Customer number or e-mail address', e.invoice_user_id|default(''), 'text', {required: true, maxlength: 254, help: 'A credit top-up invoice is issued and paid by this transfer, e.g. for partial payments.'}) }}
+                    {{ f.input('note', 'Note (optional)', '', 'text', {maxlength: 255}) }}
+                    <div class="form-actions"><button class="btn btn-outline" type="submit">{{ 'Book as credit'|t }}</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if e.status in ['review', 'debit'] %}
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Mark as handled'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/admin/bank/entries/{{ e.id }}/ignore" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('note', 'Reason', '', 'text', {required: true, maxlength: 255}) }}
+            <button class="btn btn-outline" type="submit">{{ 'Ignore'|t }}</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
