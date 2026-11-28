@@ -195,6 +195,12 @@ final class BillingCycleTest extends FeatureTestCase
             'tax_rate_bp' => 1900, 'is_visible' => 1, 'is_active' => 1, 'auto_provision' => 0,
             'provisioning_config' => ['ostemplate' => 'local:vztmpl/d.tar.zst', 'storage' => 'local-lvm', 'bridge' => 'vmbr0', 'cores' => 1, 'memory_mb' => 1024, 'disk_gb' => 10, 'configurator' => true, 'cfg_max_cores' => 8, 'cfg_price_core' => '1.50'],
         ]);
+        // The website configurator previews every cycle from the server's factors (12 months per 1, −15 %).
+        $page = $this->get('/products/vserver')->body();
+        self::assertStringContainsString('data-configurator data-base="1000"', $page);
+        self::assertStringContainsString('value="annually" data-price="€121.38"', $page);
+        self::assertStringContainsString('data-num="12" data-den="1" data-bp="1500"', $page);
+
         $customer = $this->createUser();
         // 4 cores: 10.00 + 3 × 1.50 = 14.50 per month → 174.00 per year less 15 % = 147.90.
         $result = $this->app->container()->get(OrderService::class)->place($customer, $id, ['hostname' => 'flex1', 'cores' => '4'], '127.0.0.1', null, 'annually');
