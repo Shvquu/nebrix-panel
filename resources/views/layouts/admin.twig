@@ -24,8 +24,9 @@
             {% if can('customer_groups.manage') %}{{ m.link('/admin/customer-groups', 'Customer groups', 'grid') }}{% endif %}
             {% if can('services.view') %}{{ m.link('/admin/services', 'Services', 'services') }}{{ m.link('/admin/cancellations', 'Cancellations', 'x-circle') }}{% endif %}
 
-            {% if can('tickets.view') or can('status.manage') %}<div class="p-nav-section">{{ 'Support'|t }}</div>{% endif %}
+            {% if can('tickets.view') or can('status.manage') or can('help_center.manage') %}<div class="p-nav-section">{{ 'Support'|t }}</div>{% endif %}
             {% if can('tickets.view') %}{{ m.link('/admin/tickets', 'Support tickets', 'support') }}{% endif %}
+            {% if can('help_center.manage') %}{{ m.link('/admin/help', 'Help center', 'info') }}{% endif %}
             {% if can('status.manage') %}{{ m.link('/admin/status', 'Status page', 'pulse') }}{% endif %}
 
             {% if can('products.view') or can('orders.view') or can('invoices.view') or can('transactions.view') %}<div class="p-nav-section">{{ 'Sales'|t }}</div>{% endif %}

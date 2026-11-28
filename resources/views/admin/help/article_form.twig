@@ -1,0 +1,34 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set a = article %}
+{% block title %}{{ a ? a.title : 'New article'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<div class="page-header"><div><h1>{{ a ? a.title : 'New article'|t }}</h1><p class="muted"><a href="/admin/help">&larr; {{ 'Help center'|t }}</a>{% if a and a.is_published %} · <a href="/help/{{ a.category_slug }}/{{ a.slug }}" target="_blank" rel="noopener">{{ 'View public page'|t }}</a>{% endif %}{% if a %} · {{ 'Helpful'|t }}: {{ a.helpful_yes }} / {{ 'Not helpful'|t }}: {{ a.helpful_no }}{% endif %}</p></div></div>
+<form method="post" action="{{ a ? '/admin/help/articles/' ~ a.id : '/admin/help/articles' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card"><div class="card-body">
+            {{ f.input('title', 'Title', a.title|default(''), 'text', {required: true, maxlength: 200}) }}
+            {{ f.textarea('body', 'Text (Markdown)', a.body|default(''), {rows: 18, class: 'mono', help: 'Supported: # headings, **bold**, *italic*, `code`, lists, > quotes, ``` code blocks and [links](https://…). HTML is shown as text.'}) }}
+        </div></div>
+        <div>
+            <div class="card"><div class="card-body">
+                {{ f.select('category_id', 'Category', categories, category_id) }}
+                {{ f.input('slug', 'Address (slug)', a.slug|default(''), 'text', {maxlength: 120, help: 'Lowercase letters, digits and dashes; created from the title when empty.'}) }}
+                {{ f.input('sort_order', 'Order', a.sort_order|default(0), 'number') }}
+                {{ f.checkbox('is_published', 'Published (otherwise draft)', a ? a.is_published : false) }}
+            </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div></div>
+            {% if preview %}
+            <div class="card mt-2"><div class="card-header"><h2>{{ 'Preview'|t }}</h2></div><div class="card-body help-body">{{ preview }}</div></div>
+            {% endif %}
+        </div>
+    </div>
+</form>
+{% if a %}
+<form method="post" action="/admin/help/articles/{{ a.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this article?'|t }}">
+    {{ csrf_field() }}
+    <button class="btn btn-outline btn-danger" type="submit">{{ 'Delete article'|t }}</button>
+</form>
+{% endif %}
+{% endblock %}

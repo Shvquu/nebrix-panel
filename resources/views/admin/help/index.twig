@@ -1,0 +1,52 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Help center'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Help center'|t }}</h1><p class="muted">{{ 'Articles answer frequent questions before customers open a ticket. Only published articles in published categories are public.'|t }} <a href="/help" target="_blank" rel="noopener">/help</a></p></div>
+    <div><a class="btn btn-outline" href="/admin/help/categories/create">{{ 'New category'|t }}</a> {% if categories is not empty %}<a class="btn btn-primary" href="/admin/help/articles/create{{ filter_category ? '?category=' ~ filter_category : '' }}">{{ 'New article'|t }}</a>{% endif %}</div></div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Categories'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Title'|t }}</th><th>{{ 'Address'|t }}</th><th>{{ 'Articles'|t }}</th><th>{{ 'Order'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for c in categories %}
+            <tr>
+                <td><a href="/admin/help?category={{ c.id }}"><strong>{{ c.title }}</strong></a>{% if c.description %}<div class="small muted">{{ c.description }}</div>{% endif %}</td>
+                <td class="mono small">/help/{{ c.slug }}</td>
+                <td>{{ c.article_count }}</td>
+                <td>{{ c.sort_order }}</td>
+                <td>{% if c.is_published %}<span class="badge badge-success">{{ 'published'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'hidden'|t }}</span>{% endif %}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/help/categories/{{ c.id }}">{{ 'Edit'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No categories yet. Create a category first, then add articles to it.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Articles'|t }}</h2>
+        <form method="get" action="/admin/help" class="inline">
+            {% if filter_category %}<input type="hidden" name="category" value="{{ filter_category }}">{% endif %}
+            <label class="sr-only" for="help-admin-search">{{ 'Search'|t }}</label>
+            <input id="help-admin-search" type="search" name="search" value="{{ search }}" maxlength="100" placeholder="{{ 'Search by title …'|t }}">
+            <button class="btn btn-sm btn-outline" type="submit">{{ 'Search'|t }}</button>
+            {% if filter_category or search %}<a class="btn btn-sm btn-outline" href="/admin/help">{{ 'Show all'|t }}</a>{% endif %}
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Title'|t }}</th><th>{{ 'Category'|t }}</th><th>{{ 'Helpful'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Updated'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for a in articles %}
+            <tr>
+                <td><strong>{{ a.title }}</strong><div class="mono small muted">/help/{{ a.category_slug }}/{{ a.slug }}</div></td>
+                <td>{{ a.category_title }}</td>
+                <td class="nowrap">{{ 'Yes'|t }} {{ a.helpful_yes }} · {{ 'No'|t }} {{ a.helpful_no }}</td>
+                <td>{% if a.is_published %}<span class="badge badge-success">{{ 'published'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'draft'|t }}</span>{% endif %}</td>
+                <td class="nowrap">{{ a.updated_at|dt }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/help/articles/{{ a.id }}">{{ 'Edit'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No articles.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

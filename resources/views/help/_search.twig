@@ -1,0 +1,8 @@
+{# Search box of the help center. Parameter: query #}
+{% import 'macros/icons.twig' as i %}
+<form class="site-domain-search site-domain-search-lg help-search" method="get" action="/help/search" role="search">
+    {{ i.icon('search') }}
+    <label class="sr-only" for="help-q">{{ 'Search the help center'|t }}</label>
+    <input id="help-q" type="search" name="q" value="{{ query|default('') }}" maxlength="200" placeholder="{{ 'How can we help you?'|t }}">
+    <button class="site-btn site-btn-primary" type="submit">{{ 'Search'|t }}</button>
+</form>

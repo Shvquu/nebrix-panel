@@ -92,6 +92,7 @@
             <ul>
                 {% if about_page %}<li><a href="/about">{{ 'About us'|t }}</a></li>{% endif %}
                 <li><a href="/status">{{ 'Service status'|t }}</a></li>
+                {% if setting('support.help_center_enabled') %}<li><a href="/help">{{ 'Help center'|t }}</a></li>{% endif %}
                 <li><a href="{{ auth_user ? '/dashboard' : '/login' }}">{{ 'Customer area'|t }}</a></li>
                 {% if brand.support_email %}<li><a href="mailto:{{ brand.support_email }}">{{ brand.support_email }}</a></li>{% endif %}
             </ul>

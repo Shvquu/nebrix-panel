@@ -1,0 +1,24 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set c = category %}
+{% block title %}{{ c ? c.title : 'New category'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ c ? c.title : 'New category'|t }}</h1><p class="muted"><a href="/admin/help">&larr; {{ 'Help center'|t }}</a></p></div></div>
+<form method="post" action="{{ c ? '/admin/help/categories/' ~ c.id : '/admin/help/categories' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="card"><div class="card-body">
+        {{ f.input('title', 'Title', c.title|default(''), 'text', {required: true, maxlength: 150}) }}
+        {{ f.input('slug', 'Address (slug)', c.slug|default(''), 'text', {maxlength: 80, help: 'Lowercase letters, digits and dashes; created from the title when empty.'}) }}
+        {{ f.input('description', 'Short description', c.description|default(''), 'text', {maxlength: 255}) }}
+        {{ f.input('sort_order', 'Order', c.sort_order|default(0), 'number') }}
+        {{ f.checkbox('is_published', 'Published', c ? c.is_published : true) }}
+    </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div></div>
+</form>
+{% if c %}
+<form method="post" action="/admin/help/categories/{{ c.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this category?'|t }}">
+    {{ csrf_field() }}
+    <button class="btn btn-outline btn-danger" type="submit">{{ 'Delete category'|t }}</button>
+    <span class="small muted">{{ 'Only possible while the category has no articles.'|t }}</span>
+</form>
+{% endif %}
+{% endblock %}
