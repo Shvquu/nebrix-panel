@@ -1,0 +1,61 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'DNS records'|t }} · {{ service.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'DNS records'|t }}{% if zone %} <span class="mono">{{ zone.domain }}</span>{% endif %}</h1><p class="muted">{{ service.name }} · <a href="/services/{{ service.id }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+{% if error %}<div class="alert alert-warning">{{ error|t }}</div>{% endif %}
+{% if zone and not zone.hosted %}<div class="alert alert-info">{{ 'The DNS zone of this domain is not hosted with us. Manage the records where the name servers of the domain point to.'|t }}</div>{% endif %}
+
+{% if zone and zone.hosted %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Records'|t }}</h2><span class="muted small">{{ ':count of :max'|t({count: zone.records|length, max: max_records}) }}</span></div>
+    <div class="table-wrap"><table class="table dns-records">
+        <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Priority'|t }}</th><th>{{ 'Value'|t }}</th>{% if zone.ttl %}<th>TTL</th>{% endif %}<th></th></tr></thead>
+        <tbody>
+        {% for r in zone.records %}
+            <tr>
+                <td class="mono">{{ r.name }}</td>
+                <td><span class="badge badge-neutral">{{ r.type }}</span></td>
+                <td>{{ r.prio ?? '' }}</td>
+                <td class="mono small content">{{ r.content }}</td>
+                {% if zone.ttl %}<td class="small">{{ r.ttl ?? '' }}</td>{% endif %}
+                <td class="actions">
+                    {% if not r.editable %}<span class="small muted">{{ 'managed by the registrar'|t }}</span>
+                    {% elseif may_manage %}
+                        <a class="btn btn-sm btn-outline" href="/services/{{ service.id }}/dns?edit={{ r.id }}#record-form">{{ 'Edit'|t }}</a>
+                        <form method="post" action="/services/{{ service.id }}/dns/records/delete" class="inline" data-confirm="{{ 'Delete this DNS record?'|t }}">
+                            {{ csrf_field() }}<input type="hidden" name="record" value="{{ r.id }}"><button class="btn btn-sm btn-danger" type="submit">{{ 'Delete'|t }}</button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="muted">{{ 'The zone has no records yet.'|t }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+{% if may_manage and (editing or zone.records|length < max_records) %}
+<div class="card" id="record-form">
+    <div class="card-header"><h2>{{ editing ? 'Edit record'|t : 'Add a record'|t }}</h2>{% if editing %}<a class="small" href="/services/{{ service.id }}/dns">{{ 'Cancel'|t }}</a>{% endif %}</div>
+    <div class="card-body">
+        <form method="post" action="/services/{{ service.id }}/dns/records{{ editing ? '/update' : '' }}" class="dns-form" novalidate>
+            {{ csrf_field() }}
+            {% if editing %}<input type="hidden" name="record" value="{{ editing.id }}">{% endif %}
+            <div class="form-grid">
+                {{ f.select('type', 'Type', types, editing.type|default('A')) }}
+                {{ f.input('name', 'Name', editing.name|default('@'), 'text', {maxlength: 200, help: '@ for the domain itself, e.g. www, mail or _sip._tcp'}) }}
+                {{ f.input('prio', 'Priority (MX, SRV)', editing.prio|default(''), 'number', {min: 0, max: 65535}) }}
+                {% if zone.ttl %}{{ f.input('ttl', 'TTL (seconds)', editing.ttl|default(3600), 'number', {min: 300, max: 86400}) }}{% endif %}
+            </div>
+            {{ f.input('content', 'Value', editing.content|default(''), 'text', {required: true, maxlength: 1024, help: 'A: IPv4 address · AAAA: IPv6 address · CNAME/MX: host name · TXT: text · SRV: weight port target (e.g. 5 5060 sip.example.com) · CAA: flags tag value (e.g. 0 issue "letsencrypt.org")'}) }}
+            <button class="btn btn-primary" type="submit">{{ editing ? 'Save record'|t : 'Add record'|t }}</button>
+        </form>
+        {% if not zone.ttl %}<p class="small muted mt-1">{{ 'The registrar uses its default TTL for all records.'|t }}</p>{% endif %}
+        <p class="small muted">{{ 'Wrong records can make your website or e-mail unreachable. Changes can take a while to propagate.'|t }}</p>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

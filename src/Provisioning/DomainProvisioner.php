@@ -310,6 +310,22 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
         return $info;
     }
 
+    /**
+     * The service's domain and its registrar after checking that the domain
+     * still belongs to the service (DNS management).
+     *
+     * @return array{0: string, 1: Registrar, 2: Integration}
+     *
+     * @throws IntegrationException
+     */
+    public function verifiedDomain(Service $service): array
+    {
+        [$integration, $registrar] = $this->client($service);
+        $this->ownedInfo($service, $registrar);
+
+        return [$this->domain($service), $registrar, $integration];
+    }
+
     private function heldByOtherService(string $domain, int $exceptServiceId): bool
     {
         return (int) $this->db->fetchValue(

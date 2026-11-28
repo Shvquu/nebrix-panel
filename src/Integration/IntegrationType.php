@@ -126,6 +126,7 @@ final class IntegrationType
                     'environment' => ['label' => 'Environment', 'rules' => 'required|in:ote,live', 'default' => 'ote', 'type' => 'select', 'options' => ['ote' => 'OTE test system (no costs)', 'live' => 'Live']],
                     'username' => ['label' => 'INWX user name', 'rules' => 'required|string|max:100|regex:/^[A-Za-z0-9._@-]+$/'],
                     'nameservers' => ['label' => 'Default name servers (one per line)', 'rules' => 'required|string|max:1000', 'default' => "ns.inwx.de\nns2.inwx.de\nns3.inwx.eu", 'type' => 'text'],
+                    'dns_management' => ['label' => 'Customers manage the DNS records of their domains', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'Only for domains whose zone is hosted at INWX (name server API). Changes are applied directly and audit-logged.'],
                     'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
                 ],
                 'secrets' => [
@@ -139,6 +140,7 @@ final class IntegrationType
                 'config' => [
                     'environment' => ['label' => 'Environment', 'rules' => 'required|in:sandbox,live', 'default' => 'sandbox', 'type' => 'select', 'options' => ['sandbox' => 'Sandbox (validates, changes nothing, no costs)', 'live' => 'Live']],
                     'nameservers' => ['label' => 'Default name servers (one per line, 2 to 6)', 'rules' => 'nullable|string|max:1000', 'type' => 'text', 'help' => 'Empty = the default name servers of the SKRIME account.'],
+                    'dns_management' => ['label' => 'Customers manage the DNS records of their domains', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'Only for domains whose zone is hosted at SKRIME. SKRIME replaces the whole zone with every change; records the panel does not edit are kept.'],
                     'accept_terms' => ['label' => 'I accept the SKRIME terms of service for orders placed by the panel and agree that SKRIME starts them immediately (no withdrawal)', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'SKRIME requires this confirmation with every order; without it the panel places no orders.'],
                 ],
                 'secrets' => [

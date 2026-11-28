@@ -6,19 +6,25 @@ use Nebrix\Controller\Account\SshKeyController;
 use Nebrix\Controller\Admin\IpPoolController;
 use Nebrix\Controller\Admin\ServerController as AdminServerController;
 use Nebrix\Controller\Admin\ServerTemplateController;
+use Nebrix\Controller\Customer\DnsController;
 use Nebrix\Controller\Customer\ServerController;
 use Nebrix\Http\Router;
 
 /*
- * Server self-service: SSH keys, snapshots, resource graphs, reverse DNS
- * (customers) and server templates, graphs, additional IPv4 addresses and
- * the reverse DNS setting of IP pools (staff).
+ * Server self-service: SSH keys, DNS records of domains, snapshots, resource
+ * graphs, reverse DNS (customers) and server templates, graphs, additional
+ * IPv4 addresses and the reverse DNS setting of IP pools (staff).
  */
 return static function (Router $r): void {
     $r->group(['middleware' => ['auth', 'verified']], static function (Router $r): void {
         $r->get('/account/ssh-keys', [SshKeyController::class, 'index']);
         $r->post('/account/ssh-keys', [SshKeyController::class, 'store']);
         $r->post('/account/ssh-keys/{id:\d+}/delete', [SshKeyController::class, 'delete']);
+
+        $r->get('/services/{id:\d+}/dns', [DnsController::class, 'show']);
+        $r->post('/services/{id:\d+}/dns/records', [DnsController::class, 'create']);
+        $r->post('/services/{id:\d+}/dns/records/update', [DnsController::class, 'update']);
+        $r->post('/services/{id:\d+}/dns/records/delete', [DnsController::class, 'delete']);
 
         $r->get('/services/{id:\d+}/snapshots', [ServerController::class, 'snapshots']);
         $r->post('/services/{id:\d+}/snapshots', [ServerController::class, 'createSnapshot']);

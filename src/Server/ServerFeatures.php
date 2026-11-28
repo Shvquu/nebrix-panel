@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Server;
 
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Domain\Dns\DnsZoneService;
 use Nebrix\Network\IpPoolService;
 use Nebrix\Server\Graphs\ResourceGraphs;
 use Nebrix\Server\ReverseDns\ReverseDnsService;
@@ -12,13 +13,14 @@ use Nebrix\Server\Snapshots\SnapshotService;
 use Nebrix\Service\Service;
 
 /**
- * Which self-service pages (snapshots, graphs, reverse DNS) a service
+ * Which self-service pages (DNS, snapshots, graphs, reverse DNS) a service
  * offers, and its additional IPv4 addresses – for the service pages. Only
  * local checks; the pages themselves check again before every remote call.
  */
 class ServerFeatures
 {
     public function __construct(
+        private readonly DnsZoneService $dns,
         private readonly SnapshotService $snapshots,
         private readonly ResourceGraphs $graphs,
         private readonly ReverseDnsService $rdns,
@@ -27,7 +29,7 @@ class ServerFeatures
     }
 
     /**
-     * @return array{snapshots: bool, graphs: bool, rdns: bool, additional_ips: list<array{id: int, address: string, prefix: int, gateway: string, netmask: string, guest_interface: string, addon_key: string}>, ipv4_pool: bool}
+     * @return array{dns: bool, snapshots: bool, graphs: bool, rdns: bool, additional_ips: list<array{id: int, address: string, prefix: int, gateway: string, netmask: string, guest_interface: string, addon_key: string}>, ipv4_pool: bool}
      */
     public function forService(Service $service): array
     {
@@ -40,6 +42,7 @@ class ServerFeatures
         }
 
         return [
+            'dns' => $this->dns->available($service),
             'snapshots' => $this->snapshots->available($service),
             'graphs' => $this->graphs->available($service),
             'rdns' => $this->rdns->available($service),
