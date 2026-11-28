@@ -1,0 +1,11 @@
+{# Billing cycle of a website card or configurator (p.cycles > 1): every price comes from the server as a data attribute; website.js only swaps the texts. #}
+{% set cycle_names = {'monthly': 'Monthly', 'quarterly': 'Quarterly', 'semiannually': 'Every 6 months', 'annually': 'Annually'} %}
+{% set cycle_units = {'monthly': 'per month'|t, 'quarterly': 'per quarter'|t, 'semiannually': 'per half year'|t, 'annually': 'per year'|t} %}
+<div class="site-cycle">
+    <label class="site-small site-muted" for="cycle-{{ p.id }}">{{ 'Billing cycle'|t }}</label>
+    <select id="cycle-{{ p.id }}" name="cycle" class="site-cycle-select" data-cycle-select data-month-template="{{ ':price per month'|t({price: '{price}'}) }}">
+        {% for c in p.cycles %}
+        <option value="{{ c.cycle }}"{% if c.default %} selected{% endif %} data-price="{{ c.gross|money(p.currency) }}" data-unit="{{ cycle_units[c.cycle]|default('') }}" data-month="{{ c.months > 1 ? ':price per month'|t({price: c.per_month_gross|money(p.currency)}) : '' }}" data-saving="{{ c.saving_gross > 0 ? 'You save :amount'|t({amount: c.saving_gross|money(p.currency)}) : '' }}" data-was="{{ c.reference_gross ? c.reference_gross|money(p.currency) : '' }}" data-then="{{ 'then :price'|t({price: c.then_gross|money(p.currency)}) }}" data-then-amount="{{ c.then_gross|money(p.currency) }}" data-num="{{ c.num }}" data-den="{{ c.den }}" data-bp="{{ c.bp }}" data-reference="{{ c.reference_net }}">{{ cycle_names[c.cycle]|default(c.cycle)|t }}{% if c.bp > 0 %} (−{{ c.percent }} %){% endif %} – {{ c.gross|money(p.currency) }}</option>
+        {% endfor %}
+    </select>
+</div>

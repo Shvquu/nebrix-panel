@@ -19,6 +19,8 @@ class InvoiceRepository
     public const TYPE_CREDIT = 'credit';
     /** Prorated difference for switching a service to a larger package. */
     public const TYPE_UPGRADE = 'upgrade';
+    /** Add-on booked for a running service: prorated price for the rest of the term plus setup fee. */
+    public const TYPE_ADDON = 'addon';
     /** Cancellation or correction document referring to an invoice (positive amounts). */
     public const TYPE_CREDIT_NOTE = 'credit_note';
     /** Status of correction documents (they are not paid, they are issued). */

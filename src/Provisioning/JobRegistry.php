@@ -28,6 +28,8 @@ final class JobRegistry
             \Nebrix\Server\Snapshots\SnapshotService::JOB_TYPE => \Nebrix\Server\Snapshots\SnapshotJob::class,
             \Nebrix\Server\AdditionalIpv4Job::JOB_TYPE => \Nebrix\Server\AdditionalIpv4Job::class,
             \Nebrix\Marketing\NewsletterCampaigns::JOB_BATCH => \Nebrix\Marketing\NewsletterBatchJob::class,
+            \Nebrix\Service\Addon\AddonService::JOB_PROVISION => \Nebrix\Service\Addon\ProvisionAddonJob::class,
+            \Nebrix\Service\Addon\AddonService::JOB_DEPROVISION => \Nebrix\Service\Addon\DeprovisionAddonJob::class,
         ];
     }
 }

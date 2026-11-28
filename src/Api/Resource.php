@@ -121,6 +121,7 @@ final class Resource
                 'recurring_total' => $quote['recurring'],
             ],
             'in_stock' => $product['stock'] === null || (int) $product['stock'] > 0,
+            'billing_cycles' => \Nebrix\Catalog\ProductPricing::cycles($product),
             'order_options' => $options,
             // Configurable servers: order options cores, memory_gb and disk_gb within these ranges
             // (price = base price + steps above the minimum × step price, net per billing period).

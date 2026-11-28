@@ -1,0 +1,87 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Cart'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Cart'|t }}</h1><p class="muted">{{ 'Prices include the VAT that applies to you.'|t }} · <a href="/store">{{ 'Continue shopping'|t }}</a></p></div></div>
+{% if entries is empty %}
+    <div class="card"><div class="empty">{{ 'Your cart is empty.'|t }} <a href="/store">{{ 'Order new service'|t }}</a></div></div>
+{% else %}
+{% set currency = prices ? prices.currency : 'EUR' %}
+<div class="grid grid-2 p-cart">
+    <div>
+        {% for e in entries %}
+        {% set line = e.line %}
+        <div class="card p-cart-item">
+            <div class="card-header">
+                <h2>{{ e.product.name|default('–') }}{% if e.item.input.hostname is defined %} <span class="muted small">{{ e.item.input.hostname }}</span>{% elseif e.item.input.server_name is defined %} <span class="muted small">{{ e.item.input.server_name }}</span>{% elseif e.item.input.domain is defined %} <span class="muted small">{{ e.item.input.domain }}</span>{% endif %}</h2>
+                {% if line %}<strong>{{ line.price|money(currency) }}</strong>{% endif %}
+            </div>
+            <div class="card-body">
+                {% if e.problem %}<div class="alert alert-warning">{{ e.problem|t }}</div>{% endif %}
+                <dl class="details">
+                    <dt>{{ 'Billing cycle'|t }}</dt><dd>{{ cycles[e.item.billing_cycle]|default(e.item.billing_cycle)|t }}</dd>
+                    {% if e.item.configuration is not empty %}<dt>{{ 'Configuration'|t }}</dt><dd>{% for name, value in e.item.configuration %}{{ name|humanize|t }}: {{ value }}{{ loop.last ? '' : ', ' }}{% endfor %}</dd>{% endif %}
+                    {% if line %}
+                        {% if line.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ line.setup_fee|money(currency) }}</dd>{% endif %}
+                        {% if line.promo > 0 %}<dt>{{ line.sale ? line.sale.name ~ ' ' : '' }}{{ 'Promotion −:percent %'|t({percent: line.promo_bp / 100}) }}</dt><dd>−{{ line.promo|money(currency) }} <span class="small muted">{{ 'also on renewals'|t }}</span></dd>{% endif %}
+                        {% if line.first_promo > 0 %}<dt>{{ line.sale ? line.sale.name ~ ' ' : '' }}{{ 'Promotion −:percent %'|t({percent: line.first_bp / 100}) }}</dt><dd>−{{ line.first_promo|money(currency) }} <span class="small muted">{{ 'first billing period only'|t }}</span></dd>{% endif %}
+                        {% if line.group > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ line.group|money(currency) }}</dd>{% endif %}
+                        {% if line.first_discount > 0 %}<dt>{{ 'First year discount'|t }}</dt><dd>−{{ line.first_discount|money(currency) }}</dd>{% endif %}
+                        {% if line.coupon > 0 %}<dt>{{ 'Coupon :code'|t({code: prices.coupon.code}) }}</dt><dd>−{{ line.coupon|money(currency) }}</dd>{% endif %}
+                        {% for a in line.addons %}<dt>{{ 'Add-on'|t }}: {{ a.addon.name }} × {{ a.quantity }}</dt><dd>{{ a.price|money(currency) }}{% if a.setup_fee > 0 %} + {{ a.setup_fee|money(currency) }} {{ 'setup fee'|t }}{% endif %}{% if a.discount > 0 %} − {{ a.discount|money(currency) }}{% endif %}</dd>{% endfor %}
+                        <dt>{{ 'Renews at'|t }}</dt><dd>{{ line.recurring|money(currency) }} {{ 'net'|t }} {{ cycles[line.cycle]|default(line.cycle)|t }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+            <div class="card-footer filters">
+                {% if e.product %}<a class="btn btn-sm btn-outline" href="/store/{{ e.product.slug }}?cart_item={{ e.item.id }}&amp;cycle={{ e.item.billing_cycle }}">{{ 'Change'|t }}</a>{% endif %}
+                <form method="post" action="/cart/items/{{ e.item.id }}/remove" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Remove'|t }}</button></form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div>
+        <form method="post" action="/cart/coupon" class="card p-coupon" novalidate>
+            {{ csrf_field() }}
+            <div class="card-body filters">
+                <div class="form-row">
+                    <label for="f-cart-coupon">{{ 'Coupon code'|t }}</label>
+                    <input id="f-cart-coupon" type="text" name="coupon" value="{{ coupon }}" maxlength="40" autocomplete="off" class="{{ coupon_error ? 'is-invalid' : '' }}">
+                    {% if coupon_error %}<div class="field-error">{{ coupon_error|t }}</div>{% endif %}
+                </div>
+                <button class="btn btn-outline" type="submit">{{ 'Apply'|t }}</button>
+                {% if prices and prices.coupon %}<span class="badge badge-success badge-sentence">{{ 'Coupon :code applied'|t({code: prices.coupon.code}) }}{% if prices.coupon.duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span>{% endif %}
+            </div>
+        </form>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Summary'|t }}</h2></div>
+            <div class="card-body">
+                {% if prices %}
+                <dl class="details">
+                    <dt>{{ 'Subtotal'|t }}</dt><dd>{{ prices.subtotal|money(currency) }}</dd>
+                    {% if prices.bundle and prices.bundle_discount > 0 %}<dt>{{ 'Bundle :name'|t({name: prices.bundle.name}) }}</dt><dd>−{{ prices.bundle_discount|money(currency) }} <span class="small muted">{{ prices.bundle.permanent ? 'also on renewals'|t : 'first billing period only'|t }}</span></dd>{% endif %}
+                    {% if prices.discount - prices.bundle_discount > 0 %}<dt>{{ 'Other discounts'|t }}</dt><dd>−{{ (prices.discount - prices.bundle_discount)|money(currency) }}</dd>{% endif %}
+                    <dt>{{ 'Net'|t }}</dt><dd>{{ prices.net|money(currency) }}</dd>
+                    <dt>{{ 'Tax'|t }}</dt><dd>{{ prices.tax|money(currency) }}</dd>
+                    <dt><strong>{{ 'Due today'|t }}</strong></dt><dd><strong>{{ prices.total|money(currency) }}</strong></dd>
+                </dl>
+                {% endif %}
+                {% if can_checkout %}
+                <form method="post" action="/cart/checkout" novalidate>
+                    {{ csrf_field() }}
+                    <input type="hidden" name="total" value="{{ prices.total }}">
+                    <div class="form-row mt-2">
+                        <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"> <span>{{ 'I accept the'|t }} {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}.</span></label>
+                        {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
+                    </div>
+                    {% include 'marketing/_review_consent.twig' %}
+                    <button class="btn btn-primary btn-block" type="submit">{{ 'Order with obligation to pay'|t }}</button>
+                </form>
+                {% else %}
+                    <p class="muted">{{ 'Please change or remove the marked items to order.'|t }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

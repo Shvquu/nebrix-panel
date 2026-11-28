@@ -1,0 +1,36 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set b = bundle %}
+{% block title %}{{ b ? b.name : 'New bundle'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ b ? b.name : 'New bundle'|t }}</h1><p class="muted"><a href="/admin/bundles">&larr; {{ 'Bundles'|t }}</a>{% if b %} · <span class="badge {{ state == 'running' ? 'badge-success' : (state == 'planned' ? 'badge-info' : 'badge-neutral') }}">{{ state|t }}</span> · {{ ':n orders'|t({n: b.orders}) }}{% endif %}</p></div></div>
+<form method="post" action="{{ b ? '/admin/bundles/' ~ b.id : '/admin/bundles' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Bundle'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', b.name|default(''), 'text', {required: true, maxlength: 100, help: 'Shown to customers in the cart, e.g. "Server + domain".'}) }}
+                {{ f.input('description', 'Description', b.description|default(''), 'text', {maxlength: 255}) }}
+                {{ f.select('discount_type', 'Discount type', {'percent': 'Percentage of the list prices', 'fixed': 'Fixed amount'}, b.discount_type|default('percent')) }}
+                {{ f.input('amount', 'Discount', amount, 'text', {required: true, inputmode: 'decimal', help: 'Percent (1 to 90) or an amount in the currency below.'}) }}
+                {{ f.select('currency', 'Currency (fixed amounts)', currencies, currency) }}
+                {{ f.select('permanent', 'Applies to', {'1': 'First invoice and every renewal', '0': 'First billing period only'}, b ? (b.permanent ? '1' : '0') : '1') }}
+                {{ f.input('starts_at', 'Start (empty = now)', starts_at, 'datetime-local') }}
+                {{ f.input('ends_at', 'End (empty = no end)', ends_at, 'datetime-local') }}
+                {{ f.checkbox('is_active', 'Active', b ? b.is_active : true) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Contents'|t }}</h2></div>
+            <div class="card-body">
+                <p class="small muted">{{ 'Choose 2 to 5 products or categories. Each one needs its own item in the cart (two categories "Domain" = two domains).'|t }}</p>
+                {{ f.multiselect('product_ids', 'Products', products, selected_products) }}
+                {{ f.multiselect('categories', 'Categories', categories, selected_categories) }}
+                <p class="small muted">{{ 'A bundle never adds up with a promotion or sale on the same items: it applies only when it saves more and then replaces them. Customer-group discounts and coupons apply on top. Add-ons are not part of bundles.'|t }}</p>
+            </div>
+        </div>
+    </div>
+    {% if can('products.manage') %}<div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+{% endblock %}

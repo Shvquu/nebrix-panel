@@ -96,6 +96,8 @@ final class ServiceController extends Controller
                 ? $this->changes->adminTargets($service, $owner) : [],
             // Graphs and additional IPv4 addresses (server self-service).
             'server_features' => $this->container->get(\Nebrix\Server\ServerFeatures::class)->forService($service),
+            // Booked add-ons (orders area).
+            'service_addons' => $this->container->get(\Nebrix\Service\Addon\AddonRepository::class)->forService($id),
         ]);
     }
 

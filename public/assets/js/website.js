@@ -64,8 +64,40 @@
     update();
   });
 
+  // Billing cycle of a package card: the server rendered every cycle's prices into the options.
+  document.querySelectorAll('[data-cycle-select]').forEach(function (select) {
+    var scope = select.closest('[data-cycle-scope]');
+    if (!scope) { return; }
+    var set = function (selector, text) {
+      scope.querySelectorAll(selector).forEach(function (element) { element.textContent = text; });
+    };
+    var update = function () {
+      var option = select.options[select.selectedIndex];
+      if (!option) { return; }
+      set('[data-cycle-unit]', option.getAttribute('data-unit') || '');
+      if (scope.hasAttribute('data-configurator')) { return; } // the configurator calculates its own prices
+      set('[data-cycle-price]', option.getAttribute('data-price') || '');
+      set('[data-cycle-month]', option.getAttribute('data-month') || '');
+      set('[data-cycle-saving]', option.getAttribute('data-saving') || '');
+      set('[data-cycle-then]', option.getAttribute('data-then') || '');
+      var was = option.getAttribute('data-was') || '';
+      scope.querySelectorAll('[data-cycle-was-box]').forEach(function (box) {
+        var strike = box.querySelector('s');
+        if (strike) { strike.textContent = was; }
+        box.classList.toggle('hidden', was === '');
+      });
+    };
+    select.addEventListener('change', update);
+    update();
+  });
+
   // Configurator price preview: base + steps × step price (net), promotion and VAT rounded half up like the server.
   var roundShare = function (amount, bp) { return bp > 0 ? Math.floor((amount * bp + 5000) / 10000) : 0; };
+  // Price of the product's own cycle scaled to another one (num/den months) less the cycle's discount.
+  var scaleCycle = function (amount, num, den, bp) {
+    var scaled = num > 0 && den > 0 && num !== den ? Math.floor((amount * num * 2 + den) / (2 * den)) : amount;
+    return scaled - roundShare(scaled, bp);
+  };
   document.querySelectorAll('[data-configurator]').forEach(function (form) {
     var output = form.querySelector('[data-price]');
     if (!output) { return; }
@@ -88,7 +120,14 @@
     var savingBox = form.querySelector('[data-saving-box]');
     var was = form.querySelector('[data-was]');
     var wasBox = form.querySelector('[data-was-box]');
+    var cycle = form.querySelector('[data-cycle-select]');
+    var month = form.querySelector('[data-month]');
     var update = function () {
+      var option = cycle ? cycle.options[cycle.selectedIndex] : null;
+      var num = option ? parseInt(option.getAttribute('data-num'), 10) || 1 : 1;
+      var den = option ? parseInt(option.getAttribute('data-den'), 10) || 1 : 1;
+      var cycleBp = option ? parseInt(option.getAttribute('data-bp'), 10) || 0 : 0;
+      var cycleReference = option ? parseInt(option.getAttribute('data-reference'), 10) || 0 : 0;
       var extra = 0;
       ranges.forEach(function (range) {
         var min = parseInt(range.min, 10) || 0;
@@ -100,12 +139,15 @@
           item.textContent = item.getAttribute('data-template').replace('{n}', range.value);
         }
       });
-      var list = base + extra;
+      var list = scaleCycle(base + extra, num, den, cycleBp);
       var price = gross(list - roundShare(list, promo));
       output.textContent = money(price);
+      if (month && cycle) {
+        month.textContent = num > 1 ? (cycle.getAttribute('data-month-template') || '{price}').replace('{price}', money(Math.floor((price * 2 + num) / (2 * num)))) : '';
+      }
       if (then) { then.textContent = money(gross(list - roundShare(list, promoThen))); }
       if (promo > 0) {
-        var previous = gross(reference + extra);
+        var previous = gross((cycle ? cycleReference : reference) + (cycle ? scaleCycle(extra, num, den, cycleBp) : extra));
         var show = previous > price;
         if (was) { was.textContent = money(previous); }
         if (saving) { saving.textContent = money(previous - price); }
@@ -114,6 +156,7 @@
       }
     };
     ranges.forEach(function (range) { range.addEventListener('input', update); });
+    if (cycle) { cycle.addEventListener('change', update); }
     update();
   });
 

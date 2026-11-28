@@ -1,0 +1,80 @@
+{# Add-ons and billing cycle of a service (included in customer/services/show.twig). #}
+{% set cycle_labels = {'monthly': 'Monthly', 'quarterly': 'Quarterly', 'semiannually': 'Every 6 months', 'annually': 'Annually', 'one_time': 'One-time'} %}
+{% if addons is defined and addons and (addons.booked is not empty or addons.offers is not empty) %}
+<div class="card mt-2 p-service-addons">
+    <div class="card-header"><h2>{{ 'Add-ons'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Add-on'|t }}</th><th>{{ 'Status'|t }}</th><th class="text-right">{{ 'Price'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for a in addons.booked %}
+            <tr>
+                <td><strong>{{ a.name }}</strong> × {{ a.quantity }}
+                    {% for key, value in a.details %}{% if value is not same as(null) and value != '' %}<div class="small mono">{{ key == 'info' ? '' : key ~ ': ' }}{{ value }}</div>{% endif %}{% endfor %}
+                    {% if a.cancel_at %}<div class="small muted">{{ 'Cancelled – ends on :date'|t({date: a.cancel_at|d}) }}</div>{% endif %}
+                </td>
+                <td><span class="badge {{ a.status|status_class }}">{{ a.status|humanize|t }}</span></td>
+                <td class="text-right nowrap">{{ a.recurring_amount|money(a.currency) }} {{ 'net'|t }} / {{ cycle_labels[service.billingCycle]|default(service.billingCycle)|t }}</td>
+                <td class="actions">
+                    {% if may_manage and a.cancel_at is empty and a.status in ['pending_payment', 'pending', 'active', 'failed'] %}<a class="btn btn-sm btn-outline" href="/services/{{ service.id }}/addons/{{ a.id }}/cancel">{{ a.status == 'pending_payment' ? 'Withdraw booking'|t : 'Cancel'|t }}</a>{% endif %}
+                    {% if may_manage and a.cancel_at and a.status in ['pending', 'active', 'failed'] and a.cancel_at > now %}<form method="post" action="/services/{{ service.id }}/addons/{{ a.id }}/cancel/withdraw" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Take back cancellation'|t }}</button></form>{% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" class="empty">{{ 'No add-ons booked yet.'|t }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+    {% if may_manage and addons.offers is not empty %}
+    <div class="card-body">
+        {% if addons.blocker %}
+            <p class="muted">{{ addons.blocker|t }}</p>
+        {% else %}
+        <form method="post" action="/services/{{ service.id }}/addons" class="filters" novalidate>
+            {{ csrf_field() }}
+            <div class="form-row">
+                <label for="f-addon_id">{{ 'Book an add-on'|t }}</label>
+                <select id="f-addon_id" name="addon_id">
+                    {% for o in addons.offers %}{% if o.available > 0 %}<option value="{{ o.id }}">{{ o.name }} – {{ o.recurring|money(service.currency) }} {{ 'net'|t }} / {{ cycle_labels[service.billingCycle]|default(service.billingCycle)|t }}, {{ 'now :amount for the rest of the term'|t({amount: o.charge|money(service.currency)}) }}{% if o.setup > 0 %} + {{ o.setup|money(service.currency) }} {{ 'setup fee'|t }}{% endif %}</option>{% endif %}{% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="f-addon-quantity">{{ 'Quantity'|t }}</label>
+                <input id="f-addon-quantity" type="number" name="quantity" value="1" min="1" max="100">
+            </div>
+            <div class="form-row">
+                <label class="checkbox"><input type="checkbox" name="accept" value="1"> <span>{{ 'I book the add-on with costs.'|t }}</span></label>
+                {% if error('accept') %}<div class="field-error">{{ error('accept')|t }}</div>{% endif %}
+            </div>
+            <button class="btn btn-primary" type="submit">{{ 'Book with obligation to pay'|t }}</button>
+        </form>
+        <p class="small muted">{{ 'Prices per add-on unit, plus VAT. The first invoice covers the rest of the paid term; afterwards the add-on is renewed with the service.'|t }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% if cycle_change is defined and cycle_change %}
+<div class="card mt-2 p-service-cycle">
+    <div class="card-header"><h2>{{ 'Billing cycle'|t }}</h2></div>
+    <div class="card-body">
+        {% if cycle_change.pending %}
+            <p>{{ 'From the next renewal the service is billed :cycle for :amount (net).'|t({cycle: cycle_labels[cycle_change.pending]|default(cycle_change.pending)|t, amount: cycle_change.pending_amount|money(service.currency)}) }}</p>
+            {% if may_manage %}<form method="post" action="/services/{{ service.id }}/cycle/withdraw" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Take back'|t }}</button></form>{% endif %}
+        {% elseif cycle_change.blocker %}
+            <p class="muted">{{ cycle_change.blocker|t }}</p>
+        {% elseif may_manage %}
+        <form method="post" action="/services/{{ service.id }}/cycle" class="filters" novalidate>
+            {{ csrf_field() }}
+            <div class="form-row">
+                <label for="f-billing_cycle">{{ 'Billing cycle from the next renewal'|t }}</label>
+                <select id="f-billing_cycle" name="billing_cycle">
+                    {% for c in cycle_change.cycles %}<option value="{{ c.cycle }}"{% if c.cycle == cycle_change.current %} selected{% endif %}>{{ cycle_labels[c.cycle]|default(c.cycle)|t }} – {{ c.recurring|money(service.currency) }} {{ 'net'|t }} ({{ c.per_month|money(service.currency) }} {{ 'per month'|t }}){% if c.saving_bp > 0 %} · −{{ c.saving_bp / 100 }} %{% endif %}</option>{% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-outline" type="submit">{{ 'Change billing cycle'|t }}</button>
+        </form>
+        <p class="small muted">{{ 'The current term stays as it is; the next renewal invoice covers a period of the new cycle.'|t }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

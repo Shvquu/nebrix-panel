@@ -133,6 +133,10 @@ final class ProductController extends Controller
             'promo_percent' => $product !== null && (int) ($product['promo_bp'] ?? 0) > 0 ? rtrim(rtrim(number_format((int) $product['promo_bp'] / 100, 2, '.', ''), '0'), '.') : '',
             'promo_starts_at' => $this->toLocalInput($product['promo_starts_at'] ?? null),
             'promo_ends_at' => $this->toLocalInput($product['promo_ends_at'] ?? null),
+            // Additional billing cycles: cycle => discount in % (form values).
+            'cycle_options' => array_filter(BillingCycle::labels(), static fn (string $cycle): bool => BillingCycle::isRecurring($cycle), ARRAY_FILTER_USE_KEY),
+            'cycle_discounts' => array_map(static fn (int $bp): string => rtrim(rtrim(number_format($bp / 100, 2, '.', ''), '0'), '.'), $product['billing_cycles'] ?? []),
+            'offers_cycles' => $category !== ProductCategory::DOMAIN,
             // Previous lowest price that the website shows next to a running promotion (§ 11 PAngV).
             'reference_price' => $product !== null ? $this->products->lowestPriceBefore((int) $product['id'], (string) ($product['promo_starts_at'] ?? '') !== '' ? (string) $product['promo_starts_at'] : $this->clock()) : null,
         ]);
@@ -232,6 +236,7 @@ final class ProductController extends Controller
         }
 
         $currency = (string) $data['currency'];
+        $billingCycles = $this->billingCycles($request, $category, (string) $data['billing_cycle']);
         $configuratorErrors = ProductConfigurator::configErrors($config, $currency, $category);
         if ($configuratorErrors !== []) {
             throw new ValidationException(array_map(static fn (string $message): array => [$message], array_combine(array_map(static fn (string $key): string => 'config_' . $key, array_keys($configuratorErrors)), $configuratorErrors)), Validator::safeInput($request->all()));
@@ -246,6 +251,7 @@ final class ProductController extends Controller
             'setup_fee' => Money::parse((string) $data['setup_fee'], $currency),
             'currency' => $currency,
             'billing_cycle' => $data['billing_cycle'],
+            'billing_cycles' => $billingCycles,
             'tax_rate_bp' => (int) round((float) $data['tax_rate'] * 100),
             'stock' => $data['stock'],
             'is_visible' => $data['is_visible'],
@@ -262,6 +268,30 @@ final class ProductController extends Controller
             'promo_ends_at' => $promoBp > 0 ? $promoEnd : null,
             'provisioning_config' => $config,
         ];
+    }
+
+    /**
+     * Additional billing cycles of the form (cycle_<cycle> = offered,
+     * cycle_<cycle>_discount = discount in %): cycle => basis points.
+     * Domains and one-time products have their own cycle only.
+     *
+     * @return array<string, int>
+     */
+    private function billingCycles(Request $request, string $category, string $default): array
+    {
+        if ($category === ProductCategory::DOMAIN || !BillingCycle::isRecurring($default)) {
+            return [];
+        }
+        $cycles = [];
+        foreach (array_keys(BillingCycle::labels()) as $cycle) {
+            if ($cycle === $default || !BillingCycle::isRecurring($cycle) || $request->input('cycle_' . $cycle) !== '1') {
+                continue;
+            }
+            $data = $this->validate($request, ['cycle_' . $cycle . '_discount' => 'nullable|decimal|between:0,90'], ['cycle_' . $cycle . '_discount' => 'Discount (%)']);
+            $cycles[$cycle] = (int) round((float) ($data['cycle_' . $cycle . '_discount'] ?? 0) * 100);
+        }
+
+        return $cycles;
     }
 
     /** A date and time entered in the panel's time zone as UTC database time (null = invalid). */

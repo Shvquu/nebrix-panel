@@ -57,6 +57,7 @@
                 <button type="submit" aria-label="{{ 'Search'|t }}">{{ i.icon('search') }}</button>
             </form>
             <div class="topbar-actions">
+                {% if auth_user %}<a class="p-icon-btn" href="/cart" aria-label="{{ 'Cart'|t }}" title="{{ 'Cart'|t }}">{{ i.icon('cart') }}</a>{% endif %}
                 <button class="p-icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">{{ i.icon('theme') }}</button>
                 {% if auth_user %}
                 <a class="p-avatar-link" href="/account/profile" title="{{ auth_user.displayName }}"><span class="p-avatar">{{ auth_user.displayName|first|upper }}</span><span class="p-avatar-name">{{ auth_user.displayName }}</span></a>

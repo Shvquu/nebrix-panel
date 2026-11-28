@@ -2,7 +2,7 @@
 {% import 'macros/icons.twig' as i %}
 {% block title %}{{ 'Order new service'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Order new service'|t }}</h1><p class="muted">{{ 'Prices include the VAT that applies to you.'|t }}</p></div></div>
+<div class="page-header"><div><h1>{{ 'Order new service'|t }}</h1><p class="muted">{{ 'Prices include the VAT that applies to you.'|t }}</p></div>{% if cart_count > 0 %}<a class="btn btn-primary" href="/cart">{{ 'Cart'|t }} ({{ cart_count }})</a>{% endif %}</div>
 {% if sale %}<div class="alert alert-success"><strong>{{ sale.name }}</strong> · {{ (sale.permanent ? ':percent % off for the whole term' : ':percent % off the first billing period')|t({percent: sale.percent}) }} · {{ 'until :date'|t({date: sale.ends_at|dt}) }}</div>{% endif %}
 <nav class="p-chips" aria-label="{{ 'Product groups'|t }}">
     <a class="p-chip{{ group == '' ? ' is-active' : '' }}" href="/store">{{ i.icon('grid') }} {{ 'All'|t }}</a>
@@ -18,6 +18,7 @@
             <div class="card-body">
                 <div class="price">{{ p.quote.recurring|money(p.currency) }}</div>
                 <div class="small muted">{{ cycles[p.billing_cycle]|default(p.billing_cycle)|t }} {{ 'incl. tax'|t }}{% if p.setup_fee > 0 %} · {{ 'setup fee'|t }} {{ p.setup_fee|money(p.currency) }}{% endif %}</div>
+                {% if p.cycle_count > 1 %}<div class="small">{% if p.max_cycle_bp > 0 %}<span class="badge badge-success badge-sentence">{{ 'Save up to :percent % with a longer billing cycle'|t({percent: p.max_cycle_bp / 100}) }}</span>{% else %}{{ 'Several billing cycles available'|t }}{% endif %}</div>{% endif %}
                 {% if p.description %}<p class="mt-1">{{ p.description }}</p>{% endif %}
                 {% if p.feature_list|length > 0 %}<ul>{% for feature in p.feature_list %}<li>{{ feature }}</li>{% endfor %}</ul>{% endif %}
             </div>

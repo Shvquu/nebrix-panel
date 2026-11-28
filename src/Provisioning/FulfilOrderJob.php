@@ -12,6 +12,7 @@ final class FulfilOrderJob implements JobHandler
     public function __construct(
         private readonly ProvisioningService $provisioning,
         private readonly \Nebrix\Billing\FraudCheck $fraud,
+        private readonly \Nebrix\Service\Addon\AddonService $addons,
     ) {
     }
 
@@ -23,5 +24,7 @@ final class FulfilOrderJob implements JobHandler
             return;
         }
         $this->provisioning->fulfilOrder($orderId);
+        // Add-ons booked with the order belong to the services created above.
+        $this->addons->fulfilOrder($orderId);
     }
 }

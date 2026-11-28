@@ -34,6 +34,7 @@ final class OpenApi
                     'accept_terms' => ['type' => 'boolean', 'description' => 'Must be true: the customer accepts the terms.'],
                     'options' => ['type' => 'object', 'description' => 'Order options of the product (see order_options of the product), e.g. {"hostname": "web01"}; configurable products also take cores, memory_gb and disk_gb (servers) or slots (TeamSpeak).'],
                     'coupon' => ['type' => 'string', 'description' => 'Optional coupon code; an invalid code answers 422 coupon_invalid.'],
+                    'billing_cycle' => ['type' => 'string', 'description' => 'Optional billing cycle (one of billing_cycles of the product; default: billing_cycle). Other cycles answer 422 order_rejected.'],
                 ],
             ]],
             ['GET', '/services', ApiScope::SERVICES_READ, 'Your services', 'ServiceList', [], [...$list, 'status']],
@@ -242,6 +243,7 @@ final class OpenApi
         $product = ['type' => 'object', 'properties' => [
             'id' => $int, 'slug' => $str, 'name' => $str, 'category' => $str, 'description' => $nullableStr, 'features' => ['type' => 'array', 'items' => $str],
             'billing_cycle' => $str, 'currency' => $str, 'tax_rate_bp' => $int, 'pricing' => ['type' => 'object'], 'in_stock' => ['type' => 'boolean'],
+            'billing_cycles' => ['type' => 'object', 'description' => 'Billing cycles that can be ordered: cycle => discount in basis points (billing_cycle itself always with 0). Other cycles cost the price scaled to their length less the discount.'],
             'order_options' => ['type' => 'array', 'items' => ['type' => 'object']],
             'configurator' => ['type' => 'object', 'nullable' => true, 'description' => 'Configurable products: ranges of the order options cores, memory_gb and disk_gb (servers) or slots (TeamSpeak) ({min, max, step, price}); price = base price + steps above the minimum × step price (net, per billing period). null = fixed package.'],
         ]];

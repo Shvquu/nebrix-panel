@@ -13,6 +13,7 @@ use Nebrix\Billing\InvoiceService;
 use Nebrix\Billing\Money;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductConfigurator;
+use Nebrix\Catalog\ProductPricing;
 use Nebrix\Core\Clock;
 use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
@@ -170,7 +171,8 @@ class ServiceChangeService
     public function configurationOffer(Service $service, User $owner, array $input, bool $selfService = true): array
     {
         $product = $service->productId !== null ? $this->products->find($service->productId) : null;
-        if ($product === null || !ProductConfigurator::enabled($product) || !$product['is_active']) {
+        // The product must still offer the service's billing cycle: the new price is one of that cycle.
+        if ($product === null || !ProductConfigurator::enabled($product) || !$product['is_active'] || !ProductPricing::offersCycle($product, $service->billingCycle)) {
             throw new ServiceChangeException('The resources of this service cannot be changed here.');
         }
         $choice = ProductConfigurator::resolve($product, $input);
@@ -583,6 +585,9 @@ class ServiceChangeService
         if (($service->attributes['cancel_at'] ?? null) !== null) {
             return 'The service has been cancelled; its package can no longer be changed.';
         }
+        if (($service->attributes['next_billing_cycle'] ?? null) !== null) {
+            return 'A change of the billing cycle is pending. Please take it back first.';
+        }
         if ($this->invoiceRepository->openRenewalFor($service->id) !== null) {
             return 'Please pay the open renewal invoice first.';
         }
@@ -611,9 +616,10 @@ class ServiceChangeService
         if ($selfService && $group === '') {
             return [];
         }
-        $sql = 'SELECT `id` FROM `nx_products` WHERE `id` <> ? AND `category` = ? AND `currency` = ? AND `billing_cycle` = ? AND `is_active` = 1
+        // The target must offer the service's billing cycle (its own or an additional one; filtered below).
+        $sql = 'SELECT `id` FROM `nx_products` WHERE `id` <> ? AND `category` = ? AND `currency` = ? AND `is_active` = 1
                   AND ' . ($current['integration_id'] !== null ? '`integration_id` = ?' : '`integration_id` IS NULL');
-        $params = [(int) $current['id'], (string) $current['category'], (string) $current['currency'], (string) $current['billing_cycle']];
+        $params = [(int) $current['id'], (string) $current['category'], (string) $current['currency']];
         if ($current['integration_id'] !== null) {
             $params[] = (int) $current['integration_id'];
         }
@@ -625,7 +631,7 @@ class ServiceChangeService
         $products = [];
         foreach ($this->db->fetchAll($sql . ' ORDER BY `price`, `sort_order`, `name`', $params) as $row) {
             $product = $this->products->find((int) $row['id']);
-            if ($product === null) {
+            if ($product === null || !ProductPricing::offersCycle($product, $service->billingCycle)) {
                 continue;
             }
             // Products reserved for a customer group are only offered to its members.
@@ -653,7 +659,7 @@ class ServiceChangeService
         // difference zero: it applies at once, never "free at the end of the period".
         // Configured servers: the list price is only the configurator's minimum, so only their price counts.
         $configured = is_array($service->config['_options'] ?? null) && isset($service->config['_options']['cores']);
-        $direction = $difference > 0 || (!$configured && $current !== null && (int) $product['price'] > (int) $current['price']) ? self::UPGRADE : self::DOWNGRADE;
+        $direction = $difference > 0 || (!$configured && $current !== null && $this->cycleList($service, $product) > $this->cycleList($service, $current)) ? self::UPGRADE : self::DOWNGRADE;
         $charge = $direction === self::UPGRADE ? $this->prorate($service, max(0, $difference)) : 0;
 
         $blocker = null;
@@ -690,7 +696,8 @@ class ServiceChangeService
      */
     private function recurringPrice(Service $service, array $product, User $owner, ?int $listPrice = null): int
     {
-        $price = $listPrice ?? (int) $product['price'];
+        // List price in the service's billing cycle (configured price scaled like the product price).
+        $price = $this->cycleList($service, $product, $listPrice);
         // A promotion of the original order stays for new resources of the same product.
         if ($listPrice !== null && $service->orderItemId !== null && (int) $product['id'] === $service->productId) {
             $price -= Money::discount($price, (int) ($this->db->fetchValue('SELECT `promo_bp` FROM `nx_order_items` WHERE `id` = ?', [$service->orderItemId]) ?? 0));
@@ -713,6 +720,19 @@ class ServiceChangeService
         }
 
         return max(0, $base);
+    }
+
+    /**
+     * List price of a product for one period in the service's billing cycle.
+     *
+     * @param array<string, mixed> $product
+     * @param int|null $basePrice price in the product's own cycle (configured price)
+     */
+    private function cycleList(Service $service, array $product, ?int $basePrice = null): int
+    {
+        $base = $basePrice ?? (int) $product['price'];
+
+        return ProductPricing::offersCycle($product, $service->billingCycle) ? ProductPricing::cyclePrice($product, $service->billingCycle, $base) : $base;
     }
 
     /** Difference per period × remaining share of the paid time (rounded to minor units). */

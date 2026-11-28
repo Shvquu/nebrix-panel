@@ -316,6 +316,36 @@ final class WebsiteCatalog
         $register = ProductPricing::domainFirstYear($product, false);
         $transfer = ProductPricing::domainFirstYear($product, true);
 
+        // Billing cycles the product offers: price per period and per month, saving against the
+        // product's own cycle and the previous price of a promotion per cycle (§ 11 PAngV).
+        $cycles = [];
+        $default = (string) $product['billing_cycle'];
+        foreach (ProductPricing::cycles($product) as $cycle => $cycleBp) {
+            $months = max(1, BillingCycle::months($cycle));
+            $cycleList = ProductPricing::cyclePrice($product, $cycle);
+            $cycleNet = $cycleList - Money::discount($cycleList, $promoBp);
+            $undiscounted = ProductPricing::undiscounted($list, $default, $cycle);
+            $cycleReference = $promo !== null
+                ? ($this->repository->lowestPriceBefore((int) $product['id'], $discounts['starts_at'] ?? $this->clock->nowString(), 30, $cycle === $default ? null : $cycle) ?? $cycleList)
+                : $cycleList;
+            $cycles[] = [
+                'cycle' => $cycle,
+                'default' => $cycle === $default,
+                'months' => $months,
+                'num' => BillingCycle::months($cycle),
+                'den' => max(1, BillingCycle::months($default)),
+                'bp' => $cycleBp,
+                'percent' => rtrim(rtrim(number_format($cycleBp / 100, 2, '.', ''), '0'), '.'),
+                'net' => $cycleList,
+                'gross' => $gross($cycleNet),
+                'per_month_gross' => intdiv($gross($cycleNet) * 2 + $months, 2 * $months),
+                'saving_gross' => max(0, $gross($undiscounted - Money::discount($undiscounted, $promoBp)) - $gross($cycleNet)),
+                'then_gross' => $gross($cycleList - Money::discount($cycleList, $discounts['permanent_bp'])),
+                'reference_net' => $cycleReference,
+                'reference_gross' => $promo !== null && $cycleReference > $cycleNet ? $gross($cycleReference) : null,
+            ];
+        }
+
         return [
             'id' => (int) $product['id'],
             'slug' => (string) $product['slug'],
@@ -340,6 +370,7 @@ final class WebsiteCatalog
             'transfer_gross' => $transfer !== null ? $gross($transfer) : $gross($net),
             'configurator' => $ranges,
             'popular' => (int) $product['sort_order'] < 1000,
+            'cycles' => $cycles,
         ];
     }
 

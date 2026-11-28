@@ -49,4 +49,5 @@
     </div>
 </div>
 {% if server_features is defined %}{% include 'customer/services/_server_features.twig' with {service: service, features: server_features} only %}{% endif %}
+{% include 'customer/services/_addons.twig' %}
 {% endblock %}

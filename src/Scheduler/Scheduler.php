@@ -67,6 +67,8 @@ class Scheduler
         private readonly \Nebrix\Status\StatusSubscriptions $statusSubscriptions,
         private readonly \Nebrix\Marketing\ReviewInvitations $reviewInvitations,
         private readonly \Nebrix\Marketing\Newsletter $newsletter,
+        private readonly \Nebrix\Service\Addon\AddonService $addons,
+        private readonly \Nebrix\Billing\Cart\CartService $carts,
     ) {
     }
 
@@ -123,6 +125,12 @@ class Scheduler
             // Only customers who agreed (§ 7 UWG); off unless enabled in Settings → Marketing.
             'reviews.invitations' => [60, fn (): string => sprintf('%d review invitation(s) sent', $this->reviewInvitations->sendDue())],
             'newsletter.prune_unconfirmed' => [1440, fn (): string => sprintf('%d unconfirmed newsletter sign-up(s) removed', $this->newsletter->pruneUnconfirmed())],
+            'addons.process' => [15, function (): string {
+                $result = $this->addons->process();
+
+                return sprintf('%d add-on(s) ended, %d unpaid add-on booking(s) cancelled', $result['ended'], $result['expired']);
+            }],
+            'carts.prune' => [1440, fn (): string => sprintf('%d abandoned cart(s) removed', $this->carts->prune())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

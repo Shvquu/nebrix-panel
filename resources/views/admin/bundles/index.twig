@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Bundles'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Bundles'|t }}</h1><p class="muted">{{ 'Products or categories that are cheaper together. The best complete bundle in a cart is applied automatically.'|t }}</p></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/bundles/create">{{ 'New bundle'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Contains'|t }}</th><th class="text-right">{{ 'Discount'|t }}</th><th>{{ 'Period'|t }}</th><th>{{ 'State'|t }}</th><th class="text-right">{{ 'Orders'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for b in bundles %}
+            <tr>
+                <td><strong>{{ b.name }}</strong>{% if b.description %}<div class="small muted">{{ b.description }}</div>{% endif %}</td>
+                <td class="small">{% for c in b.components %}{{ c.product_id is defined ? products[c.product_id ~ '']|default('#' ~ c.product_id) : categories[c.category]|default(c.category)|t }}{{ loop.last ? '' : ' + ' }}{% endfor %}</td>
+                <td class="text-right nowrap">{{ b.discount_type == 'percent' ? b.percent ~ ' %' : b.discount_value|money(b.currency) }}<div class="small muted">{{ (b.permanent ? 'whole term' : 'first billing period')|t }}</div></td>
+                <td class="nowrap small">{{ b.starts_at ? b.starts_at|dt : '–' }}<br>{{ b.ends_at ? b.ends_at|dt : '–' }}</td>
+                <td><span class="badge {{ b.state == 'running' ? 'badge-success' : (b.state == 'planned' ? 'badge-info' : 'badge-neutral') }}">{{ b.state|t }}</span></td>
+                <td class="text-right">{{ b.orders }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/bundles/{{ b.id }}">{{ can('products.manage') ? 'Edit'|t : 'View'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No bundles yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

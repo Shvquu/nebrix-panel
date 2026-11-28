@@ -2,7 +2,8 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ product.name }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ product.name }}</h1><p class="muted"><a href="/store">&larr; {{ 'All products'|t }}</a></p></div></div>
+<div class="page-header"><div><h1>{{ product.name }}</h1><p class="muted"><a href="/store">&larr; {{ 'All products'|t }}</a> · <a href="/cart">{{ 'Cart'|t }}</a></p></div></div>
+{% if cart_item %}<div class="alert alert-info">{{ 'You are changing an item of your cart.'|t }}</div>{% endif %}
 {# Coupon: its own GET form (no CSRF token in the URL); the applied code travels with the order form. #}
 {% set cfg = quote.configuration %}
 {% if ranges and cfg %}
@@ -11,6 +12,8 @@
     <div class="card-header"><h2>{{ (ranges.slots is defined ? 'Configure your TeamSpeak server' : (ranges.cpu_cores is defined ? 'Configure your game server' : 'Configure your server'))|t }}</h2></div>
     <div class="card-body">
         {% if coupon %}<input type="hidden" name="coupon" value="{{ coupon }}">{% endif %}
+        {% if cycle != product.billing_cycle %}<input type="hidden" name="cycle" value="{{ cycle }}">{% endif %}
+        {% if cart_item %}<input type="hidden" name="cart_item" value="{{ cart_item.id }}">{% endif %}
         {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots', 'cpu_cores': 'CPU cores', 'backups': 'Backups', 'databases': 'Databases', 'ports': 'Additional ports'} %}
         {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': '', 'cpu_cores': '', 'backups': '', 'databases': '', 'ports': ''} %}
         {% for name, range in ranges %}
@@ -29,9 +32,34 @@
     </div>
 </form>
 {% endif %}
+{% if cycle_quotes|length > 1 %}
+{# Billing cycle: a GET form as well – the prices of every cycle come from the server. #}
+<form method="get" action="/store/{{ product.slug }}" class="card p-cycles" novalidate>
+    <div class="card-header"><h2>{{ 'Billing cycle'|t }}</h2></div>
+    <div class="card-body">
+        {% if coupon %}<input type="hidden" name="coupon" value="{{ coupon }}">{% endif %}
+        {% if cart_item %}<input type="hidden" name="cart_item" value="{{ cart_item.id }}">{% endif %}
+        {% if cfg %}{% for name, value in cfg %}{% if name != 'price' %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
+        <div class="p-cycle-options">
+        {% for key, c in cycle_quotes %}
+            <label class="p-cycle-option{{ key == cycle ? ' is-active' : '' }}">
+                <input type="radio" name="cycle" value="{{ key }}"{% if key == cycle %} checked{% endif %} data-autosubmit>
+                <span class="p-cycle-name">{{ cycles[key]|default(key)|t }}{% if c.saving_bp > 0 %} <span class="badge badge-success">−{{ c.saving_bp / 100 }} %</span>{% endif %}</span>
+                <span class="p-cycle-price"><strong>{{ c.per_month|money(product.currency) }}</strong> {{ 'per month'|t }}</span>
+                <span class="small muted">{{ ':amount per period'|t({amount: c.recurring|money(product.currency)}) }}{% if c.saving > 0 %} · {{ 'You save :amount'|t({amount: c.saving|money(product.currency)}) }}{% endif %}</span>
+            </label>
+        {% endfor %}
+        </div>
+        <noscript><button class="btn btn-outline" type="submit">{{ 'Update price'|t }}</button></noscript>
+        <p class="small muted mt-1">{{ 'Prices include the VAT that applies to you.'|t }}</p>
+    </div>
+</form>
+{% endif %}
 <form method="get" action="/store/{{ product.slug }}" class="card p-coupon" novalidate>
     <div class="card-body filters">
         {% if cfg %}{% for name, value in cfg %}{% if name != 'price' %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
+        {% if cycle != product.billing_cycle %}<input type="hidden" name="cycle" value="{{ cycle }}">{% endif %}
+        {% if cart_item %}<input type="hidden" name="cart_item" value="{{ cart_item.id }}">{% endif %}
         <div class="form-row">
             <label for="f-coupon-code">{{ 'Coupon code'|t }}</label>
             <input id="f-coupon-code" type="text" name="coupon" value="{{ coupon }}" maxlength="40" autocomplete="off" class="{{ quote.coupon_error ? 'is-invalid' : '' }}">
@@ -39,11 +67,14 @@
         </div>
         <button class="btn btn-outline" type="submit">{{ 'Apply'|t }}</button>
         {% if quote.coupon_code %}<span class="badge badge-success badge-sentence">{{ 'Coupon :code applied'|t({code: quote.coupon_code}) }}{% if quote.coupon_duration == 'forever' %} · {{ 'also on renewals'|t }}{% endif %}</span> <a class="small" href="/store/{{ product.slug }}{% if cfg %}?{{ cfg|filter((v, k) => k != 'price')|url_encode }}{% endif %}">{{ 'Remove'|t }}</a>{% endif %}
+        {% if not cart_item %}<p class="small muted">{{ 'In the cart, the coupon is entered once for all items.'|t }}</p>{% endif %}
     </div>
 </form>
-<form method="post" action="/store/{{ product.slug }}" novalidate>
+<form method="post" action="{{ cart_item ? '/cart/items/' ~ cart_item.id : '/store/' ~ product.slug }}" novalidate>
     {{ csrf_field() }}
-    {% if quote.coupon_code %}<input type="hidden" name="coupon" value="{{ quote.coupon_code }}">{% endif %}
+    <input type="hidden" name="product_id" value="{{ product.id }}">
+    <input type="hidden" name="cycle" value="{{ cycle }}">
+    {% if quote.coupon_code and not cart_item %}<input type="hidden" name="coupon" value="{{ quote.coupon_code }}">{% endif %}
     {% if cfg %}{% for name, value in cfg %}{% if name != 'price' %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
     <div class="grid grid-2">
         <div class="card">
@@ -61,12 +92,28 @@
                     <p class="muted">{{ 'No configuration needed.'|t }}</p>
                 {% endfor %}
             </div>
+            {% if addons|length > 0 %}
+            <div class="card-header"><h2>{{ 'Add-ons'|t }}</h2></div>
+            <div class="card-body">
+                {% for a in addons %}
+                <div class="form-row p-addon-option">
+                    <label for="f-addon-{{ a.id }}"><strong>{{ a.name }}</strong> · +{{ a.price|money(product.currency) }} {{ 'net'|t }} {{ 'per month'|t }}{% if a.setup_fee > 0 %} · {{ 'setup fee'|t }} {{ a.setup_fee|money(product.currency) }}{% endif %}</label>
+                    {% if a.description %}<div class="help">{{ a.description }}</div>{% endif %}
+                    <select id="f-addon-{{ a.id }}" name="addons[{{ a.id }}]">
+                        <option value="0">{{ 'None'|t }}</option>
+                        {% for n in 1..a.max_quantity %}<option value="{{ n }}"{% if a.selected == n %} selected{% endif %}>{{ n }} × · {{ (a.period_price * n)|money(product.currency) }} {{ 'net'|t }} {{ cycles[cycle]|default(cycle)|t }}</option>{% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+                <p class="small muted">{{ 'Add-ons are billed with the service in its billing cycle and can be cancelled for the end of the term.'|t }}</p>
+            </div>
+            {% endif %}
         </div>
         <div class="card">
             <div class="card-header"><h2>{{ 'Summary'|t }}</h2></div>
             <div class="card-body">
                 <dl class="details">
-                    <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[product.billing_cycle]|default('')|t }}</dd>
+                    <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[cycle]|default('')|t }}</dd>
                     {% if quote.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ quote.setup_fee|money(product.currency) }}</dd>{% endif %}
                     {% if quote.first_extra > 0 %}<dt>{{ 'First year surcharge'|t }}</dt><dd>{{ quote.first_extra|money(product.currency) }}</dd>{% endif %}
                     {% if quote.promo_discount > 0 %}<dt>{{ quote.sale_name ? quote.sale_name ~ ' ' : '' }}{{ 'Promotion −:percent %'|t({percent: quote.promo_bp / 100}) }}</dt><dd>−{{ quote.promo_discount|money(product.currency) }} <span class="small muted">{{ 'also on renewals'|t }}</span></dd>{% endif %}
@@ -76,16 +123,27 @@
                     {% if quote.coupon_discount > 0 %}<dt>{{ 'Coupon :code'|t({code: quote.coupon_code}) }}</dt><dd>−{{ quote.coupon_discount|money(product.currency) }} <span class="small muted">{{ 'net'|t }}</span></dd>{% endif %}
                     <dt>{{ 'Tax'|t }} ({{ quote.tax_rate_bp|percent }})</dt><dd>{{ quote.tax|money(product.currency) }}</dd>
                     <dt><strong>{{ 'Due today'|t }}</strong></dt><dd><strong>{{ quote.total|money(product.currency) }}</strong></dd>
-                    {% if product.billing_cycle != 'one_time' %}<dt>{{ 'Renews at'|t }}</dt><dd>{{ quote.recurring|money(product.currency) }} {{ cycles[product.billing_cycle]|t }}</dd>{% endif %}
+                    {% if cycle != 'one_time' %}<dt>{{ 'Renews at'|t }}</dt><dd>{{ quote.recurring|money(product.currency) }} {{ cycles[cycle]|t }}</dd>{% endif %}
                     {% if transfer_quote and transfer_quote.total != quote.total %}<dt>{{ 'Due today for a transfer'|t }}</dt><dd>{{ transfer_quote.total|money(product.currency) }} <span class="small muted">{{ 'with auth code'|t }}</span></dd>{% endif %}
                 </dl>
+                {% if addons|length > 0 %}<p class="small muted">{{ 'Chosen add-ons are added to this price.'|t }}</p>{% endif %}
+                {% if not cart_item %}
                 <div class="form-row mt-2">
                     <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"> <span>{{ 'I accept the'|t }} {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}.</span></label>
                     {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
                 </div>
                 {% include 'marketing/_review_consent.twig' %}
+                {% endif %}
             </div>
-            <div class="card-footer"><button class="btn btn-primary btn-block" type="submit">{{ 'Order with obligation to pay'|t }}</button></div>
+            <div class="card-footer">
+                {% if cart_item %}
+                    <button class="btn btn-primary btn-block" type="submit">{{ 'Save changes'|t }}</button>
+                {% else %}
+                    <button class="btn btn-primary btn-block" type="submit" formaction="/cart/items">{{ 'Add to cart'|t }}</button>
+                    <button class="btn btn-outline btn-block mt-1" type="submit">{{ 'Order with obligation to pay'|t }}</button>
+                    <p class="small muted mt-1">{{ 'Add several products to the cart and order them together, or order this product right away.'|t }}</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 </form>

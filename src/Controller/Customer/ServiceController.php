@@ -87,6 +87,11 @@ final class ServiceController extends Controller
             'package_change' => $this->packageChange($service),
             // DNS records, graphs, snapshots, reverse DNS and additional addresses (server self-service).
             'server_features' => $this->serverFeatures($request, $service),
+            // Add-ons and the billing cycle for the next term (orders area).
+            // Booking add-ons and changing the cycle change the contract: owner only.
+            'addons' => $service->userId === $this->user($request)->id ? $this->container->get(\Nebrix\Service\Addon\AddonService::class)->overview($service, $this->user($request)) : null,
+            'cycle_change' => $service->userId === $this->user($request)->id ? $this->container->get(\Nebrix\Service\CycleChangeService::class)->options($service) : null,
+            'may_manage' => $this->mayManage($request, $service),
         ]);
     }
 

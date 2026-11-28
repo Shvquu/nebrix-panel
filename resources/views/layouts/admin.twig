@@ -22,7 +22,7 @@
             {% if can('customers.view') %}{{ m.link('/admin/customers', 'Customers', 'users') }}{% endif %}
             {% if can('customers.view') and setting('referral.enabled') %}{{ m.link('/admin/referrals', 'Referrals', 'gift') }}{% endif %}
             {% if can('customer_groups.manage') %}{{ m.link('/admin/customer-groups', 'Customer groups', 'grid') }}{% endif %}
-            {% if can('services.view') %}{{ m.link('/admin/services', 'Services', 'services') }}{{ m.link('/admin/cancellations', 'Cancellations', 'x-circle') }}{% endif %}
+            {% if can('services.view') %}{{ m.link('/admin/services', 'Services', 'services') }}{{ m.link('/admin/cancellations', 'Cancellations', 'x-circle') }}{{ m.link('/admin/addon-queue', 'Add-ons to set up', 'list') }}{% endif %}
 
             {% if can('tickets.view') or can('status.manage') or can('help_center.manage') or can('canned_responses.manage') %}<div class="p-nav-section">{{ 'Support'|t }}</div>{% endif %}
             {% if can('tickets.view') %}{{ m.link('/admin/tickets', 'Support tickets', 'support') }}{% endif %}
@@ -31,7 +31,7 @@
             {% if can('status.manage') %}{{ m.link('/admin/status', 'Status page', 'pulse') }}{% endif %}
 
             {% if can('products.view') or can('orders.view') or can('invoices.view') or can('transactions.view') %}<div class="p-nav-section">{{ 'Sales'|t }}</div>{% endif %}
-            {% if can('products.view') %}{{ m.link('/admin/products', 'Products', 'box') }}{{ m.link('/admin/coupons', 'Coupons', 'tag') }}{{ m.link('/admin/sales', 'Sales campaigns', 'percent') }}{% endif %}
+            {% if can('products.view') %}{{ m.link('/admin/products', 'Products', 'box') }}{{ m.link('/admin/coupons', 'Coupons', 'tag') }}{{ m.link('/admin/sales', 'Sales campaigns', 'percent') }}{{ m.link('/admin/bundles', 'Bundles', 'layers') }}{{ m.link('/admin/addons', 'Add-ons', 'plug') }}{% endif %}
             {% if can('orders.view') %}{{ m.link('/admin/orders', 'Orders', 'cart') }}{% endif %}
             {% if can('orders.view') and setting('fraud.enabled') %}{{ m.link('/admin/orders/review', 'Order review', 'shield') }}{% endif %}
             {% if can('invoices.view') %}{{ m.link('/admin/invoices', 'Invoices', 'invoice') }}{% endif %}
