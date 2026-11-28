@@ -7,6 +7,7 @@ namespace Nebrix\Provisioning;
 use Nebrix\Billing\OrderRepository;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Core\Clock;
 use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
@@ -99,7 +100,7 @@ class ProvisioningService
                 'tax_rate_bp' => (int) $item['tax_rate_bp'],
                 'currency' => (string) $order['currency'],
                 'next_due_at' => BillingCycle::isRecurring($cycle) ? BillingCycle::advance($now, $cycle)->format('Y-m-d H:i:s') : null,
-                'config' => $product['provisioning_config'] + ['_options' => $options],
+                'config' => ProductConfigurator::serviceConfig($product, $options),
             ]);
         } catch (PDOException $exception) {
             // A concurrent run created it first (unique order_item_id).

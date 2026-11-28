@@ -1,0 +1,159 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Hosting & servers'|t }}{% endblock %}
+{% block content %}
+<section class="site-hero">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..14 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container site-hero-grid">
+        <div class="site-hero-copy">
+            {% set title = hero_title ?: ('Build your project with *:brand*'|t({brand: brand.name})) %}
+            <h1>{% for part in title|split('*') %}{% if loop.index is even %}<span class="site-accent">{{ part }}</span>{% else %}{{ part }}{% endif %}{% endfor %}</h1>
+            <p class="site-lead">{{ hero_text ?: 'Virtual and dedicated servers, game servers, TeamSpeak, webhosting and domains – ordered in minutes and set up automatically.'|t }}</p>
+            <div class="site-actions">
+                <a class="site-btn site-btn-primary" href="{{ pages is not empty ? '#products' : '/register' }}">{{ i.icon('arrow-right') }} {{ 'Get started'|t }}</a>
+                <a class="site-btn site-btn-ghost" href="{{ auth_user ? '/dashboard' : '/register' }}">{{ auth_user ? 'To the dashboard'|t : 'Create an account'|t }}</a>
+            </div>
+            {% if pages.domains is defined %}
+            <form class="site-domain-search" method="get" action="/products/domains" role="search">
+                <label class="sr-only" for="hero-domain">{{ 'Your desired domain'|t }}</label>
+                {{ i.icon('globe') }}
+                <input id="hero-domain" type="text" name="domain" placeholder="{{ 'your-desired-domain.de'|t }}" maxlength="253" autocomplete="off" spellcheck="false">
+                <button class="site-btn site-btn-primary" type="submit">{{ 'Check'|t }}</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="site-hero-art">{% include 'website/_hero_art.twig' %}</div>
+    </div>
+</section>
+
+{% if pages is not empty %}
+<section class="site-section" id="products">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'Our'|t }} <span class="site-underline">{{ 'products'|t }}</span></h2>
+            <p>{{ 'Choose the right product for your project – all services are managed in one customer area.'|t }}</p>
+        </div>
+        <div class="site-cards">
+            {% for key, page in pages %}
+            <a class="site-card site-card-link" href="/products/{{ key }}">
+                <span class="site-icon-tile">{{ i.icon(page.icon) }}</span>
+                <h3>{{ page.title|t }}</h3>
+                <p>{{ page.teaser|t }}</p>
+                {% if page.from %}<span class="site-from">{{ 'from'|t }} <strong>{{ page.from.gross|money(page.from.currency) }}</strong> {{ include('website/_cycle.twig', {cycle: page.from.cycle}) }}</span>{% endif %}
+                <span class="site-more">{{ 'View offers'|t }} {{ i.icon('arrow-right') }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if show_features %}
+<section class="site-section site-section-alt">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'Feature'|t }} <span class="site-underline">{{ 'highlights'|t }}</span></h2>
+            <p>{{ 'Start your project with :brand and benefit from a customer area that does the work for you.'|t({brand: brand.name}) }}</p>
+        </div>
+        {% set features = [
+            {icon: 'zap', title: 'Automatic setup', text: 'Your service is set up automatically right after payment.'},
+            {icon: 'sliders', title: 'Full control', text: 'Start, stop, reinstall and console access in the customer area.'},
+            {icon: 'trend', title: 'Upgrade anytime', text: 'Switch to a larger package whenever you need it.'},
+            {icon: 'shield', title: 'Secure account', text: 'Two-factor authentication and an overview of your sessions.'},
+            {icon: 'wallet', title: 'Prepaid credit', text: 'Top up credit and let services renew automatically.'},
+            {icon: 'invoice', title: 'Clear invoices', text: 'PDF and XRechnung invoices for every payment.'},
+            api_enabled ? {icon: 'code', title: 'REST API', text: 'Manage orders and services through our API.'} : {icon: 'x-circle', title: 'Cancel online', text: 'Cancel contracts online at any time with one click.'},
+            {icon: 'chat', title: 'Personal support', text: 'Support tickets right from your customer area.'},
+            {icon: 'pulse', title: 'Transparent status', text: 'Our status page shows maintenance and incidents.'},
+        ] %}
+        <div class="site-features">
+            {% for feature in features %}
+            <div class="site-feature">
+                <span class="site-icon-round">{{ i.icon(feature.icon) }}</span>
+                <div><h3>{{ feature.title|t }}</h3><p>{{ feature.text|t }}</p></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="site-section">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'How does your order work?'|t }}</h2>
+            <p>{{ 'Ordering is as simple as possible, so that you can get started right away.'|t }}</p>
+        </div>
+        <div class="site-steps">
+            <div class="site-step">
+                <span class="site-icon-tile">{{ i.icon('cart') }}</span>
+                <h3>{{ 'Order'|t }}</h3>
+                <p>{{ 'Choose your product, configure it if you like and pay online.'|t }}</p>
+            </div>
+            <svg class="site-step-arrow" viewBox="0 0 120 30" aria-hidden="true"><path d="M4 22 C40 2 80 2 112 18"/><path d="M104 10 L114 19 L101 22"/></svg>
+            <div class="site-step site-step-low">
+                <span class="site-icon-tile">{{ i.icon('rocket') }}</span>
+                <h3>{{ 'Setup'|t }}</h3>
+                <p>{{ 'Our system sets up your service automatically and assigns it to your account.'|t }}</p>
+            </div>
+            <svg class="site-step-arrow" viewBox="0 0 120 30" aria-hidden="true"><path d="M4 22 C40 2 80 2 112 18"/><path d="M104 10 L114 19 L101 22"/></svg>
+            <div class="site-step site-step-lower">
+                <span class="site-icon-tile">{{ i.icon('coffee') }}</span>
+                <h3>{{ 'Lean back & enjoy'|t }}</h3>
+                <p>{{ 'Your product appears in your customer area, ready to use.'|t }}</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if trustpilot %}
+{% set tp_host = locale == 'de' ? 'https://de.trustpilot.com' : 'https://www.trustpilot.com' %}
+<section class="site-section site-section-alt">
+    <div class="site-container site-narrow site-center">
+        <h2>{{ 'What our customers say about'|t }} <span class="site-accent">{{ brand.name }}</span></h2>
+        <p>{{ 'Your feedback matters to us! Your reviews help us improve our service and respond even better to your needs. Read what others say about their experience with us.'|t }}</p>
+        {% if trustpilot.business_unit and trustpilot.template %}
+        <div class="site-trustpilot" data-trustpilot data-business-unit="{{ trustpilot.business_unit }}" data-template="{{ trustpilot.template }}" data-locale="{{ locale == 'de' ? 'de-DE' : 'en-US' }}" data-review-url="{{ tp_host }}/review/{{ trustpilot.domain }}">
+            <p class="site-small site-muted">{{ 'The review widget is loaded from Trustpilot. Only when you click, your IP address and browser data are transmitted to Trustpilot.'|t }}{% if brand.privacy_url %} <a href="{{ brand.privacy_url }}">{{ 'Privacy policy'|t }}</a>{% endif %}</p>
+            <button class="site-btn site-btn-ghost" type="button" data-trustpilot-load>{{ i.icon('star') }} {{ 'Show Trustpilot reviews'|t }}</button>
+        </div>
+        {% endif %}
+        <div class="site-actions site-actions-center">
+            <a class="site-btn site-btn-primary" href="{{ tp_host }}/evaluate/{{ trustpilot.domain }}" target="_blank" rel="noopener">{{ i.icon('star') }} {{ 'Write your own review'|t }}</a>
+            <a class="site-btn site-btn-ghost" href="{{ tp_host }}/review/{{ trustpilot.domain }}" target="_blank" rel="noopener">{{ 'Read reviews on Trustpilot'|t }}</a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if show_partner and (referral or api_enabled) %}
+<section class="site-section site-partner">
+    <div class="site-container site-split">
+        {% if referral %}
+        <div class="site-split-col">
+            <h2>{{ 'Partnership'|t }}</h2>
+            <p>{{ 'Recommend us and grow together with us: for every referred customer who pays an order, you receive credit.'|t }}</p>
+            <div class="site-blob">{{ i.icon('gift', 'site-blob-icon') }}</div>
+            <h3>{{ 'Save with every recommendation'|t }}</h3>
+            <p>{{ 'You receive :amount credit for every new customer you refer.'|t({amount: referral.reward|money(referral.currency)}) }}</p>
+            <h3>{{ 'Simple and transparent'|t }}</h3>
+            <p>{{ 'Your personal link and all referrals are in your customer area.'|t }}</p>
+            <a class="site-btn site-btn-primary" href="{{ auth_user ? '/account/referrals' : '/register' }}">{{ i.icon('users') }} {{ 'Become a partner'|t }}</a>
+        </div>
+        {% endif %}
+        {% if api_enabled %}
+        <div class="site-split-col">
+            <h2>{{ 'Reselling & API'|t }}</h2>
+            <p>{{ 'Do you want to offer products to your own customers? Automate orders and services with our REST API.'|t }}</p>
+            <div class="site-blob">{{ i.icon('code', 'site-blob-icon') }}</div>
+            <h3>{{ 'Reliable interfaces'|t }}</h3>
+            <p>{{ 'All products can be ordered and managed through the documented API.'|t }}</p>
+            <h3>{{ 'Your own tools'|t }}</h3>
+            <p>{{ 'Personal API tokens with fine-grained permissions – created in your customer area.'|t }}</p>
+            <a class="site-btn site-btn-primary" href="/api/v1/openapi.json">{{ i.icon('file') }} {{ 'API documentation'|t }}</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -7,6 +7,7 @@ namespace Nebrix\Billing;
 use Nebrix\Auth\User;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
 use Nebrix\Provisioning\OrderPrechecks;
@@ -74,10 +75,15 @@ class OrderService
                 $options[$name] = ['encrypted' => $this->encrypter->encrypt($options[$name], 'order-option:' . $name)];
             }
         }
+        // Configurable servers: the customer's resources (validated) and their price.
+        $configuration = ProductConfigurator::enabled($product) ? ProductConfigurator::resolve($product, $input) : null;
+        if ($configuration !== null) {
+            $options += ['cores' => $configuration['cores'], 'memory_gb' => $configuration['memory_gb'], 'disk_gb' => $configuration['disk_gb']];
+        }
         $this->prechecks->check($product, $user, $options);
 
         $discountBp = $group !== null ? (int) $group['discount_bp'] : 0;
-        $price = (int) $product['price'];
+        $price = $configuration['price'] ?? (int) $product['price'];
         $setupFee = (int) $product['setup_fee'];
         $groupDiscount = Money::discount($price, $discountBp);
         // Tax by customer: reverse charge, OSS rates, small business (TaxService).
@@ -103,6 +109,9 @@ class OrderService
             // Stored on the order and the invoice: written in the customer's language.
             $cycleLabel = $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), BillingCycle::labels()[(string) $product['billing_cycle']] ?? (string) $product['billing_cycle']);
             $label = (string) ($options['hostname'] ?? $options['server_name'] ?? $options['domain'] ?? '');
+            $resources = isset($options['cores'], $options['memory_gb'], $options['disk_gb'])
+                ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), ':cores vCores, :memory GB RAM, :disk GB disk', ['cores' => (string) $options['cores'], 'memory' => (string) $options['memory_gb'], 'disk' => (string) $options['disk_gb']])
+                : '';
             $couponNote = $coupon !== null ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Coupon :code', ['code' => (string) $coupon['coupon']['code']]) : '';
             [$orderId] = $this->orders->create([
                 'number' => $this->invoices->nextNumber('order'),
@@ -119,7 +128,7 @@ class OrderService
                 'coupon_discount' => (int) ($coupon['first'] ?? 0),
             ], [[
                 'product_id' => (int) $product['id'],
-                'description' => mb_substr(trim(sprintf('%s (%s)%s', $product['name'], $cycleLabel, $label !== '' ? ' – ' . $label : '')) . $couponNote, 0, 255),
+                'description' => mb_substr(trim(sprintf('%s (%s)%s', $product['name'], $cycleLabel, $label !== '' ? ' – ' . $label : '')) . $resources . $couponNote, 0, 255),
                 'quantity' => 1,
                 'unit_price' => $price,
                 'setup_fee' => $setupFee,
@@ -161,12 +170,15 @@ class OrderService
      * Price preview for the order page, optionally with a coupon code.
      *
      * @param array<string, mixed> $product
-     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int, coupon_code: string|null, coupon_discount: int, coupon_recurring: int, coupon_duration: string|null, coupon_error: string|null}
+     * @param array<string, mixed> $configuration configurator choice (cores, memory_gb, disk_gb)
+     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int, coupon_code: string|null, coupon_discount: int, coupon_recurring: int, coupon_duration: string|null, coupon_error: string|null, configuration: array{cores: int, memory_gb: int, disk_gb: int, price: int}|null}
      */
-    public function quote(array $product, ?int $customerGroupId, ?User $user = null, ?string $couponCode = null): array
+    public function quote(array $product, ?int $customerGroupId, ?User $user = null, ?string $couponCode = null, array $configuration = []): array
     {
         $group = $customerGroupId !== null ? $this->groups->find($customerGroupId) : null;
-        $price = (int) $product['price'];
+        // Previews clamp the choice into the offered range; orders validate it strictly.
+        $choice = ProductConfigurator::enabled($product) ? ProductConfigurator::resolve($product, $configuration, false) : null;
+        $price = $choice['price'] ?? (int) $product['price'];
         $setupFee = (int) $product['setup_fee'];
         $groupDiscount = Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
 
@@ -200,6 +212,7 @@ class OrderService
             'coupon_recurring' => (int) ($coupon['recurring'] ?? 0),
             'coupon_duration' => $coupon !== null ? (string) $coupon['coupon']['duration'] : null,
             'coupon_error' => $couponError,
+            'configuration' => $choice,
         ];
     }
 

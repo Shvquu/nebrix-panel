@@ -18,7 +18,13 @@ final class Authenticate implements Middleware
                 throw new HttpException(401, 'Please sign in to continue.');
             }
 
-            $request->session()->put('url.intended', $request->path());
+            // Path and simple query values (e.g. a configuration chosen on the website); checked again on use.
+            $intended = $request->path();
+            $query = array_filter($request->allQuery(), static fn (mixed $value): bool => is_string($value) && strlen($value) <= 255);
+            if ($query !== [] && strlen($intended . '?' . http_build_query($query)) <= 1000) {
+                $intended .= '?' . http_build_query($query);
+            }
+            $request->session()->put('url.intended', $intended);
 
             return Response::redirect('/login');
         }

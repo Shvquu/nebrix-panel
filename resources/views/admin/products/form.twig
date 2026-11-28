@@ -52,7 +52,7 @@
                 {% set name = 'config_' ~ key %}
                 {% set value = config[key] ?? field.default ?? '' %}
                 {% if field.type|default('') == 'bool' %}
-                    {{ f.checkbox(name, field.label, value) }}
+                    {{ f.checkbox(name, field.label, value, field.help is defined ? {help: field.help} : {}) }}
                 {% elseif field.type|default('') == 'select' %}
                     {{ f.select(name, field.label, field.options|default({}), value, (field.help is defined ? {help: field.help} : {})|merge(field.options_source is defined ? {placeholder: '– none –'} : {})) }}
                 {% elseif field.type|default('') == 'text' %}

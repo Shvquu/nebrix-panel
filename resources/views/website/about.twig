@@ -1,0 +1,25 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'About us'|t }}{% endblock %}
+{% block content %}
+<section class="site-banner">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('users') }}</span>
+        <h1>{{ 'About'|t }} <span class="site-accent">{{ brand.name }}</span></h1>
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container site-about">
+        <div class="site-prose">{% for paragraph in paragraphs %}<p>{{ paragraph|nl2br }}</p>{% endfor %}</div>
+        {% if company.address or company.email or company.phone %}
+        <aside class="site-card">
+            <h3>{{ 'Contact'|t }}</h3>
+            {% if company.address %}<p>{{ company.address|nl2br }}</p>{% endif %}
+            {% if company.email %}<p>{{ i.icon('mail') }} <a href="mailto:{{ company.email }}">{{ company.email }}</a></p>{% endif %}
+            {% if company.phone %}<p>{{ i.icon('chat') }} {{ company.phone }}</p>{% endif %}
+        </aside>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

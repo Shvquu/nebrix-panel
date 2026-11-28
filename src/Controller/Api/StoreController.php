@@ -10,6 +10,7 @@ use Nebrix\Billing\OrderException;
 use Nebrix\Billing\OrderRepository;
 use Nebrix\Billing\OrderService;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
 use Nebrix\Repository\ProductRepository;
@@ -86,6 +87,12 @@ final class StoreController extends ApiController
         $options = [];
         foreach (array_keys(ProductCategory::get((string) $product['category'])['options']) as $name) {
             $options[$name] = $input[$name] ?? null;
+        }
+        if (ProductConfigurator::enabled($product)) {
+            foreach (ProductConfigurator::OPTIONS as $name) {
+                $value = $input[$name] ?? null;
+                $options[$name] = is_int($value) ? (string) $value : $value;
+            }
         }
 
         try {

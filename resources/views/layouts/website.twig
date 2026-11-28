@@ -1,0 +1,92 @@
+{% import 'macros/icons.twig' as i %}
+<!doctype html>
+<html lang="{{ locale }}" class="site">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    <title>{% block title %}{{ brand.name }}{% endblock %} · {{ brand.name }}</title>
+    <meta name="description" content="{% block description %}{{ 'Servers, game servers, TeamSpeak, webhosting and domains – set up automatically.'|t }}{% endblock %}">
+    <link rel="stylesheet" href="{{ asset('css/website.css') }}">
+    <link rel="stylesheet" href="/branding.css">
+    {% if brand.favicon %}<link rel="icon" href="{{ brand.favicon }}">{% endif %}
+    <script src="{{ asset('js/website.js') }}" defer></script>
+</head>
+<body class="site-body">
+<a class="site-skip" href="#main">{{ 'Skip to content'|t }}</a>
+<header class="site-header">
+    <div class="site-container site-nav">
+        <a class="site-brand" href="/">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="site-brand-mark">{{ brand.name|first|upper }}</span><span>{{ brand.name }}</span>{% endif %}
+        </a>
+        <button class="site-menu-toggle" type="button" data-site-menu aria-controls="site-menu" aria-expanded="false" aria-label="{{ 'Menu'|t }}">{{ i.icon('menu') }}</button>
+        <nav class="site-menu" id="site-menu" aria-label="{{ 'Main navigation'|t }}">
+            <a class="site-link{{ current_path == '/' ? ' is-active' : '' }}" href="/">{{ i.icon('home') }}<span>{{ 'Home'|t }}</span></a>
+            {% if nav_pages is not empty %}
+            <div class="site-dropdown">
+                <button class="site-link{{ current_path starts with '/products' ? ' is-active' : '' }}" type="button" aria-haspopup="true">{{ i.icon('box') }}<span>{{ 'Products'|t }}</span>{{ i.icon('chevron', 'site-caret') }}</button>
+                <div class="site-dropdown-menu site-dropdown-wide">
+                    {% for key, page in nav_pages %}
+                        <a href="/products/{{ key }}"><span class="site-dd-icon">{{ i.icon(page.icon) }}</span><span><strong>{{ page.title|t }}</strong><small>{{ page.teaser|t }}</small></span></a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="site-dropdown">
+                <button class="site-link{{ current_path == '/about' ? ' is-active' : '' }}" type="button" aria-haspopup="true">{{ i.icon('users') }}<span>{{ 'About us'|t }}</span>{{ i.icon('chevron', 'site-caret') }}</button>
+                <div class="site-dropdown-menu">
+                    {% if about_page %}<a href="/about"><span class="site-dd-icon">{{ i.icon('info') }}</span><span><strong>{{ 'About us'|t }}</strong></span></a>{% endif %}
+                    <a href="/status"><span class="site-dd-icon">{{ i.icon('pulse') }}</span><span><strong>{{ 'Service status'|t }}</strong></span></a>
+                    {% if brand.support_email %}<a href="mailto:{{ brand.support_email }}"><span class="site-dd-icon">{{ i.icon('mail') }}</span><span><strong>{{ 'Contact'|t }}</strong></span></a>{% endif %}
+                    {% if brand.imprint_url %}<a href="{{ brand.imprint_url }}"><span class="site-dd-icon">{{ i.icon('file') }}</span><span><strong>{{ 'Imprint'|t }}</strong></span></a>{% endif %}
+                </div>
+            </div>
+            {% if auth_user %}
+                <a class="site-link" href="/dashboard">{{ i.icon('dashboard') }}<span>{{ 'Dashboard'|t }}</span></a>
+            {% else %}
+                <a class="site-link" href="/login">{{ i.icon('user') }}<span>{{ 'Sign in'|t }}</span></a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+    <div class="site-container site-footer-grid">
+        <div>
+            <a class="site-brand" href="/">{% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="site-brand-mark">{{ brand.name|first|upper }}</span><span>{{ brand.name }}</span>{% endif %}</a>
+            <p class="site-muted">{{ 'Servers, game servers, TeamSpeak, webhosting and domains – set up automatically.'|t }}</p>
+        </div>
+        {% if nav_pages is not empty %}
+        <div>
+            <h3>{{ 'Products'|t }}</h3>
+            <ul>{% for key, page in nav_pages %}<li><a href="/products/{{ key }}">{{ page.title|t }}</a></li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+        <div>
+            <h3>{{ brand.name }}</h3>
+            <ul>
+                {% if about_page %}<li><a href="/about">{{ 'About us'|t }}</a></li>{% endif %}
+                <li><a href="/status">{{ 'Service status'|t }}</a></li>
+                <li><a href="{{ auth_user ? '/dashboard' : '/login' }}">{{ 'Customer area'|t }}</a></li>
+                {% if brand.support_email %}<li><a href="mailto:{{ brand.support_email }}">{{ brand.support_email }}</a></li>{% endif %}
+            </ul>
+        </div>
+        <div>
+            <h3>{{ 'Legal'|t }}</h3>
+            <ul>
+                {% if brand.imprint_url %}<li><a href="{{ brand.imprint_url }}">{{ 'Imprint'|t }}</a></li>{% endif %}
+                {% if brand.privacy_url %}<li><a href="{{ brand.privacy_url }}">{{ 'Privacy policy'|t }}</a></li>{% endif %}
+                {% if brand.terms_url %}<li><a href="{{ brand.terms_url }}">{{ 'Terms and conditions'|t }}</a></li>{% endif %}
+                <li><a href="/withdraw-contract">{{ 'Cancel contracts'|t }}</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="site-container site-footer-bottom">
+        <span>© {{ 'now'|date('Y') }} {{ brand.name }}</span>
+        <span>{% if small_business %}{{ 'All prices are final prices; no VAT is charged (small business, § 19 UStG).'|t }}{% else %}{{ 'All prices include VAT.'|t }}{% endif %}</span>
+    </div>
+</footer>
+</body>
+</html>

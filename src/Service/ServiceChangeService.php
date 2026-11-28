@@ -522,7 +522,9 @@ class ServiceChangeService
         $current = $service->productId !== null ? $this->products->find($service->productId) : null;
         // A more expensive product (list price) is an upgrade even when discounts make the
         // difference zero: it applies at once, never "free at the end of the period".
-        $direction = $difference > 0 || ($current !== null && (int) $product['price'] > (int) $current['price']) ? self::UPGRADE : self::DOWNGRADE;
+        // Configured servers: the list price is only the configurator's minimum, so only their price counts.
+        $configured = is_array($service->config['_options'] ?? null) && isset($service->config['_options']['cores']);
+        $direction = $difference > 0 || (!$configured && $current !== null && (int) $product['price'] > (int) $current['price']) ? self::UPGRADE : self::DOWNGRADE;
         $charge = $direction === self::UPGRADE ? $this->prorate($service, max(0, $difference)) : 0;
 
         $blocker = null;

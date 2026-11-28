@@ -1,0 +1,29 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Products'|t }}{% endblock %}
+{% block content %}
+<section class="site-banner">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('box') }}</span>
+        <h1>{{ 'Our products'|t }}</h1>
+        <p class="site-lead">{{ 'Choose the right product for your project – all services are managed in one customer area.'|t }}</p>
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container">
+        {% if pages is empty %}<p class="site-center site-muted">{{ 'No products are available at the moment.'|t }}</p>{% endif %}
+        <div class="site-cards">
+            {% for key, page in pages %}
+            <a class="site-card site-card-link" href="/products/{{ key }}">
+                <span class="site-icon-tile">{{ i.icon(page.icon) }}</span>
+                <h3>{{ page.title|t }}</h3>
+                <p>{{ page.teaser|t }}</p>
+                {% if page.from %}<span class="site-from">{{ 'from'|t }} <strong>{{ page.from.gross|money(page.from.currency) }}</strong> {{ include('website/_cycle.twig', {cycle: page.from.cycle}) }}</span>{% endif %}
+                <span class="site-more">{{ 'View offers'|t }} {{ i.icon('arrow-right') }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

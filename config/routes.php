@@ -12,6 +12,7 @@ use Nebrix\Controller\Customer;
 use Nebrix\Controller\HealthController;
 use Nebrix\Controller\StatusController;
 use Nebrix\Controller\WebhookController;
+use Nebrix\Controller\WebsiteController;
 use Nebrix\Http\Router;
 
 /*
@@ -24,7 +25,11 @@ use Nebrix\Http\Router;
 return static function (Router $r): void {
     $r->get('/health', [HealthController::class, 'show']);
     $r->get('/branding.css', [BrandingController::class, 'stylesheet']);
-    $r->get('/', [Auth\LoginController::class, 'home']);
+    // Public website (Admin → Branding → Public website; when switched off, "/" leads to the sign-in).
+    $r->get('/', [WebsiteController::class, 'home']);
+    $r->get('/products', [WebsiteController::class, 'products']);
+    $r->get('/products/{page:[a-z]+}', [WebsiteController::class, 'show']);
+    $r->get('/about', [WebsiteController::class, 'about']);
 
     // -------------------------------------------------------------- REST API
     // Stateless: Bearer token instead of the session cookie, no CSRF, JSON
@@ -261,6 +266,9 @@ return static function (Router $r): void {
         $r->group(['middleware' => ['permission:products.view']], static function (Router $r): void {
             $r->get('/products', [Admin\ProductController::class, 'index']);
             $r->get('/products/create', [Admin\ProductController::class, 'create']);
+            $r->get('/products/tlds', [Admin\TldImportController::class, 'show']);
+            $r->post('/products/tlds/preview', [Admin\TldImportController::class, 'preview']);
+            $r->post('/products/tlds/import', [Admin\TldImportController::class, 'import']);
             $r->post('/products', [Admin\ProductController::class, 'store']);
             $r->get('/products/{id:\d+}/edit', [Admin\ProductController::class, 'edit']);
             $r->post('/products/{id:\d+}', [Admin\ProductController::class, 'update']);

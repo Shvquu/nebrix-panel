@@ -1,0 +1,70 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Import TLDs'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Import TLDs'|t }}</h1><p class="muted">{{ 'Creates one domain product per TLD from the SKRIME price list. Nothing is deleted; existing prices only change when you ask for it.'|t }} · <a href="/admin/products">&larr; {{ 'All products'|t }}</a></p></div></div>
+{% if integrations is empty %}
+    <div class="alert alert-warning">{{ 'Add and enable a SKRIME integration first (Admin → Integrations).'|t }}</div>
+{% else %}
+<form method="post" action="/admin/products/tlds/preview" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Prices'|t }}</h2></div>
+            <div class="card-body form-grid">
+                {{ f.select('integration_id', 'SKRIME integration', integrations, input.integration_id) }}
+                {{ f.select('rounding', 'Rounding', {'none': 'No rounding', '99': 'To x.99', '49': 'To x.49 / x.99'}, input.rounding) }}
+                {{ f.input('markup_percent', 'Markup (%)', input.markup_percent, 'text', {inputmode: 'decimal', help: 'On the highest of registration, renewal and transfer price.'}) }}
+                {{ f.input('markup_fixed', 'Fixed markup (EUR)', input.markup_fixed, 'text', {inputmode: 'decimal'}) }}
+                {{ f.input('min_price', 'Minimum price (EUR, net)', input.min_price, 'text', {inputmode: 'decimal'}) }}
+                {{ f.input('max_cost', 'Skip TLDs costing more than (EUR, 0 = no limit)', input.max_cost, 'text', {inputmode: 'decimal'}) }}
+                {{ f.input('tax_rate', 'Tax rate (%)', input.tax_rate, 'text', {inputmode: 'decimal'}) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Selection'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.textarea('tlds', 'Only these TLDs (empty = all)', input.tlds, {rows: 4, help: 'Separated by spaces or line breaks, e.g. de com net eu co.uk'}) }}
+                {{ f.checkbox('visible', 'Show new TLDs in the store', input.visible == '1') }}
+                {{ f.checkbox('update_prices', 'Update the price of TLDs that already exist', input.update_prices == '1', {help: 'Only new orders are affected; existing domains keep their renewal price.'}) }}
+            </div>
+            <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Show preview'|t }}</button></div>
+        </div>
+    </div>
+</form>
+{% endif %}
+
+{% if preview %}
+<div class="card mt-2">
+    <div class="card-header">
+        <h2>{{ 'Preview'|t }}</h2>
+        <div class="small muted">{{ 'New'|t }}: {{ preview.counts.create }} · {{ 'Price changes'|t }}: {{ preview.counts.update }} · {{ 'Unchanged'|t }}: {{ preview.counts.keep }} · {{ 'Skipped'|t }}: {{ preview.counts.skip }}</div>
+    </div>
+    {% if preview.counts.create + preview.counts.update > 0 %}
+    <div class="card-body">
+        <form method="post" action="/admin/products/tlds/import">
+            {{ csrf_field() }}
+            {% for name, value in input %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <button class="btn btn-primary" type="submit">{{ 'Import :count TLDs now'|t({count: preview.counts.create + preview.counts.update}) }}</button>
+            <span class="small muted">{{ 'The price list is loaded again when importing.'|t }}</span>
+        </form>
+    </div>
+    {% endif %}
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'TLD'|t }}</th><th class="text-right">{{ 'Registration'|t }}</th><th class="text-right">{{ 'Renewal'|t }}</th><th class="text-right">{{ 'Transfer'|t }}</th><th class="text-right">{{ 'Your price (net)'|t }}</th><th>{{ 'Action'|t }}</th></tr></thead>
+        <tbody>
+        {% for row in preview.rows %}
+            <tr>
+                <td class="mono">.{{ row.tld }}{% if row.offer %} <span class="badge badge-info">{{ 'offer'|t }}</span>{% endif %}</td>
+                <td class="text-right nowrap">{{ row.create|money('EUR') }}</td>
+                <td class="text-right nowrap">{{ row.renew|money('EUR') }}</td>
+                <td class="text-right nowrap">{{ row.transfer|money('EUR') }}</td>
+                <td class="text-right nowrap">{% if row.action == 'update' %}<span class="muted">{{ row.current_price|money('EUR') }} →</span> {% endif %}{{ (row.action == 'keep' ? row.current_price : row.price)|money('EUR') }}</td>
+                <td>{% if row.action == 'create' %}<span class="badge badge-success">{{ 'new'|t }}</span>{% elseif row.action == 'update' %}<span class="badge badge-warning">{{ 'new price'|t }}</span>{% elseif row.action == 'keep' %}<span class="badge badge-neutral">{{ 'unchanged'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'skipped'|t }}</span> <span class="small muted">{{ row.reason|t }}</span>{% endif %}</td>
+            </tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No TLDs match.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endblock %}

@@ -93,10 +93,19 @@
     });
   });
 
-  // Auto-submit selects in filter bars: <select data-autosubmit>
-  document.querySelectorAll('select[data-autosubmit]').forEach(function (select) {
+  // Auto-submit selects in filter bars and configurator sliders: data-autosubmit
+  document.querySelectorAll('select[data-autosubmit], input[data-autosubmit]').forEach(function (select) {
     select.addEventListener('change', function () {
       if (select.form) { select.form.submit(); }
+    });
+  });
+
+  // Live value of a slider: <input type="range" data-output="#element-id" data-unit=" GB">
+  document.querySelectorAll('input[type="range"][data-output]').forEach(function (range) {
+    var target = document.querySelector(range.getAttribute('data-output'));
+    if (!target) { return; }
+    range.addEventListener('input', function () {
+      target.textContent = range.value + (range.getAttribute('data-unit') || '');
     });
   });
 

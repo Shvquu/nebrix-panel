@@ -57,6 +57,37 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * For Hetzner pool products set the **stock** to the number of free pool servers so customers cannot order more than you have.
 * Products are not deleted; deactivate or hide them instead. Existing orders and services keep their price snapshot.
 
+### Server configurator (KVM and LXC)
+Tick *Configurator* in the product's provisioning settings to let customers choose CPU cores, memory and disk themselves:
+
+* The product's cores, memory and disk are the **included minimum**; the product price is the price of that minimum (memory must be whole GB).
+* Set a maximum and a price per additional step for each resource that may change (cores: per core, memory: per GB, disk: per *disk step*, e.g. 10 GB). A resource without a maximum stays fixed. The form refuses inconsistent settings (maximum below the minimum, missing price, disk maximum that is not the minimum plus whole steps).
+* Price = base price + steps × step price (net, per billing period). It is calculated on the server for the order page, the order, the invoice and every renewal; values from the browser are only the customer's choice and are validated (range and step). Customer-group discounts and coupons apply to the configured price.
+* The ordered resources are stored with the order item (`cores`, `memory_gb`, `disk_gb`) and become the service's configuration; the renewal price is the configured price. Changing to another package of the same upgrade group works as usual (the disk cannot shrink); changing single resources of a configured server afterwards is not available yet – switch to a package or ask support.
+* On the website, products with configurator appear on the tab *Configurator* of the product page; the API lists the ranges as `configurator` and accepts the three values as order options.
+
+### Import TLDs (SKRIME)
+Admin → Products → **Import TLDs** creates one domain product per top-level domain from the SKRIME price list (permission `products.manage`, an active SKRIME integration is needed):
+
+* Cost = the highest of SKRIME's registration, renewal and transfer price (a cheap registration offer must not make renewals unprofitable). Selling price = cost + markup (%) + fixed markup, rounded up (to x.99 or x.49/x.99 if chosen), at least the minimum price and never below the cost. Prices are net; the tax rate is set for all new products.
+* *Skip TLDs costing more than* leaves out expensive endings (default 100 EUR); *Only these TLDs* limits the import (e.g. `de com net eu co.uk`).
+* **Show preview** lists every ending with SKRIME's prices, your price and the action (new, new price, unchanged, skipped and why). Nothing is changed until you click *Import now*; the price list is loaded again for the import.
+* New products: category *Domain*, name `.tld`, address `domain-tld` (dots become dashes), billing cycle *annually*, automatic provisioning through the selected integration, popular endings first (sort order). Existing domain products are never deleted; their price changes only with *Update the price of TLDs that already exist* (only new orders are affected – services keep their renewal price). Endings sold through another integration and addresses already used by another product are skipped. The import can be repeated at any time (e.g. after SKRIME changed prices) and is audit-logged.
+* The customer store shows the 12 most popular endings as cards and a search for the others; the website shows a domain search with availability check and a filterable list of all endings.
+
+## Public website
+With the website switched on (default), `/` shows a public start page instead of the sign-in page; the customer area stays at `/dashboard` and `/login`. Settings: Admin → Settings → Branding & design → **Public website**.
+
+* **Start page**: headline (default: *Build your project with \*brand\**, words between `*asterisks*` are highlighted) and text, domain search, product overview with the lowest price per product page, feature highlights (all describe functions of the panel), the three order steps, reviews (Trustpilot) and the partner/API section (only parts that are switched on: refer a friend, REST API).
+* **Product pages** `/products/vserver`, `/kvm`, `/dedicated`, `/gameserver`, `/teamspeak`, `/webhosting`, `/domains`, `/cloud`: only pages with at least one public product appear. Public = active, visible, not reserved for a customer group, not sold out. Cards show price (incl. VAT; for small businesses final prices with the § 19 UStG note), technical data from the product settings and the feature list. KVM/LXC pages have the tabs *Packages* and *Configurator*.
+* **Ordering** always happens in the customer area: the buttons lead to `/store/<product>` (sign-in or registration first; the chosen configuration or domain is kept). The order page calculates the binding price.
+* **Domains**: search with availability check at the product's registrar (limited to 20 checks per visitor network and 10 minutes), the longest matching ending wins, popular endings as tiles and a filterable list of all endings. Umlaut domains need the PHP extension `intl` (otherwise they are rejected).
+* **About us** `/about`: shown when the text is set (plain text, blank lines start paragraphs) together with the company address, e-mail and phone from the general settings.
+* **Reviews (Trustpilot)**: enter your Trustpilot domain to show the section with links to your Trustpilot page and the review form. Optionally enter the TrustBox *business unit ID* and *template ID* from the TrustBox code in your Trustpilot business account: the widget is then offered as a **two-click** element – nothing is loaded from Trustpilot before the visitor clicks *Show Trustpilot reviews* (mention this in your privacy policy). The Content Security Policy allows `widget.trustpilot.com` only on the start page and only while a TrustBox is configured. The widget itself was not tested against Trustpilot (no account in the development environment) – check it once after entering your IDs.
+* The footer links imprint, privacy policy and terms (Settings → General) and the cancellation form. In Germany an imprint is mandatory: set the imprint URL before going live.
+* Colours come from the branding (primary colour = accent of the website); the design is dark. The illustration is original artwork (SVG, `resources/views/website/_hero_art.twig`). `robots.txt` allows search engines on `/`, `/products`, `/about` and `/status` only.
+* Switch the website off to get the previous behaviour (`/` leads to the sign-in page, the website pages answer 404).
+
 ## Orders, invoices and transactions
 
 * **Orders**: status `pending` (unpaid), `paid`, `cancelled`. Unpaid orders can be cancelled (stock is released); orders whose invoice is still unpaid 14 days after its due date are cancelled automatically.

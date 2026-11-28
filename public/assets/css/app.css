@@ -111,6 +111,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 .content { padding: 1.75rem; max-width: 1400px; width: 100%; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .page-header h1 { margin-bottom: .25rem; }
+.header-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .sidebar-toggle { display: none; }
 
 @media (max-width: 900px) {
@@ -501,3 +502,7 @@ a.p-stat:hover { border-color: var(--brand-primary); text-decoration: none; }
 @media (max-width: 1200px) { .a-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .a-stats { grid-template-columns: minmax(0, 1fr); } .p-avatar-name { display: none; } .a-hero { padding: 1.25rem; } }
 
+
+/* Server configurator on the order page */
+.p-configurator { margin-bottom: 1rem; }
+.cfg-row input[type="range"] { width: 100%; accent-color: var(--brand-primary); padding: 0; }

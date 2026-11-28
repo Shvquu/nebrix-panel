@@ -6,6 +6,7 @@ namespace Nebrix\Api;
 
 use Nebrix\Auth\User;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Service\Service;
 
 /**
@@ -83,6 +84,15 @@ final class Resource
     {
         $category = (string) $product['category'];
         $options = [];
+        foreach (ProductConfigurator::ranges($product) ?? [] as $name => $range) {
+            $options[] = [
+                'name' => $name,
+                'label' => ['cores' => 'CPU cores', 'memory_gb' => 'Memory (GB)', 'disk_gb' => 'Disk size (GB)'][$name] ?? $name,
+                'rules' => sprintf('nullable|int|min:%d|max:%d', $range['min'], $range['max']) . ($range['step'] > 1 ? sprintf('|step:%d', $range['step']) : ''),
+                'required' => false,
+                'help' => 'Empty = the included minimum.',
+            ];
+        }
         foreach (ProductCategory::exists($category) ? ProductCategory::get($category)['options'] : [] as $name => $definition) {
             $options[] = [
                 'name' => $name,
@@ -112,6 +122,9 @@ final class Resource
             ],
             'in_stock' => $product['stock'] === null || (int) $product['stock'] > 0,
             'order_options' => $options,
+            // Configurable servers: order options cores, memory_gb and disk_gb within these ranges
+            // (price = base price + steps above the minimum × step price, net per billing period).
+            'configurator' => ProductConfigurator::ranges($product),
         ];
     }
 

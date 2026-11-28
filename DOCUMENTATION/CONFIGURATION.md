@@ -122,6 +122,9 @@ Since 1 January 2025 German businesses must be able to receive e-invoices; issui
 ### Branding
 Logo and favicon upload (PNG, JPEG, WebP, ICO; max 1 MB), primary/secondary/accent colours, default theme (system/light/dark), login headline and subtitle, dashboard notice, e-mail header colour and footer. Colours are delivered as `/branding.css` so the strict Content Security Policy stays intact.
 
+### Public website (Settings → Branding & design)
+Website on/off (on: `/` shows the website), headline (`*word*` highlights) and text of the start page (empty = translated default texts), text of the "About us" page (empty = no page), feature highlights and partner/API section on/off, Trustpilot domain and the optional TrustBox business unit and template IDs (24 hexadecimal characters each). See [ADMIN_GUIDE.md](ADMIN_GUIDE.md#public-website).
+
 ### Mail (SMTP)
 Enable SMTP, host, port, encryption (STARTTLS / SMTPS / none), TLS certificate verification (on; can only be switched off for a mail server on this machine – `localhost`/`127.0.0.1` – with a self-signed certificate), username, password (encrypted), sender address and name. *Test connection* shows the SMTP server's answer when the connection or login fails (the client side of the dialogue, which contains the encoded credentials, is never shown). While SMTP is disabled, e-mails are written to the application log. Use "Send test e-mail" after saving. E-mails are sent by the queue worker, so the worker must run.
 

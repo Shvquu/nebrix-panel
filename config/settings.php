@@ -94,6 +94,17 @@ return [
     'branding.email_header_color' => ['group' => 'branding', 'type' => 'color', 'default' => '#6d28d9', 'label' => 'E-mail header color'],
     'branding.email_footer' => ['group' => 'branding', 'type' => 'text', 'default' => '', 'label' => 'E-mail footer text'],
 
+    // ------------------------------------------------------------ public website
+    'website.enabled' => ['group' => 'website', 'type' => 'bool', 'default' => true, 'label' => 'Show the public website at the start page', 'help' => 'Off: the start page leads to the sign-in page.'],
+    'website.hero_title' => ['group' => 'website', 'type' => 'string', 'default' => '', 'label' => 'Headline of the start page (empty = default text)', 'rules' => 'nullable|string|max:120', 'help' => 'Words between *asterisks* are highlighted in the brand color.'],
+    'website.hero_text' => ['group' => 'website', 'type' => 'text', 'default' => '', 'label' => 'Text below the headline (empty = default text)', 'rules' => 'nullable|string|max:400'],
+    'website.about_text' => ['group' => 'website', 'type' => 'text', 'default' => '', 'label' => 'Text of the "About us" page', 'rules' => 'nullable|string|max:5000', 'help' => 'Plain text; blank lines start a new paragraph. Empty = the page is not shown.'],
+    'website.show_features' => ['group' => 'website', 'type' => 'bool', 'default' => true, 'label' => 'Show the feature highlights'],
+    'website.show_partner' => ['group' => 'website', 'type' => 'bool', 'default' => true, 'label' => 'Show the partner and API section'],
+    'website.trustpilot_domain' => ['group' => 'website', 'type' => 'string', 'default' => '', 'label' => 'Trustpilot: your domain as listed on Trustpilot', 'rules' => 'nullable|hostname', 'help' => 'e.g. nebrix.net – shows the review section with links to your Trustpilot page.'],
+    'website.trustpilot_business_unit' => ['group' => 'website', 'type' => 'string', 'default' => '', 'label' => 'Trustpilot: business unit ID (optional, for the TrustBox widget)', 'rules' => 'nullable|regex:/^[a-f0-9]{24}$/', 'help' => 'From the TrustBox code in your Trustpilot business account (data-businessunit-id). The widget is only loaded after the visitor agrees (privacy).'],
+    'website.trustpilot_template' => ['group' => 'website', 'type' => 'string', 'default' => '', 'label' => 'Trustpilot: TrustBox template ID', 'rules' => 'nullable|regex:/^[a-f0-9]{24}$/', 'help' => 'data-template-id from the TrustBox code.'],
+
     // ------------------------------------------------------------------ e-mail
     'mail.enabled' => ['group' => 'mail', 'type' => 'bool', 'default' => false, 'label' => 'Send e-mails via SMTP', 'help' => 'When disabled, e-mails are written to the application log instead.'],
     'mail.host' => ['group' => 'mail', 'type' => 'string', 'default' => '', 'label' => 'SMTP host', 'rules' => 'nullable|hostname'],

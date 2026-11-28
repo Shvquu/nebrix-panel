@@ -102,6 +102,30 @@ final class SkrimeClient implements Registrar
         ];
     }
 
+    /**
+     * Current domain prices (EUR, updated hourly by SKRIME).
+     *
+     * @return list<array{tld: string, create: string, renew: string, transfer: string, offer: bool}>
+     */
+    public function pricelist(): array
+    {
+        $rows = [];
+        foreach ($this->call('GET', '/domain/pricelist', [], 'domain.pricelist') as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $tld = mb_strtolower(trim((string) ($row['tld'] ?? '')));
+            // Only plain LDH labels (IDN TLDs arrive as punycode); prices must be numbers.
+            if (preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/', $tld) !== 1
+                || !is_numeric($row['create'] ?? null) || !is_numeric($row['renew'] ?? null) || !is_numeric($row['transfer'] ?? null)) {
+                continue;
+            }
+            $rows[] = ['tld' => $tld, 'create' => (string) $row['create'], 'renew' => (string) $row['renew'], 'transfer' => (string) $row['transfer'], 'offer' => ($row['offer'] ?? false) === true];
+        }
+
+        return $rows;
+    }
+
     public function environment(): string
     {
         return $this->sandbox ? 'sandbox' : 'live';

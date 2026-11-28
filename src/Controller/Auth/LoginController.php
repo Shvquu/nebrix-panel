@@ -6,7 +6,6 @@ namespace Nebrix\Controller\Auth;
 
 use Nebrix\Auth\AuthenticationException;
 use Nebrix\Auth\AuthService;
-use Nebrix\Auth\User;
 use Nebrix\Authorization\Gate;
 use Nebrix\Authorization\Permission;
 use Nebrix\Http\Controller;
@@ -20,11 +19,6 @@ final class LoginController extends Controller
         private readonly AuthService $auth,
         private readonly Gate $gate,
     ) {
-    }
-
-    public function home(Request $request): Response
-    {
-        return $this->redirect($request->attribute('user') instanceof User ? '/dashboard' : '/login');
     }
 
     public function show(Request $request): Response

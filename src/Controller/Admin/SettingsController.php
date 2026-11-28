@@ -29,7 +29,7 @@ final class SettingsController extends Controller
     /** page => [permission, title, groups] */
     private const PAGES = [
         'general' => [Permission::SETTINGS_GENERAL, 'General settings', ['general' => 'Company & localization', 'auth' => 'Registration & sign-in', 'billing' => 'Billing', 'tax' => 'Taxes', 'invoice' => 'Invoice details', 'referral' => 'Refer a friend']],
-        'branding' => [Permission::SETTINGS_BRANDING, 'Branding & design', ['branding' => 'Colors & texts']],
+        'branding' => [Permission::SETTINGS_BRANDING, 'Branding & design', ['branding' => 'Colors & texts', 'website' => 'Public website']],
         'email' => [Permission::SETTINGS_EMAIL, 'E-mail delivery', ['mail' => 'SMTP server']],
         'payments' => [Permission::PAYMENTS_SETTINGS, 'Payment providers', ['payments_paypal' => 'PayPal', 'payments_stripe' => 'Stripe', 'payments_credit' => 'Account credit']],
         'system' => [Permission::SETTINGS_SYSTEM, 'System', ['system' => 'Operation', 'api' => 'REST API', 'discord' => 'Discord']],

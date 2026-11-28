@@ -1,0 +1,83 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ current.title|t }}{% endblock %}
+{% block description %}{{ current.teaser|t }}{% endblock %}
+{% block content %}
+<section class="site-banner">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('globe') }}</span>
+        <h1>{{ 'Find your domain'|t }}</h1>
+        <p class="site-lead">{{ 'Choose from :count endings – register a new domain or transfer your existing one.'|t({count: tlds|length}) }}</p>
+        <form class="site-domain-search site-domain-search-lg" method="get" action="/products/domains" role="search">
+            <label class="sr-only" for="domain-query">{{ 'Your desired domain'|t }}</label>
+            {{ i.icon('search') }}
+            <input id="domain-query" type="text" name="domain" value="{{ result.query|default('') }}" placeholder="{{ 'your-desired-domain.de'|t }}" maxlength="253" autocomplete="off" spellcheck="false" required>
+            <button class="site-btn site-btn-primary" type="submit">{{ 'Check'|t }}</button>
+        </form>
+    </div>
+</section>
+
+{% if result %}
+<section class="site-section site-section-tight">
+    <div class="site-container site-narrow">
+        {% set r = result %}
+        <div class="site-result site-result-{{ r.status }}">
+            {% if r.status == 'invalid' %}
+                <p>{{ i.icon('alert') }} {{ 'Please enter a valid domain name, e.g. example.de.'|t }}</p>
+            {% elseif r.status == 'unsupported' %}
+                <p>{{ i.icon('info') }} {{ 'We do not offer the ending of :domain yet.'|t({domain: r.domain}) }}</p>
+            {% else %}
+                <div class="site-result-row">
+                    <div>
+                        <strong class="site-result-domain">{{ r.domain }}</strong>
+                        {% if r.status == 'available' %}<span class="site-badge site-badge-ok">{{ i.icon('check') }} {{ 'available'|t }}</span>
+                        {% elseif r.status == 'taken' %}<span class="site-badge site-badge-warn">{{ 'already registered'|t }}</span>
+                        {% elseif r.status == 'premium' %}<span class="site-badge site-badge-warn">{{ 'premium domain – not available here'|t }}</span>
+                        {% elseif r.status == 'limited' %}<span class="site-badge">{{ 'too many checks – please try again later'|t }}</span>
+                        {% else %}<span class="site-badge">{{ 'availability could not be checked'|t }}</span>{% endif %}
+                        <div class="site-small site-muted">{{ r.product.gross|money(r.product.currency) }} {{ include('website/_cycle.twig', {cycle: r.product.billing_cycle}) }}</div>
+                    </div>
+                    {% if r.status != 'premium' %}
+                    <a class="site-btn site-btn-primary" href="/store/{{ r.product.slug }}?domain={{ r.domain|url_encode }}">{{ i.icon('cart') }} {{ r.status == 'taken' ? 'Transfer'|t : 'Register now'|t }}</a>
+                    {% endif %}
+                </div>
+                {% if r.status == 'taken' %}<p class="site-small site-muted">{{ 'If the domain belongs to you, you can transfer it to us with the auth code of your current provider.'|t }}</p>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if popular is not empty %}
+<section class="site-section site-section-tight">
+    <div class="site-container">
+        <div class="site-tld-grid">
+            {% for p in popular %}
+            <a class="site-tld" href="/store/{{ p.slug }}"><strong>.{{ p.tld }}</strong><span>{{ p.gross|money(p.currency) }}</span><small>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</small></a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="site-section site-section-alt">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'All'|t }} <span class="site-underline">{{ 'endings'|t }}</span></h2>
+            <p>{{ 'Prices per year including VAT. Renewals cost the same as the registration.'|t }}</p>
+        </div>
+        <div class="site-filter"><label class="sr-only" for="tld-filter">{{ 'Filter endings'|t }}</label><input id="tld-filter" type="search" placeholder="{{ 'Filter endings, e.g. .shop'|t }}" data-filter="#tld-table"></div>
+        <div class="site-table-wrap">
+            <table class="site-table" id="tld-table">
+                <thead><tr><th>{{ 'Ending'|t }}</th><th class="site-right">{{ 'Price'|t }}</th><th></th></tr></thead>
+                <tbody>
+                {% for p in tlds %}
+                    <tr data-filter-text=".{{ p.tld }}"><td><strong>.{{ p.tld }}</strong></td><td class="site-right">{{ p.gross|money(p.currency) }} <span class="site-muted site-small">{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></td><td class="site-right"><a href="/store/{{ p.slug }}">{{ 'Order now'|t }}</a></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

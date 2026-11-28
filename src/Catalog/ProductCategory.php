@@ -57,7 +57,7 @@ final class ProductCategory
                     'reinstall_templates' => ['label' => 'Additional templates for reinstall (one per line: VM ID|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. 9001|Ubuntu 24.04 – the product template is always offered.'],
                     'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
                     'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
-                ],
+                ] + ProductConfigurator::configFields(),
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
                 ],
@@ -82,7 +82,7 @@ final class ProductCategory
                     'reinstall_templates' => ['label' => 'Additional OS templates for reinstall (one per line: template|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst|Ubuntu 24.04'],
                     'backup_storage' => ['label' => 'Backup storage for customer backups (empty = none)', 'rules' => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]*$/', 'help' => 'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).'],
                     'max_backups' => ['label' => 'Backups per server', 'rules' => 'nullable|int|min:0|max:50', 'default' => 0],
-                ],
+                ] + ProductConfigurator::configFields(),
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
                 ],

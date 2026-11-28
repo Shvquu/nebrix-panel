@@ -24,6 +24,14 @@
         </div>
         {% endfor %}
     </div>
+    {% if category == 'domain' and more_domains > 0 %}
+    <form method="get" action="/store" class="card mt-1" role="search">
+        <div class="card-body filters">
+            <div class="form-row"><label for="f-domain-search">{{ ':count more endings – search for yours'|t({count: more_domains}) }}</label><input id="f-domain-search" type="search" name="search" placeholder=".shop" maxlength="100"></div>
+            <button class="btn btn-outline" type="submit">{{ 'Search'|t }}</button>
+        </div>
+    </form>
+    {% endif %}
 {% else %}
     <div class="card"><div class="empty">{{ 'There are currently no products available.'|t }}</div></div>
 {% endfor %}

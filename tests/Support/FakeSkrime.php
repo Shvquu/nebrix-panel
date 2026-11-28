@@ -33,6 +33,17 @@ final class FakeSkrime
     /** @var list<string> domains renewed through product/renew */
     public array $renewals = [];
 
+    /** @var list<array<string, mixed>> rows of GET /domain/pricelist (shape of the live answer) */
+    public array $pricelist = [
+        ['tld' => 'de', 'create' => '3.49', 'renew' => '3.49', 'transfer' => '0.00', 'restore' => '15.00', 'offer' => false, 'offerTypes' => []],
+        ['tld' => 'com', 'create' => '7.49', 'renew' => '9.40', 'transfer' => '9.40', 'restore' => '60.00', 'offer' => true, 'offerTypes' => ['create']],
+        ['tld' => 'co.uk', 'create' => '5.90', 'renew' => '5.90', 'transfer' => '0.00', 'restore' => '40.00', 'offer' => false, 'offerTypes' => []],
+        ['tld' => 'luxury', 'create' => '380.00', 'renew' => '380.00', 'transfer' => '380.00', 'restore' => '100.00', 'offer' => false, 'offerTypes' => []],
+        ['tld' => 'xn--6frz82g', 'create' => '19.00', 'renew' => '19.00', 'transfer' => '19.00', 'restore' => '50.00', 'offer' => false, 'offerTypes' => []],
+        ['tld' => 'broken', 'create' => 'n/a', 'renew' => '1.00', 'transfer' => '1.00', 'restore' => '1.00', 'offer' => false, 'offerTypes' => []],
+        ['tld' => '<script>', 'create' => '1.00', 'renew' => '1.00', 'transfer' => '1.00', 'restore' => '1.00', 'offer' => false, 'offerTypes' => []],
+    ];
+
     /** Simulates a lost answer: the order is carried out, then the connection fails. */
     public bool $loseNextOrderAnswer = false;
 
@@ -80,6 +91,7 @@ final class FakeSkrime
                 'balance' => ['amount' => $this->balance, 'coins' => '0', 'dispo' => '0.00', 'reservedAmount' => '0.00', 'total' => $this->balance],
                 'nameserver' => ['nameserver01.eu', 'nameserver02.eu', 'nameserver03.eu'],
             ])))
+            ->on('GET', $prefix . '/domain/pricelist', fn () => $ok('Successfully fetched pricelist', $this->pricelist))
             ->on('POST', $prefix . '/domain/check', function ($r) use ($ok, $body): Response {
                 // Public on the live API (answers without a valid key).
                 $domain = (string) ($body($r)['domain'] ?? '');

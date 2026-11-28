@@ -244,6 +244,8 @@ The connection test signs in (`account/user`) and shows the account and its bala
 ### Product configuration
 Category *Domain*, integration of type SKRIME, top-level domain (e.g. `de`), billing cycle *annually*. Products can use INWX or SKRIME; the product form lists both.
 
+Instead of entering every ending by hand, use **Admin → Products → Import TLDs**: it reads SKRIME's public price list (`GET /domain/pricelist`, about 1,100 endings, IDN endings as punycode) and creates or re-prices one product per ending with your markup – always with a preview first (details in [ADMIN_GUIDE.md](ADMIN_GUIDE.md#import-tlds-skrime)). Rows with missing or non-numeric prices and invalid endings are ignored.
+
 ### Lifecycle
 * Before the order (before payment): as for INWX (TLD, complete profile, availability at SKRIME, auth code for registered domains, no duplicate in the panel). Refused as well: **premium domains** (registration or transfer), `.it` domains, addresses without a house number, orders while the terms box is not ticked, and – for customers – orders on a **sandbox** integration (staff can test the sandbox through the shop). `.eu` needs a registrant in the EU or the EEA (checked for every registrar).
 * Registration and transfer: `domain/order` with the customer's profile as registrant (first and last name, company, street and house number separately, postcode, city, country, e-mail, phone `+CC.NUMBER`), the name servers and, for transfers, the auth code (stored encrypted, removed after SKRIME accepted the order). SKRIME registers for one year.
@@ -255,7 +257,7 @@ Category *Domain*, integration of type SKRIME, top-level domain (e.g. `de`), bil
 * A product that SKRIME blocks (e.g. overdue payment) answers with HTTP 423; the panel shows SKRIME's message and changes nothing.
 * Not supported: `.it` domains (SKRIME needs a tax or ID number as `regCode`, which the panel does not collect), DNS zone management and contact changes after the registration (do them in the SKRIME interface).
 
-**Test status.** The client was tested against a stateful fake of the documented API; the public endpoints `domain/check` and `domain/pricelist` and the error answer for an invalid key were checked against the live API. Orders were **not** placed for real, and the sandbox could not be reached from the development environment (Cloudflare check). Before going live: run the connection test with your key, place a test order in the **sandbox**, then register one cheap domain live and check it in the SKRIME interface.
+**Test status.** The client was tested against a stateful fake of the documented API; the public endpoints `domain/check` and `domain/pricelist` (shape used by the TLD import) and the error answer for an invalid key were checked against the live API. Orders were **not** placed for real, and the sandbox could not be reached from the development environment (Cloudflare check). Before going live: run the connection test with your key, place a test order in the **sandbox**, then register one cheap domain live and check it in the SKRIME interface.
 
 ## Pterodactyl (Minecraft / game servers)
 

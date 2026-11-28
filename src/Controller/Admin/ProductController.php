@@ -8,6 +8,7 @@ use Nebrix\Authorization\Permission;
 use Nebrix\Billing\Money;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Catalog\ProductConfigurator;
 use Nebrix\Database\Connection;
 use Nebrix\Http\Controller;
 use Nebrix\Http\HttpException;
@@ -206,6 +207,10 @@ final class ProductController extends Controller
         }
 
         $currency = (string) $data['currency'];
+        $configuratorErrors = ProductConfigurator::configErrors($config, $currency);
+        if ($configuratorErrors !== []) {
+            throw new ValidationException(array_map(static fn (string $message): array => [$message], array_combine(array_map(static fn (string $key): string => 'config_' . $key, array_keys($configuratorErrors)), $configuratorErrors)), Validator::safeInput($request->all()));
+        }
 
         return [
             'name' => $data['name'],

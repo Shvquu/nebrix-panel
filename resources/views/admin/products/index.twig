@@ -2,7 +2,7 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ 'Products'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Products'|t }}</h1></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/products/create">{{ 'New product'|t }}</a>{% endif %}</div>
+<div class="page-header"><div><h1>{{ 'Products'|t }}</h1></div>{% if can('products.manage') %}<div class="header-actions"><a class="btn btn-outline" href="/admin/products/tlds">{{ 'Import TLDs'|t }}</a> <a class="btn btn-primary" href="/admin/products/create">{{ 'New product'|t }}</a></div>{% endif %}</div>
 <div class="card">
     <div class="card-body">
         <form method="get" class="filters">
