@@ -128,7 +128,7 @@ class OrderService
         $taxRate = $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']);
         $couponCode = $couponCode !== null && trim($couponCode) !== '' ? $couponCode : null;
 
-        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $parts, $taxRate, $ip, $couponCode, $transfer): array {
+        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $parts, $taxRate, $ip, $couponCode, $transfer, $configuration): array {
             // One order per customer at a time: the coupon checks below (uses per customer, new
             // customers only) then see every order of this customer that committed before.
             // Must be the first statement of the transaction (before any consistent read).
@@ -152,11 +152,14 @@ class OrderService
             // Stored on the order and the invoice: written in the customer's language.
             $cycleLabel = $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), BillingCycle::labels()[(string) $product['billing_cycle']] ?? (string) $product['billing_cycle']);
             $label = (string) ($options['hostname'] ?? $options['server_name'] ?? $options['domain'] ?? '');
-            $resources = match (true) {
-                isset($options['cores'], $options['memory_gb'], $options['disk_gb']) => ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), ':cores vCores, :memory GB RAM, :disk GB disk', ['cores' => (string) $options['cores'], 'memory' => (string) $options['memory_gb'], 'disk' => (string) $options['disk_gb']]),
-                isset($options['slots']) => ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), ':slots slots', ['slots' => (string) $options['slots']]),
-                default => '',
-            };
+            $resources = '';
+            if ($configuration !== null) {
+                $labels = [];
+                foreach (ProductConfigurator::summary((string) $product['category'], $options) as $part) {
+                    $labels[] = $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), $part['text'], $part['params']);
+                }
+                $resources = ' · ' . implode(', ', $labels);
+            }
             $couponNote = $coupon !== null ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Coupon :code', ['code' => (string) $coupon['coupon']['code']]) : '';
             $promoBp = max($parts['promo_bp'], $firstPromo > 0 ? $parts['first_bp'] : 0);
             $promoNote = $promoBp > 0 ? ' · ' . ($parts['sale'] !== null ? (string) $parts['sale']['name'] . ' ' : '') . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Promotion −:percent %', ['percent' => rtrim(rtrim(number_format($promoBp / 100, 2, '.', ''), '0'), '.')]) : '';

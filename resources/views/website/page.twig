@@ -50,6 +50,12 @@
             {% endif %}
 
             {% if tab.kind == 'configurator' %}
+                {% if key == 'gameserver' %}
+                <div class="site-heading site-heading-tight">
+                    <h2>{{ 'Game server configurator'|t }}</h2>
+                    <p>{{ 'Put your game server together: memory, CPU, storage, backups, databases and ports. If you need more or less later, you can change it at any time in the customer area.'|t }}</p>
+                </div>
+                {% endif %}
                 {% if key == 'teamspeak' %}
                 <div class="site-heading site-heading-tight">
                     <h2>{{ 'TeamSpeak server configurator'|t }}</h2>

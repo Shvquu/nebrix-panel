@@ -87,7 +87,7 @@ final class Resource
         foreach (ProductConfigurator::ranges($product) ?? [] as $name => $range) {
             $options[] = [
                 'name' => $name,
-                'label' => ['cores' => 'CPU cores', 'memory_gb' => 'Memory (GB)', 'disk_gb' => 'Disk size (GB)', 'slots' => 'Slots'][$name] ?? $name,
+                'label' => ['cores' => 'CPU cores', 'memory_gb' => 'Memory (GB)', 'disk_gb' => 'Disk size (GB)', 'slots' => 'Slots', 'cpu_cores' => 'CPU cores', 'backups' => 'Backups', 'databases' => 'Databases', 'ports' => 'Additional ports'][$name] ?? $name,
                 'rules' => sprintf('nullable|int|min:%d|max:%d', $range['min'], $range['max']) . ($range['step'] > 1 ? sprintf('|step:%d', $range['step']) : ''),
                 'required' => false,
                 'help' => 'Empty = the included minimum.',

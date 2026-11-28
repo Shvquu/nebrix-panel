@@ -78,7 +78,8 @@ final class PterodactylProvisioner implements Provisioner, PackageChangeable
         $externalId = 'nebrix-service-' . $service->id;
         $server = $client->findServerByExternalId($externalId);
         if ($server === null) {
-            $egg = $client->egg((int) $service->config('nest_id'), (int) $service->config('egg_id'));
+            $nest = (int) $service->config('nest_id', 0);
+            $egg = $client->egg($nest > 0 ? $nest : null, (int) $service->config('egg_id'));
             $overrides = json_decode((string) ($service->config('environment') ?: '{}'), true);
             $environment = array_merge($egg['variables'], is_array($overrides) ? array_map('strval', $overrides) : []);
 

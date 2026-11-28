@@ -16,15 +16,54 @@ use Nebrix\Integration\IntegrationException;
  * External IDs (users: "nebrix-user-<id>", servers: "nebrix-service-<id>")
  * make provisioning idempotent: before creating anything the client looks
  * the object up by its external ID.
+ *
+ * Works with Pterodactyl 1.x and 2.0. 2.0 removed the nest endpoints of the
+ * Application API (eggs are grouped by tags and read through
+ * /api/application/eggs); servers, users, nodes and the Client API keep
+ * their paths. The generation is detected once per client (GET
+ * /api/application/eggs exists only on 2.0) unless it is set in the
+ * integration.
  */
 class PterodactylClient
 {
     private const POWER_SIGNALS = ['start', 'stop', 'restart', 'kill'];
 
+    public const VERSION_AUTO = 'auto';
+
+    private ?int $generation = null;
+
     public function __construct(
         private readonly ApiClient $application,
         private readonly ?ApiClient $client,
+        private readonly string $version = self::VERSION_AUTO,
     ) {
+    }
+
+    /**
+     * Major version of the panel's Application API: 1 or 2.
+     *
+     * @throws IntegrationException when the panel cannot be reached
+     */
+    public function generation(): int
+    {
+        if (in_array($this->version, ['1', '2'], true)) {
+            return (int) $this->version;
+        }
+        if ($this->generation !== null) {
+            return $this->generation;
+        }
+        try {
+            $this->application->request('GET', '/api/application/eggs', ['query' => ['per_page' => 1], 'action' => 'eggs.probe']);
+            $this->generation = 2;
+        } catch (IntegrationException $exception) {
+            // 1.x has no top-level egg route: 404 (or 405) means the nest-based API.
+            if (!in_array($exception->httpStatus(), [404, 405], true)) {
+                throw $exception;
+            }
+            $this->generation = 1;
+        }
+
+        return $this->generation;
     }
 
     public function hasClientApi(): bool
@@ -40,7 +79,12 @@ class PterodactylClient
             return HealthResult::down($exception->getMessage());
         }
 
-        $message = sprintf('%d node(s) available%s', count($nodes), $this->client === null ? ' (client API key not configured)' : '');
+        try {
+            $generation = $this->generation();
+        } catch (IntegrationException $exception) {
+            return HealthResult::degraded('Nodes are reachable, but the egg API is not: ' . $exception->getMessage());
+        }
+        $message = sprintf('Pterodactyl %s · %d node(s) available%s', $generation === 2 ? '2.x' : '1.x', count($nodes), $this->client === null ? ' (client API key not configured)' : '');
 
         return $nodes === [] ? HealthResult::degraded($message) : HealthResult::healthy($message, ['nodes' => $nodes]);
     }
@@ -78,14 +122,21 @@ class PterodactylClient
     }
 
     /**
+     * Docker image, startup command and variable defaults of an egg. 1.x
+     * needs the egg's nest; 2.0 addresses eggs directly.
+     *
      * @return array{docker_image: string, startup: string, variables: array<string, string>}
      */
-    public function egg(int $nestId, int $eggId): array
+    public function egg(?int $nestId, int $eggId): array
     {
-        $response = $this->application->request('GET', '/api/application/nests/' . $this->id($nestId) . '/eggs/' . $this->id($eggId), [
-            'query' => ['include' => 'variables'],
-            'action' => 'eggs.show',
-        ]);
+        if ($this->generation() === 2) {
+            $path = '/api/application/eggs/' . $this->id($eggId);
+        } elseif ($nestId === null || $nestId < 1) {
+            throw new IntegrationException('Pterodactyl 1.x needs the nest ID of the egg (product setting "Nest ID").');
+        } else {
+            $path = '/api/application/nests/' . $this->id($nestId) . '/eggs/' . $this->id($eggId);
+        }
+        $response = $this->application->request('GET', $path, ['query' => ['include' => 'variables'], 'action' => 'eggs.show']);
         $attributes = $this->attributes($response['json']);
 
         $variables = [];
@@ -96,8 +147,14 @@ class PterodactylClient
             }
         }
 
+        // A single image ("docker_image") or, on newer panels, a map of images ("docker_images"): the first one is the default.
+        $image = (string) ($attributes['docker_image'] ?? '');
+        if ($image === '' && is_array($attributes['docker_images'] ?? null) && $attributes['docker_images'] !== []) {
+            $image = (string) reset($attributes['docker_images']);
+        }
+
         return [
-            'docker_image' => (string) ($attributes['docker_image'] ?? ''),
+            'docker_image' => $image,
             'startup' => (string) ($attributes['startup'] ?? ''),
             'variables' => $variables,
         ];

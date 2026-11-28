@@ -261,15 +261,20 @@ Instead of entering every ending by hand, use **Admin → Products → Import TL
 
 ## Pterodactyl (Minecraft / game servers)
 
+Works with **Pterodactyl 1.x and 2.x**. Pterodactyl 2.0 removed the nest endpoints of the Application API (eggs are grouped by tags and read through `/api/application/eggs/{id}`); servers, users, nodes, locations and the Client API keep their paths. Nebrix detects the version once per connection (`GET /api/application/eggs` exists only on 2.x: 200 = 2.x, 404/405 = 1.x) unless *Panel version* is set; the connection test shows the detected version.
+
 ### Connection settings
 | Field | Notes |
 |---|---|
 | Panel URL | `https://games.example.com` |
-| Application API key (`ptla_…`) | Admin → Application API in Pterodactyl. Permissions: Users – read & write, Servers – read & write, Nests and Eggs – read; everything else – none. |
+| Panel version | *Detect automatically* (default), *Pterodactyl 1.x* or *Pterodactyl 2.x*. |
+| Application API key (`ptla_…`) | Admin → Application API in Pterodactyl. Permissions: Users – read & write, Servers – read & write, Nests and Eggs – read (2.x: Eggs – read); everything else – none. Existing keys keep working after an upgrade to 2.x. |
 | Client API key (`ptlc_…`, optional) | Client API key of a root administrator; enables live status, power actions and backups in the customer panel. Treat it like a root credential. |
 
 ### Product configuration
-Nest ID, egg ID, location ID, memory, swap, disk, CPU limit, block IO weight, databases, additional ports, backups, Docker image (empty = egg default), egg variable overrides (JSON). Customers choose a server name.
+Nest ID (**1.x only** – 2.x has no nests; leave it empty there), egg ID (unchanged by the upgrade to 2.x), location ID, memory, swap, disk, CPU limit, block IO weight, databases, additional ports, backups, Docker image (empty = egg default; with several images the egg's first one), egg variable overrides (JSON). Customers choose a server name. With the **configurator** customers also choose memory, CPU cores, disk, backups, databases and additional ports (see ADMIN_GUIDE.md); later changes go through the build endpoint (`PATCH /api/application/servers/{id}/build`, the primary allocation stays).
+
+**Test status (2.x).** Tested against a fake of the Application API modelled on the official 2.0 upgrade notes and the behaviour reported by other billing modules (nest routes 404, egg data from `/eggs/{id}?include=variables`, unchanged server and build endpoints); not yet against a real 2.0 panel (2.0 is in open beta). Create a test server once after the upgrade.
 
 ### Lifecycle
 * One Pterodactyl user per customer (`external_id` = `nebrix-user-<id>`, user name `nx<id>`), looked up by external ID; created on the first order with a generated password and re-used for further servers (the access data of the first service is shown again). If an account with the customer's e-mail already exists in Pterodactyl but was not created by Nebrix, user creation fails with a validation error and the service is marked `failed` – set the account's external ID to `nebrix-user-<id>` in Pterodactyl (or change its e-mail) and retry provisioning.

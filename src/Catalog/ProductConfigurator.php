@@ -9,7 +9,8 @@ use Nebrix\Security\ValidationException;
 
 /**
  * Configurator: the customer chooses resources within limits set by staff –
- * CPU cores, memory and disk for KVM/LXC servers, slots for TeamSpeak.
+ * CPU cores, memory and disk for KVM/LXC servers, slots for TeamSpeak,
+ * memory, CPU, disk, backups, databases and ports for game servers.
  *
  * The product's own values (e.g. cores, memory_mb, disk_gb, slots) are the
  * included minimum and the product price is the price of that minimum. Each
@@ -26,7 +27,7 @@ final class ProductConfigurator
      * (option unit → config unit), settings for maximum, step and price, and
      * the hard limit of the option value.
      *
-     * @var array<string, array<string, array{config: string, factor: int, max: string, step: string|null, price: string, limit: int}>>
+     * @var array<string, array<string, array{config: string, factor: int, max: string, step: string|null, price: string, limit: int, min?: int, unit_error?: string}>>
      */
     private const RESOURCES = [
         ProductCategory::VPS => [
@@ -42,6 +43,15 @@ final class ProductConfigurator
         ProductCategory::TEAMSPEAK => [
             'slots' => ['config' => 'slots', 'factor' => 1, 'max' => 'cfg_max_slots', 'step' => 'cfg_slot_step', 'price' => 'cfg_price_slot_step', 'limit' => 1024],
         ],
+        // Pterodactyl: memory and disk in MB, CPU in % of one core (100 = 1 core); counts may start at 0.
+        ProductCategory::MINECRAFT => [
+            'memory_gb' => ['config' => 'memory_mb', 'factor' => 1024, 'max' => 'cfg_max_memory_gb', 'step' => null, 'price' => 'cfg_price_memory_gb', 'limit' => 1024],
+            'cpu_cores' => ['config' => 'cpu_percent', 'factor' => 100, 'max' => 'cfg_max_cpu_cores', 'step' => null, 'price' => 'cfg_price_cpu_core', 'limit' => 128, 'unit_error' => 'With the configurator, the CPU limit must be whole cores (a multiple of 100 %).'],
+            'disk_gb' => ['config' => 'disk_mb', 'factor' => 1024, 'max' => 'cfg_max_disk_gb', 'step' => 'cfg_disk_step_gb', 'price' => 'cfg_price_disk_step', 'limit' => 10240, 'unit_error' => 'With the configurator, the disk must be whole GB (a multiple of 1024 MB).'],
+            'backups' => ['config' => 'backups', 'factor' => 1, 'max' => 'cfg_max_backups', 'step' => null, 'price' => 'cfg_price_backup', 'limit' => 100, 'min' => 0],
+            'databases' => ['config' => 'databases', 'factor' => 1, 'max' => 'cfg_max_databases', 'step' => null, 'price' => 'cfg_price_database', 'limit' => 100, 'min' => 0],
+            'ports' => ['config' => 'allocations', 'factor' => 1, 'max' => 'cfg_max_ports', 'step' => null, 'price' => 'cfg_price_port', 'limit' => 100, 'min' => 0],
+        ],
     ];
 
     /**
@@ -51,6 +61,24 @@ final class ProductConfigurator
      */
     public static function configFields(string $category = ProductCategory::VPS): array
     {
+        if ($category === ProductCategory::MINECRAFT) {
+            return [
+                'configurator' => ['label' => 'Configurator: customers choose memory, CPU, disk, backups, databases and ports', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'The values above are the included minimum; the product price is the price of that minimum. Memory and disk must be whole GB, the CPU limit whole cores (multiples of 100 %).'],
+                'cfg_max_memory_gb' => ['label' => 'Configurator: maximum memory (GB)', 'rules' => 'nullable|int|min:1|max:1024'],
+                'cfg_price_memory_gb' => ['label' => 'Configurator: price per additional GB memory (net)', 'rules' => self::MONEY_RULE],
+                'cfg_max_cpu_cores' => ['label' => 'Configurator: maximum CPU cores', 'rules' => 'nullable|int|min:1|max:128'],
+                'cfg_price_cpu_core' => ['label' => 'Configurator: price per additional CPU core (net)', 'rules' => self::MONEY_RULE],
+                'cfg_max_disk_gb' => ['label' => 'Configurator: maximum disk size (GB)', 'rules' => 'nullable|int|min:1|max:10240'],
+                'cfg_disk_step_gb' => ['label' => 'Configurator: disk steps (GB)', 'rules' => 'nullable|int|min:1|max:1000', 'default' => 5],
+                'cfg_price_disk_step' => ['label' => 'Configurator: price per additional disk step (net)', 'rules' => self::MONEY_RULE],
+                'cfg_max_backups' => ['label' => 'Configurator: maximum backups', 'rules' => 'nullable|int|min:0|max:100'],
+                'cfg_price_backup' => ['label' => 'Configurator: price per additional backup (net)', 'rules' => self::MONEY_RULE],
+                'cfg_max_databases' => ['label' => 'Configurator: maximum databases', 'rules' => 'nullable|int|min:0|max:100'],
+                'cfg_price_database' => ['label' => 'Configurator: price per additional database (net)', 'rules' => self::MONEY_RULE],
+                'cfg_max_ports' => ['label' => 'Configurator: maximum additional ports', 'rules' => 'nullable|int|min:0|max:100'],
+                'cfg_price_port' => ['label' => 'Configurator: price per additional port (net)', 'rules' => self::MONEY_RULE],
+            ];
+        }
         if ($category === ProductCategory::TEAMSPEAK) {
             return [
                 'configurator' => ['label' => 'Configurator: customers choose the number of slots', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'The slots above are the included minimum; the product price is the price of that minimum.'],
@@ -140,7 +168,7 @@ final class ProductConfigurator
         foreach (self::RESOURCES[$category] as $resource) {
             $value = (int) ($config[$resource['config']] ?? 0);
             if ($resource['factor'] > 1 && ($value % $resource['factor'] !== 0 || $value < $resource['factor'])) {
-                $errors[$resource['config']] = 'With the configurator, memory must be whole GB (a multiple of 1024 MB).';
+                $errors[$resource['config']] = $resource['unit_error'] ?? 'With the configurator, memory must be whole GB (a multiple of 1024 MB).';
                 continue;
             }
             $min = intdiv($value, $resource['factor']);
@@ -248,12 +276,38 @@ final class ProductConfigurator
     {
         foreach (self::RESOURCES[$category] ?? [] as $name => $resource) {
             $value = $choice[$name] ?? null;
-            if (is_int($value) && $value >= 1 && $value <= $resource['limit']) {
+            if (is_int($value) && $value >= ($resource['min'] ?? 1) && $value <= $resource['limit']) {
                 $config[$resource['config']] = $value * $resource['factor'];
             }
         }
 
         return $config;
+    }
+
+    /**
+     * Short description of a choice (order item, upgrade invoice): texts to
+     * translate with their values, in display order.
+     *
+     * @param array<string, mixed> $choice
+     * @return list<array{text: string, params: array<string, string>}>
+     */
+    public static function summary(string $category, array $choice): array
+    {
+        $value = static fn (string $name): string => (string) (int) ($choice[$name] ?? 0);
+
+        return match ($category) {
+            ProductCategory::VPS, ProductCategory::LXC => [['text' => ':cores vCores, :memory GB RAM, :disk GB disk', 'params' => ['cores' => $value('cores'), 'memory' => $value('memory_gb'), 'disk' => $value('disk_gb')]]],
+            ProductCategory::TEAMSPEAK => [['text' => ':slots slots', 'params' => ['slots' => $value('slots')]]],
+            ProductCategory::MINECRAFT => [
+                ['text' => ':n GB memory', 'params' => ['n' => $value('memory_gb')]],
+                ['text' => ':n cores', 'params' => ['n' => $value('cpu_cores')]],
+                ['text' => ':n GB storage', 'params' => ['n' => $value('disk_gb')]],
+                ['text' => ':n backups', 'params' => ['n' => $value('backups')]],
+                ['text' => ':n databases', 'params' => ['n' => $value('databases')]],
+                ['text' => ':n additional ports', 'params' => ['n' => $value('ports')]],
+            ],
+            default => [],
+        };
     }
 
     /**

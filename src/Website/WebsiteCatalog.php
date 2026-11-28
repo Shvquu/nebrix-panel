@@ -396,9 +396,10 @@ final class WebsiteCatalog
             ProductCategory::MINECRAFT => [
                 $spec(':n GB memory', ['n' => $gb($int('memory_mb'))]),
                 $spec(':n GB storage', ['n' => $gb($int('disk_mb'))]),
-                $int('cpu_percent') > 0 ? $spec(':n % CPU', ['n' => $int('cpu_percent')]) : null,
+                $int('cpu_percent') > 0 ? ($int('cpu_percent') % 100 === 0 ? $spec(':n cores', ['n' => intdiv($int('cpu_percent'), 100)]) : $spec(':n % CPU', ['n' => $int('cpu_percent')])) : null,
                 $int('backups') > 0 ? $spec(':n backups', ['n' => $int('backups')]) : null,
                 $int('databases') > 0 ? $spec(':n databases', ['n' => $int('databases')]) : null,
+                $int('allocations') > 0 ? $spec(':n additional ports', ['n' => $int('allocations')]) : null,
             ],
             ProductCategory::TEAMSPEAK => [$spec(':n slots', ['n' => $int('slots')])],
             ProductCategory::NEXTCLOUD => [$spec(':n GB storage', ['n' => $int('quota_gb')])],

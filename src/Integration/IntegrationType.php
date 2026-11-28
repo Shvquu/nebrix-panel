@@ -48,6 +48,7 @@ final class IntegrationType
                 'description' => 'Game servers through the Pterodactyl Application API.',
                 'config' => [
                     'base_url' => ['label' => 'Panel URL', 'rules' => 'required|url|max:255', 'help' => 'e.g. https://games.example.com'],
+                    'api_version' => ['label' => 'Panel version', 'rules' => 'required|in:auto,1,2', 'default' => 'auto', 'type' => 'select', 'options' => ['auto' => 'Detect automatically', '1' => 'Pterodactyl 1.x', '2' => 'Pterodactyl 2.x'], 'help' => '2.x has no nests: eggs are addressed by their ID alone.'],
                     'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
                 ],
                 'secrets' => [

@@ -8,11 +8,11 @@
 {% if ranges and cfg %}
 {# Configurator: a GET form, so that the price on this page is always calculated by the server. #}
 <form method="get" action="/store/{{ product.slug }}" class="card p-configurator" novalidate>
-    <div class="card-header"><h2>{{ (ranges.slots is defined ? 'Configure your TeamSpeak server' : 'Configure your server')|t }}</h2></div>
+    <div class="card-header"><h2>{{ (ranges.slots is defined ? 'Configure your TeamSpeak server' : (ranges.cpu_cores is defined ? 'Configure your game server' : 'Configure your server'))|t }}</h2></div>
     <div class="card-body">
         {% if coupon %}<input type="hidden" name="coupon" value="{{ coupon }}">{% endif %}
-        {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots'} %}
-        {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
+        {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots', 'cpu_cores': 'CPU cores', 'backups': 'Backups', 'databases': 'Databases', 'ports': 'Additional ports'} %}
+        {% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': '', 'cpu_cores': '', 'backups': '', 'databases': '', 'ports': ''} %}
         {% for name, range in ranges %}
             {% if range.max > range.min %}
             <div class="form-row cfg-row">
@@ -50,7 +50,7 @@
             <div class="card-header"><h2>{{ 'Configuration'|t }}</h2></div>
             <div class="card-body">
                 {% if product.description %}<p>{{ product.description }}</p>{% endif %}
-                {% if cfg and cfg.cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':cores vCores, :memory GB RAM, :disk GB disk'|t({cores: cfg.cores, memory: cfg.memory_gb, disk: cfg.disk_gb}) }}</span></p>{% elseif cfg and cfg.slots is defined %}<p><span class="badge badge-info badge-sentence">{{ ':slots slots'|t({slots: cfg.slots}) }}</span></p>{% endif %}
+                {% if cfg and cfg.cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':cores vCores, :memory GB RAM, :disk GB disk'|t({cores: cfg.cores, memory: cfg.memory_gb, disk: cfg.disk_gb}) }}</span></p>{% elseif cfg and cfg.slots is defined %}<p><span class="badge badge-info badge-sentence">{{ ':slots slots'|t({slots: cfg.slots}) }}</span></p>{% elseif cfg and cfg.cpu_cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':n GB memory'|t({n: cfg.memory_gb}) }}, {{ ':n cores'|t({n: cfg.cpu_cores}) }}, {{ ':n GB storage'|t({n: cfg.disk_gb}) }}</span></p>{% endif %}
                 {% for name, option in options %}
                     {{ f.input(name, option.label, prefill[name]|default(''), 'text', option.help is defined ? {required: true, help: option.help} : {required: true}) }}
                 {% else %}

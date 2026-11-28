@@ -134,7 +134,7 @@ final class ProductCategory
                 'label' => 'Minecraft / game server',
                 'integration' => 'pterodactyl',
                 'config' => [
-                    'nest_id' => ['label' => 'Nest ID', 'rules' => 'required|int|min:1'],
+                    'nest_id' => ['label' => 'Nest ID (Pterodactyl 1.x only)', 'rules' => 'nullable|int|min:1', 'help' => 'Pterodactyl 2.x has no nests – leave empty there.'],
                     'egg_id' => ['label' => 'Egg ID', 'rules' => 'required|int|min:1'],
                     'location_id' => ['label' => 'Location ID', 'rules' => 'required|int|min:1'],
                     'memory_mb' => ['label' => 'Memory (MB)', 'rules' => 'required|int|min:128|max:1048576', 'default' => 4096],
@@ -147,7 +147,7 @@ final class ProductCategory
                     'backups' => ['label' => 'Backups', 'rules' => 'required|int|min:0|max:100', 'default' => 2],
                     'docker_image' => ['label' => 'Docker image (empty = egg default)', 'rules' => 'nullable|string|max:255|regex:/^[A-Za-z0-9._\/:@-]*$/'],
                     'environment' => ['label' => 'Environment overrides (JSON object)', 'rules' => 'nullable|json|max:5000', 'type' => 'json', 'help' => 'Values for egg variables, e.g. {"SERVER_JARFILE": "server.jar"}. Missing variables use the egg defaults.'],
-                ],
+                ] + ProductConfigurator::configFields(self::MINECRAFT),
                 'options' => [
                     'server_name' => ['label' => 'Server name', 'rules' => 'required|string|max:60|regex:/^[\p{L}\p{N} ._-]+$/u'],
                 ],

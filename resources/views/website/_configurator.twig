@@ -1,7 +1,7 @@
 {% import 'macros/icons.twig' as i %}
-{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory', 'disk_gb': 'Storage', 'slots': 'Slots'} %}
-{% set units = {'cores': '', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
-{% set items = {'cores': ':n cores', 'memory_gb': ':n GB memory', 'disk_gb': ':n GB storage', 'slots': ':n slots'} %}
+{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory', 'disk_gb': 'Storage', 'slots': 'Slots', 'cpu_cores': 'CPU cores', 'backups': 'Backups', 'databases': 'Databases', 'ports': 'Additional ports'} %}
+{% set units = {'cores': '', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': '', 'cpu_cores': '', 'backups': '', 'databases': '', 'ports': ''} %}
+{% set items = {'cores': ':n cores', 'memory_gb': ':n GB memory', 'disk_gb': ':n GB storage', 'slots': ':n slots', 'cpu_cores': ':n cores', 'backups': ':n backups', 'databases': ':n databases', 'ports': ':n additional ports'} %}
 <form class="site-config" method="get" action="/store/{{ p.slug }}" data-configurator data-base="{{ p.net }}" data-rate="{{ p.tax_rate_bp }}" data-promo="{{ p.promo ? p.promo.bp : 0 }}" data-promo-then="{{ p.promo ? p.promo.permanent_bp : 0 }}" data-reference="{{ p.promo ? p.promo.reference_net : p.net }}" data-currency="{{ p.currency }}" data-locale="{{ locale }}">
     <div class="site-config-sliders">
         {% if p.description %}<p class="site-muted">{{ p.description }}</p>{% endif %}

@@ -294,7 +294,7 @@ class ServiceChangeService
             $description = $this->translator->translateTo((string) ($owner->attribute('language') ?? 'en'), 'Upgrade :service: :from → :to (:start to :end)', [
                 'service' => $service->name,
                 'from' => (string) $offer['from_name'],
-                'to' => (string) $product['name'] . ($configuration !== null ? ' (' . $this->summary($configuration, (string) ($owner->attribute('language') ?? 'en')) . ')' : ''),
+                'to' => (string) $product['name'] . ($configuration !== null ? ' (' . $this->summary($configuration, (string) ($owner->attribute('language') ?? 'en'), $service->category) . ')' : ''),
                 'start' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $start),
                 'end' => Translator::date((string) ($owner->attribute('language') ?? 'en'), $end),
             ]);
@@ -464,7 +464,7 @@ class ServiceChangeService
             $this->mailer->queue($owner->email, $owner->displayName(), 'service_package_changed', [
                 'name' => $owner->displayName(),
                 'service_name' => $service->name,
-                'package' => (string) $product['name'] . (is_array($configuration) ? ' (' . $this->summary(array_map('intval', $configuration), $locale) . ')' : ''),
+                'package' => (string) $product['name'] . (is_array($configuration) ? ' (' . $this->summary(array_map('intval', $configuration), $locale, $service->category) . ')' : ''),
                 'price' => Money::format((int) $change['new_recurring'], $service->currency, $locale),
                 'note' => $note !== null ? $this->translator->translateTo($locale, $note) : '',
                 'service_url' => rtrim($this->config->string('app.url'), '/') . '/services/' . $service->id,
@@ -780,15 +780,14 @@ class ServiceChangeService
     /**
      * @param array<string, int> $configuration
      */
-    private function summary(array $configuration, string $locale): string
+    private function summary(array $configuration, string $locale, string $category): string
     {
-        if (isset($configuration['slots'])) {
-            return $this->translator->translateTo($locale, ':slots slots', ['slots' => (string) $configuration['slots']]);
+        $parts = [];
+        foreach (ProductConfigurator::summary($category, $configuration) as $part) {
+            $parts[] = $this->translator->translateTo($locale, $part['text'], $part['params']);
         }
 
-        return $this->translator->translateTo($locale, ':cores vCores, :memory GB RAM, :disk GB disk', [
-            'cores' => (string) ($configuration['cores'] ?? 0), 'memory' => (string) ($configuration['memory_gb'] ?? 0), 'disk' => (string) ($configuration['disk_gb'] ?? 0),
-        ]);
+        return implode(', ', $parts);
     }
 
     /** The provisioner, if the service is managed automatically and supports package changes. */

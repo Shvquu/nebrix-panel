@@ -24,13 +24,13 @@ final class PterodactylNextcloudTeamSpeakTest extends IntegrationTestCase
     /** @var array<string, array<string, mixed>> */
     private array $pteroServers = [];
 
-    private function pterodactyl(bool $withClientKey = false): int
+    private function pterodactyl(bool $withClientKey = false, array $config = []): int
     {
         $secrets = ['application_api_key' => 'ptla_' . str_repeat('a', 40)];
         if ($withClientKey) {
             $secrets['client_api_key'] = 'ptlc_' . str_repeat('b', 40);
         }
-        $id = $this->createIntegration('pterodactyl', ['base_url' => 'https://203.0.113.20', 'verify_tls' => true], $secrets);
+        $id = $this->createIntegration('pterodactyl', $config + ['base_url' => 'https://203.0.113.20', 'verify_tls' => true], $secrets);
 
         $notFound = new Response(404, [], json_encode(['errors' => [['code' => 'NotFoundHttpException', 'detail' => 'The requested resource could not be found.']]], JSON_THROW_ON_ERROR));
         $this->http
@@ -103,6 +103,104 @@ final class PterodactylNextcloudTeamSpeakTest extends IntegrationTestCase
 
         $provisioner->terminate($this->reload($service->id));
         self::assertCount(1, $this->http->requests('DELETE', '/api/application/servers/900'));
+    }
+
+    /**
+     * Pterodactyl 2.0: no nest routes; eggs are read from /api/application/eggs/{id}.
+     */
+    private function pterodactylTwo(array $config = []): int
+    {
+        $id = $this->pterodactyl(false, $config);
+        $this->http
+            ->on('GET', '/api/application/nests/1/eggs/5', ['errors' => [['code' => 'NotFoundHttpException', 'detail' => 'The route api/application/nests/1/eggs/5 could not be found.']]], 404)
+            ->on('GET', '/api/application/eggs', ['object' => 'list', 'data' => [], 'meta' => ['pagination' => ['total_pages' => 1]]])
+            ->on('GET', '/api/application/eggs/5', ['object' => 'egg', 'attributes' => [
+                'id' => 5,
+                'docker_images' => ['Java 21' => 'ghcr.io/pterodactyl/yolks:java_21', 'Java 17' => 'ghcr.io/pterodactyl/yolks:java_17'],
+                'startup' => 'java -Xms128M -jar {{SERVER_JARFILE}}',
+                'relationships' => ['variables' => ['data' => [
+                    ['attributes' => ['env_variable' => 'SERVER_JARFILE', 'default_value' => 'server.jar']],
+                ]]],
+            ]]);
+
+        return $id;
+    }
+
+    public function testPterodactylTwoUsesTheEggRoutesWithoutNests(): void
+    {
+        $integrationId = $this->pterodactylTwo();
+        $owner = $this->createUser();
+        $config = ['egg_id' => 5, 'location_id' => 2, 'memory_mb' => 4096, 'swap_mb' => 0, 'disk_mb' => 20480, 'cpu_percent' => 200, 'io' => 500, 'databases' => 1, 'allocations' => 1, 'backups' => 2, '_options' => ['server_name' => 'Survival']];
+        $service = $this->createService($owner, 'minecraft', $integrationId, $config);
+        $this->app->container()->get(PterodactylProvisioner::class)->provision($service, $owner);
+
+        $create = FakeHttp::json($this->http->requests('POST', '/api/application/servers')[0]);
+        self::assertSame(5, $create['egg']);
+        self::assertArrayNotHasKey('nest', $create);
+        self::assertSame('ghcr.io/pterodactyl/yolks:java_21', $create['docker_image'], 'The first image of the map is the default.');
+        self::assertSame(['SERVER_JARFILE' => 'server.jar'], $create['environment']);
+        self::assertSame('include=variables', $this->http->requests('GET', '/api/application/eggs/5')[0]->getUri()->getQuery());
+        self::assertSame([], $this->http->requests('GET', '/api/application/nests/1/eggs/5'));
+
+        $manager = $this->app->container()->get(\Nebrix\Integration\IntegrationManager::class);
+        $integration = $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class)->find($integrationId) ?? throw new \RuntimeException('missing');
+        self::assertStringContainsString('Pterodactyl 2.x', $manager->testConnection($integration)->message);
+    }
+
+    public function testPterodactylOneNeedsTheNestAndTheVersionCanBeSet(): void
+    {
+        // 1.x (no /eggs route): without a nest ID the egg cannot be read.
+        $integrationId = $this->pterodactyl();
+        $owner = $this->createUser();
+        $service = $this->createService($owner, 'minecraft', $integrationId, ['egg_id' => 5, 'location_id' => 2, 'memory_mb' => 1024, 'disk_mb' => 1024, '_options' => ['server_name' => 'S']]);
+        try {
+            $this->app->container()->get(PterodactylProvisioner::class)->provision($service, $owner);
+            self::fail('Provisioned without a nest on 1.x.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('nest ID', $exception->getMessage());
+        }
+        self::assertSame([], $this->http->requests('POST', '/api/application/servers'));
+
+        // Version set to 1.x: no probe; the nest route is used even when /eggs exists.
+        $fixed = $this->pterodactylTwo(['api_version' => '1']);
+        $this->http->on('GET', '/api/application/nests/1/eggs/5', ['attributes' => ['docker_image' => 'img:1', 'startup' => 'run', 'relationships' => ['variables' => ['data' => []]]]]);
+        $before = count($this->http->requests('GET', '/api/application/eggs'));
+        $second = $this->createService($owner, 'minecraft', $fixed, ['nest_id' => 1, 'egg_id' => 5, 'location_id' => 2, 'memory_mb' => 1024, 'disk_mb' => 1024, '_options' => ['server_name' => 'T']]);
+        $this->app->container()->get(PterodactylProvisioner::class)->provision($second, $owner);
+        self::assertSame('img:1', FakeHttp::json($this->http->requests('POST', '/api/application/servers')[0])['docker_image']);
+        self::assertSame($before, count($this->http->requests('GET', '/api/application/eggs')));
+    }
+
+    public function testConfiguredGameServerChangesItsResourcesThroughTheBuildEndpoint(): void
+    {
+        $integrationId = $this->pterodactylTwo();
+        $this->http
+            ->on('GET', '/api/application/servers/(?<id>\d+)', ['object' => 'server', 'attributes' => ['id' => 900, 'identifier' => '1a7ce997', 'allocation' => 31]])
+            ->on('PATCH', '/api/application/servers/(?<id>\d+)/build', ['object' => 'server', 'attributes' => ['id' => 900]]);
+        $productId = $this->app->container()->get(\Nebrix\Repository\ProductRepository::class)->create([
+            'category' => 'minecraft', 'name' => 'Minecraft Flex', 'slug' => 'mc-flex', 'price' => 400, 'setup_fee' => 0, 'currency' => 'EUR', 'billing_cycle' => 'monthly',
+            'tax_rate_bp' => 1900, 'is_visible' => 1, 'is_active' => 1, 'auto_provision' => 1, 'integration_id' => $integrationId,
+            'provisioning_config' => ['egg_id' => 5, 'location_id' => 2, 'memory_mb' => 2048, 'swap_mb' => 0, 'disk_mb' => 10240, 'cpu_percent' => 100, 'io' => 500, 'databases' => 0, 'allocations' => 0, 'backups' => 0,
+                'configurator' => true, 'cfg_max_memory_gb' => 16, 'cfg_price_memory_gb' => '1.00', 'cfg_max_backups' => 5, 'cfg_price_backup' => '0.50'],
+        ]);
+        $owner = $this->createUser();
+        $product = $this->app->container()->get(\Nebrix\Repository\ProductRepository::class)->find($productId) ?? [];
+        $service = $this->createService($owner, 'minecraft', $integrationId, \Nebrix\Catalog\ProductConfigurator::serviceConfig($product, ['server_name' => 'S', 'memory_gb' => 2, 'cpu_cores' => 1, 'disk_gb' => 10, 'backups' => 0, 'databases' => 0, 'ports' => 0]));
+        $this->db->update('nx_services', ['product_id' => $productId, 'status' => 'active', 'recurring_amount' => 400, 'next_due_at' => '2099-01-01 00:00:00'], ['id' => $service->id]);
+        $this->app->container()->get(\Nebrix\Service\ServiceRepository::class)->mergeRemote($service->id, ['server_id' => 900, 'identifier' => '1a7ce997']);
+
+        // 4 GB and 2 backups: an upgrade, invoiced pro rata and applied after payment.
+        $changes = $this->app->container()->get(\Nebrix\Service\ServiceChangeService::class);
+        $result = $changes->requestConfiguration($this->reload($service->id), $owner, ['memory_gb' => '4', 'backups' => '2'], $owner->id, null);
+        self::assertSame(\Nebrix\Service\ServiceChangeService::PENDING_PAYMENT, $result['status']);
+        $total = (int) $this->db->fetchValue('SELECT total FROM nx_invoices WHERE id = ?', [$result['invoice_id']]);
+        $this->app->container()->get(\Nebrix\Payment\PaymentService::class)->recordPayment('manual', 'bank-mc', (int) $result['invoice_id'], $total, 'EUR');
+        $changes->applyFromJob(['invoice_id' => (int) $result['invoice_id']]);
+
+        $build = FakeHttp::json($this->http->requests('PATCH', '/api/application/servers/900/build')[0]);
+        self::assertSame([4096, 31, 2, 0], [$build['memory'], $build['allocation'], $build['feature_limits']['backups'], $build['feature_limits']['allocations']]);
+        $updated = $this->reload($service->id);
+        self::assertSame([4096, 2, 700], [(int) $updated->config('memory_mb'), (int) $updated->config('backups'), $updated->recurringAmount]);
     }
 
     public function testPterodactylClientApiFeatures(): void

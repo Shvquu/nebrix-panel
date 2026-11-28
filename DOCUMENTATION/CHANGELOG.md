@@ -68,6 +68,10 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Security (sixth review)
 - Fixes from four independent reviews of the latest features (see SECURITY.md): SKRIME ownership by product ID (domain takeover via failed orders), no repeat orders or renewals after lost answers, renewals only for paid periods; Hetzner rescue boot confirmation, host key fingerprints, checked wipe steps, auction price validation, queue fixes, termination of undelivered purchases; Proxmox container time and output limits, SSH environment not passed on, IPv6 socket addresses, overlapping and special IPv6 pools refused; alert mail budgets, password reset lifts the lockout, auxiliary storage errors never abort payments, more location evidence conflicts and a filter for missing evidence.
 
+### Added (Pterodactyl 2.x, game server configurator)
+- **Pterodactyl 2.x**: eggs are read through `/api/application/eggs/{id}` (the nest endpoints were removed in 2.0); the panel version is detected automatically or set per integration; the nest ID is only needed for 1.x; egg images as single value or map. Tested against a fake, not against a real 2.0 beta panel.
+- **Game server configurator**: memory, CPU cores, disk, backups, databases and additional ports with maxima and step prices; later changes through the upgrade/downgrade flow and the Pterodactyl build endpoint.
+
 ### Added (global sales, wide package card)
 - **Global sales** (Admin → Sale campaigns): percentage for all products, categories or selected products within a period, permanent or for the first billing period; never added to a product promotion (the higher one wins); stored with the order item; site-wide banner with countdown, notice in the shop, sale name and previous price (§ 11 PAngV) on the product pages; migration `2026_11_29_000020_create_sales`.
 - The last package of a tab is shown as a wide card (name and price, features in two columns, order button).

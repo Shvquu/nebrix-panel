@@ -77,6 +77,7 @@ class IntegrationManager
             $integration->hasSecret('client_api_key')
                 ? $this->api($integration, ['Authorization' => 'Bearer ' . $integration->secret('client_api_key')] + $headers)
                 : null,
+            (string) $integration->config('api_version', PterodactylClient::VERSION_AUTO),
         );
     }
 

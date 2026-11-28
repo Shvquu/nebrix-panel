@@ -32,8 +32,8 @@
 </div>
 
 {% if configuration %}
-{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots'} %}
-{% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
+{% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory (GB)', 'disk_gb': 'Disk size (GB)', 'slots': 'Slots', 'cpu_cores': 'CPU cores', 'backups': 'Backups', 'databases': 'Databases', 'ports': 'Additional ports'} %}
+{% set units = {'cores': ' vCores', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': '', 'cpu_cores': '', 'backups': '', 'databases': '', 'ports': ''} %}
 <form method="get" action="/services/{{ service.id }}/package" class="card mt-2 p-configurator" novalidate>
     <input type="hidden" name="configure" value="1">
     <div class="card-header"><h2>{{ 'Change resources'|t }}</h2></div>

@@ -149,6 +149,52 @@ final class ConfiguratorTest extends FeatureTestCase
         self::assertContains('disk_gb', array_column($resource['order_options'], 'name'));
     }
 
+    public function testGameServerConfigurator(): void
+    {
+        $id = $this->app->container()->get(ProductRepository::class)->create([
+            'category' => 'minecraft', 'name' => 'Minecraft Flex', 'slug' => 'mc-flex-' . random_int(1, 99999), 'price' => 400, 'setup_fee' => 0, 'currency' => 'EUR',
+            'billing_cycle' => 'monthly', 'tax_rate_bp' => 1900, 'is_visible' => 1, 'is_active' => 1, 'auto_provision' => 0,
+            'provisioning_config' => ['egg_id' => 5, 'location_id' => 1, 'memory_mb' => 2048, 'swap_mb' => 0, 'disk_mb' => 10240, 'cpu_percent' => 100, 'io' => 500,
+                'databases' => 0, 'allocations' => 0, 'backups' => 0, 'configurator' => true,
+                'cfg_max_memory_gb' => 16, 'cfg_price_memory_gb' => '1.00', 'cfg_max_cpu_cores' => 4, 'cfg_price_cpu_core' => '2.00',
+                'cfg_max_disk_gb' => 100, 'cfg_disk_step_gb' => 5, 'cfg_price_disk_step' => '0.25',
+                'cfg_max_backups' => 5, 'cfg_price_backup' => '0.50', 'cfg_max_databases' => 3, 'cfg_price_database' => '0.30', 'cfg_max_ports' => 4, 'cfg_price_port' => '0.40'],
+        ]);
+        $product = $this->find($id);
+        self::assertSame(['min' => 0, 'max' => 5, 'step' => 1, 'price' => 50], ProductConfigurator::ranges($product)['backups'] ?? null);
+        self::assertSame(['min' => 1, 'max' => 4, 'step' => 1, 'price' => 200], ProductConfigurator::ranges($product)['cpu_cores'] ?? null);
+        // 4.00 + 6 GB × 1.00 + 1 core × 2.00 + 2 disk steps × 0.25 + 2 backups × 0.50 + 1 database × 0.30 = 13.80
+        $choice = ['memory_gb' => '8', 'cpu_cores' => '2', 'disk_gb' => '20', 'backups' => '2', 'databases' => '1', 'ports' => '0'];
+        self::assertSame(1380, ProductConfigurator::resolve($product, $choice)['price']);
+
+        $customer = $this->createUser();
+        $result = $this->app->container()->get(OrderService::class)->place($customer, $id, ['server_name' => 'Survival'] + $choice, '127.0.0.1');
+        $item = $this->db->fetchOne('SELECT * FROM nx_order_items WHERE order_id = ?', [$result['order_id']]);
+        self::assertNotNull($item);
+        self::assertSame(1380, (int) $item['unit_price']);
+        self::assertStringContainsString('8 GB memory, 2 cores, 20 GB storage, 2 backups, 1 databases, 0 additional ports', (string) $item['description']);
+        $config = ProductConfigurator::serviceConfig($product, json_decode((string) $item['options'], true));
+        self::assertSame([8192, 200, 20480, 2, 1, 0], [$config['memory_mb'], $config['cpu_percent'], $config['disk_mb'], $config['backups'], $config['databases'], $config['allocations']]);
+
+        // Whole GB and whole cores are required for the configurator.
+        self::assertArrayHasKey('cpu_percent', ProductConfigurator::configErrors(['cpu_percent' => 150] + $product['provisioning_config'], 'EUR', 'minecraft'));
+        self::assertArrayHasKey('disk_mb', ProductConfigurator::configErrors(['disk_mb' => 10000] + $product['provisioning_config'], 'EUR', 'minecraft'));
+        foreach ([['backups' => '6'], ['cpu_cores' => '0'], ['disk_gb' => '12']] as $invalid) {
+            try {
+                ProductConfigurator::resolve($product, $invalid + $choice);
+                self::fail('Accepted ' . json_encode($invalid));
+            } catch (ValidationException) {
+                self::assertTrue(true);
+            }
+        }
+
+        // Website: configurator with the game server sliders.
+        $page = $this->get('/products/gameserver')->body();
+        self::assertStringContainsString('Game server configurator', $page);
+        self::assertStringContainsString('name="ports" min="0" max="4" step="1" value="0"', $page);
+        self::assertStringContainsString('name="cpu_cores" min="1" max="4"', $page);
+    }
+
     public function testAdminFormRejectsInconsistentConfiguratorSettings(): void
     {
         $this->actingAs($this->createUser(Role::ADMIN));

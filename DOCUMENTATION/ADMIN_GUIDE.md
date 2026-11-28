@@ -57,8 +57,10 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * For Hetzner pool products set the **stock** to the number of free pool servers so customers cannot order more than you have.
 * Products are not deleted; deactivate or hide them instead. Existing orders and services keep their price snapshot.
 
-### Configurator (KVM, LXC and TeamSpeak)
-Tick *Configurator* in the product's provisioning settings to let customers choose CPU cores, memory and disk (KVM/LXC) or the number of slots (TeamSpeak, in slot steps) themselves:
+### Configurator (KVM, LXC, TeamSpeak and game servers)
+Tick *Configurator* in the product's provisioning settings to let customers choose CPU cores, memory and disk (KVM/LXC), the number of slots (TeamSpeak, in slot steps) or memory, CPU cores, disk, backups, databases and additional ports (game servers, Pterodactyl) themselves:
+
+* Game servers: memory and disk must be whole GB (multiples of 1024 MB), the CPU limit whole cores (multiples of 100 %); backups, databases and ports may start at 0. Each resource has its own maximum and step price (disk in steps, e.g. 5 GB).
 
 * The product's cores, memory and disk are the **included minimum**; the product price is the price of that minimum (memory must be whole GB).
 * Set a maximum and a price per additional step for each resource that may change (cores: per core, memory: per GB, disk: per *disk step*, e.g. 10 GB). A resource without a maximum stays fixed. The form refuses inconsistent settings (maximum below the minimum, missing price, disk maximum that is not the minimum plus whole steps).
