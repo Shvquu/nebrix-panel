@@ -2,16 +2,25 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ 'New ticket'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'New support ticket'|t }}</h1><p class="muted"><a href="/tickets">&larr; {{ 'Support tickets'|t }}</a></p></div></div>
-<form method="post" action="/tickets" novalidate>
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<div class="page-header"><div><h1>{{ 'New support ticket'|t }}</h1><p class="muted"><a href="/tickets">&larr; {{ 'Support tickets'|t }}</a>{% if setting('support.help_center_enabled') %} · <a href="/help">{{ 'Help center'|t }}</a>{% endif %}</p></div></div>
+<form method="post" action="/tickets" novalidate{% if uploads.enabled %} enctype="multipart/form-data"{% endif %}>
     {{ csrf_field() }}
     <div class="card"><div class="card-body">
-        {{ f.input('subject', 'Subject', '', 'text', {required: true}) }}
+        {{ f.input('subject', 'Subject', prefill.subject, 'text', {required: true, maxlength: 200, autocomplete: 'off', 'data-help-suggest': suggestions ? '/help/suggest' : ''}) }}
+        {% if suggestions %}
+        <div class="help-suggestions hidden" data-help-suggestions aria-live="polite">
+            <p class="small"><strong>{{ 'These help articles might answer your question:'|t }}</strong></p>
+            <ul></ul>
+        </div>
+        {% endif %}
         <div class="form-grid">
             {{ f.select('service_id', 'Related service', services, preselect, {placeholder: '– none –'}) }}
             {{ f.select('priority', 'Priority', {low: 'Low', normal: 'Normal', high: 'High'}, 'normal') }}
         </div>
-        {{ f.textarea('message', 'Message', '', {rows: 8, help: 'Never send passwords in tickets. Our staff will never ask for them.'}) }}
+        {{ f.textarea('message', 'Message', prefill.message, {rows: 8, help: 'Never send passwords in tickets. Our staff will never ask for them.'}) }}
+        {% include 'customer/tickets/_upload.twig' %}
     </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Submit'|t }}</button></div></div>
 </form>
+<script src="{{ asset('js/support.js') }}" defer></script>
 {% endblock %}

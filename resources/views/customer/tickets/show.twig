@@ -2,18 +2,45 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ ticket.subject }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
 <div class="page-header"><div><h1>{{ ticket.subject }} <span class="badge {{ ticket.status|status_class }}">{{ ticket.status|humanize|t }}</span></h1><p class="muted">#{{ ticket.id }}{% if ticket.service_name %} · {{ ticket.service_name }}{% endif %} · <a href="/tickets">&larr; {{ 'Support tickets'|t }}</a></p></div>
     {% if ticket.status != 'closed' %}<form method="post" action="/tickets/{{ ticket.id }}/close" data-confirm="{{ 'Close this ticket?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Close ticket'|t }}</button></form>{% endif %}
 </div>
+{% if ticket.status == 'closed' and ratings_enabled %}
+<div class="card ticket-rating" id="rating">
+    <div class="card-header"><h2>{{ 'How satisfied were you with our support?'|t }}</h2></div>
+    <div class="card-body">
+    {% if rating %}
+        <p>{{ 'Your rating'|t }}: <strong>{{ rating.rating }} / 5</strong>{% if rating.comment %} – {{ rating.comment }}{% endif %}</p>
+        <p class="small muted">{{ 'Thank you for your feedback.'|t }}</p>
+    {% else %}
+        <form method="post" action="/tickets/{{ ticket.id }}/rating" novalidate>
+            {{ csrf_field() }}
+            <fieldset class="rating-scale">
+                <legend class="sr-only">{{ 'Rating'|t }}</legend>
+                {% for n in 1..5 %}
+                <label class="checkbox"><input type="radio" name="rating" value="{{ n }}" required> {{ n }}{% if n == 1 %} ({{ 'poor'|t }}){% elseif n == 5 %} ({{ 'excellent'|t }}){% endif %}</label>
+                {% endfor %}
+            </fieldset>
+            {% if error('rating') %}<div class="field-error">{{ error('rating')|t }}</div>{% endif %}
+            {{ f.textarea('comment', 'Comment (optional)', '', {rows: 3, maxlength: 2000}) }}
+            <button class="btn btn-primary" type="submit">{{ 'Send rating'|t }}</button>
+        </form>
+    {% endif %}
+    </div>
+</div>
+{% endif %}
 {% for m in messages %}
     <div class="message{{ m.is_staff ? ' is-staff' : '' }}">
-        <div class="message-meta">{{ m.is_staff ? brand.name ~ ' ' ~ ('Support'|t) : (m.first_name ~ ' ' ~ m.last_name)|trim|default('You'|t) }} · {{ m.created_at|dt }}</div>
+        <div class="message-meta">{{ m.is_staff ? brand.name ~ ' ' ~ ('Support'|t) : (m.first_name ~ ' ' ~ m.last_name)|trim|default('You'|t) }} · {{ m.created_at|dt }}{% if m.source|default('web') == 'email' %} · <span class="small muted">{{ 'via e-mail'|t }}</span>{% endif %}</div>
         <div class="message-body">{{ m.message }}</div>
+        {% include 'customer/tickets/_attachments.twig' with {files: attachments[m.id]|default([]), base: '/tickets/' ~ ticket.id ~ '/attachments'} %}
     </div>
 {% endfor %}
-<form method="post" action="/tickets/{{ ticket.id }}/reply" novalidate>
+<form method="post" action="/tickets/{{ ticket.id }}/reply" novalidate{% if uploads.enabled %} enctype="multipart/form-data"{% endif %}>
     {{ csrf_field() }}
-    <div class="card"><div class="card-body">{{ f.textarea('message', ticket.status == 'closed' ? 'Reply (reopens the ticket)' : 'Reply', '', {rows: 5}) }}</div>
+    <div class="card"><div class="card-body">{{ f.textarea('message', ticket.status == 'closed' ? 'Reply (reopens the ticket)' : 'Reply', '', {rows: 5}) }}
+        {% include 'customer/tickets/_upload.twig' %}</div>
     <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send reply'|t }}</button></div></div>
 </form>
 {% endblock %}

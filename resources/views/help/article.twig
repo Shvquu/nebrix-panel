@@ -1,0 +1,39 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ article.title }} · {{ 'Help center'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="site-section help-article-section">
+    <div class="site-container site-narrow">
+        <p class="help-crumbs"><a href="/help">{{ 'Help center'|t }}</a> / <a href="/help/{{ article.category_slug }}">{{ article.category_title }}</a></p>
+        {% include 'partials/flash.twig' %}
+        <article class="help-article">
+            <h1>{{ article.title }}</h1>
+            <p class="site-muted site-small">{{ 'Last updated'|t }}: {{ article.updated_at|d }}</p>
+            <div class="help-body">{{ body }}</div>
+        </article>
+
+        <div class="help-vote site-card">
+            {% if voted %}
+                <p><strong>{{ 'Thank you for your feedback.'|t }}</strong></p>
+                {% if feedback == 'no' %}<p class="site-muted">{{ 'Sorry that this article did not help. Our support team will answer your question personally.'|t }}</p>{% endif %}
+            {% else %}
+                <form method="post" action="/help/articles/{{ article.id }}/vote" class="help-vote-form">
+                    {{ csrf_field() }}
+                    <span>{{ 'Was this article helpful?'|t }}</span>
+                    <button class="site-btn site-btn-ghost" type="submit" name="helpful" value="yes">{{ i.icon('check') }} {{ 'Yes'|t }}</button>
+                    <button class="site-btn site-btn-ghost" type="submit" name="helpful" value="no">{{ i.icon('x-circle') }} {{ 'No'|t }}</button>
+                </form>
+            {% endif %}
+        </div>
+
+        {% if related is not empty %}
+        <h2 class="help-related-title">{{ 'More in this category'|t }}</h2>
+        <ul class="help-list">
+            {% for a in related %}<li><a href="/help/{{ article.category_slug }}/{{ a.slug }}"><strong>{{ a.title }}</strong></a></li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% include 'help/_more_help.twig' %}
+    </div>
+</section>
+{% endblock %}

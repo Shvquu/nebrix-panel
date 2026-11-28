@@ -14,12 +14,14 @@
             <a href="/dashboard" class="{{ active('/dashboard') }}"><span class="p-nav-icon">{{ i.icon('dashboard') }}</span>{{ 'Dashboard'|t }}</a>
             <a href="/services" class="{{ active('/services') }}"><span class="p-nav-icon">{{ i.icon('services') }}</span>{{ 'My services'|t }}</a>
             {% if setting('system.tickets_enabled') %}<a href="/tickets" class="{{ active('/tickets') }}"><span class="p-nav-icon">{{ i.icon('support') }}</span>{{ 'Support tickets'|t }}</a>{% endif %}
+            {% if setting('support.help_center_enabled') %}<a href="/help"><span class="p-nav-icon">{{ i.icon('info') }}</span>{{ 'Help center'|t }}</a>{% endif %}
             <a href="/status"><span class="p-nav-icon">{{ i.icon('pulse') }}</span>{{ 'System status'|t }}</a>
 
             <div class="p-nav-section">{{ 'Profile'|t }}</div>
             <a href="/account/profile" class="{{ active('/account/profile') }}"><span class="p-nav-icon">{{ i.icon('user') }}</span>{{ 'Settings'|t }}</a>
             <a href="/account/security" class="{{ active('/account/security') }}"><span class="p-nav-icon">{{ i.icon('shield') }}</span>{{ 'Security'|t }}</a>
             <a href="/account/team" class="{{ active('/account/team') }}"><span class="p-nav-icon">{{ i.icon('user') }}</span>{{ 'Team'|t }}</a>
+            <a href="/account/notifications" class="{{ active('/account/notifications') }}"><span class="p-nav-icon">{{ i.icon('bell') }}</span>{{ 'Notifications'|t }}</a>
             <a href="/invoices#top-up" class=""><span class="p-nav-icon">{{ i.icon('wallet') }}</span>{{ 'Top up credit'|t }}</a>
             <a href="/invoices" class="{{ active('/invoices') }}"><span class="p-nav-icon">{{ i.icon('invoice') }}</span>{{ 'Invoices'|t }}</a>
             {% if setting('payments.stripe.saved_methods') and setting('payments.stripe.enabled') %}<a href="/account/payment-methods" class="{{ active('/account/payment-methods') }}"><span class="p-nav-icon">{{ i.icon('wallet') }}</span>{{ 'Payment methods'|t }}</a>{% endif %}

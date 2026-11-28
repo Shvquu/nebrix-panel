@@ -2,21 +2,36 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ ticket.subject }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
 <div class="page-header"><div><h1>{{ ticket.subject }} <span class="badge {{ ticket.status|status_class }}">{{ ticket.status|humanize|t }}</span></h1>
     <p class="muted">#{{ ticket.id }} · <a href="/admin/customers/{{ ticket.user_id }}">{{ ticket.email }}</a>{% if ticket.service_id %} · <a href="/admin/services/{{ ticket.service_id }}">{{ ticket.service_name }}</a>{% endif %} · <a href="/admin/tickets">&larr; {{ 'Tickets'|t }}</a></p></div></div>
 <div class="grid grid-3">
     <div>
         {% for m in messages %}
             <div class="message{{ m.is_staff ? ' is-staff' : '' }}">
-                <div class="message-meta">{{ (m.first_name ~ ' ' ~ m.last_name)|trim|default(m.email) }}{% if m.is_staff %} <span class="badge badge-info">{{ 'staff'|t }}</span>{% endif %} · {{ m.created_at|dt }}</div>
+                <div class="message-meta">{{ (m.first_name ~ ' ' ~ m.last_name)|trim|default(m.email) }}{% if m.is_staff %} <span class="badge badge-info">{{ 'staff'|t }}</span>{% endif %} · {{ m.created_at|dt }}{% if m.source|default('web') != 'web' %} · <span class="small muted">{{ (m.source == 'email' ? 'via e-mail' : 'via API')|t }}</span>{% endif %}</div>
                 <div class="message-body">{{ m.message }}</div>
+                {% include 'customer/tickets/_attachments.twig' with {files: attachments[m.id]|default([]), base: '/admin/tickets/' ~ ticket.id ~ '/attachments'} %}
             </div>
         {% endfor %}
         {% if can('tickets.reply') %}
-        <form method="post" action="/admin/tickets/{{ ticket.id }}/reply" novalidate>
+        <form method="post" action="/admin/tickets/{{ ticket.id }}/reply" novalidate{% if uploads.enabled %} enctype="multipart/form-data"{% endif %}>
             {{ csrf_field() }}
-            <div class="card"><div class="card-body">{{ f.textarea('message', 'Reply to customer', '', {rows: 6}) }}</div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send reply'|t }}</button></div></div>
+            <div class="card"><div class="card-body">
+                {% if canned is not empty %}
+                <div class="form-row canned-picker" data-canned-target="f-message">
+                    <label for="canned-select">{{ 'Insert canned response'|t }}</label>
+                    <select id="canned-select" data-canned-select>
+                        <option value="">{{ '– choose –'|t }}</option>
+                        {% for c in canned %}<option value="{{ c.id }}" data-canned-body="{{ c.body }}">{{ c.title }}</option>{% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                {{ f.textarea('message', 'Reply to customer', '', {rows: 6, help: 'Placeholders: {customer_name}, {ticket_id}, {ticket_subject}, {staff_name}'}) }}
+                {% include 'customer/tickets/_upload.twig' %}
+            </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send reply'|t }}</button></div></div>
         </form>
+        <script src="{{ asset('js/support.js') }}" defer></script>
         {% endif %}
     </div>
     <div>
@@ -26,9 +41,15 @@
             <div class="card"><div class="card-header"><h2>{{ 'Ticket'|t }}</h2></div><div class="card-body">
                 {{ f.select('status', 'Status', {open: 'Open', customer_reply: 'Customer reply', answered: 'Answered', closed: 'Closed'}, ticket.status) }}
                 {{ f.select('priority', 'Priority', {low: 'Low', normal: 'Normal', high: 'High'}, ticket.priority) }}
-                {{ f.select('assigned_to', 'Assigned to', staff, ticket.assigned_to, {placeholder: '– nobody –'}) }}
+                {{ f.select('assigned_to', 'Assigned to', staff, ticket.assigned_to, {placeholder: '– nobody –', help: 'The staff member is notified by e-mail.'}) }}
             </div><div class="card-footer"><button class="btn btn-outline" type="submit">{{ 'Update'|t }}</button></div></div>
         </form>
+        {% endif %}
+        {% if rating %}
+        <div class="card mt-2"><div class="card-header"><h2>{{ 'Customer rating'|t }}</h2></div><div class="card-body">
+            <p><strong>{{ rating.rating }} / 5</strong> <span class="small muted">{{ rating.created_at|dt }}</span></p>
+            {% if rating.comment %}<p class="message-body">{{ rating.comment }}</p>{% endif %}
+        </div></div>
         {% endif %}
     </div>
 </div>

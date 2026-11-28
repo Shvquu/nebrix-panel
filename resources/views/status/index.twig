@@ -71,4 +71,7 @@
     <p class="muted">{{ 'No incidents in the past 14 days.'|t }}</p>
     {% endfor %}
 </section>
+{% if setting('notifications.status_subscriptions') %}
+<p class="st-subscribe-link"><a class="btn btn-sm btn-outline" href="/status/subscribe">{{ 'Subscribe to updates by e-mail'|t }}</a></p>
+{% endif %}
 {% endblock %}

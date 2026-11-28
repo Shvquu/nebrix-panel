@@ -1,0 +1,28 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ category.title }} · {{ 'Help center'|t }}{% endblock %}
+{% block description %}{{ category.description|default('Answers to frequently asked questions about our services.'|t) }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="site-banner help-banner-small">
+    <div class="site-container">
+        <p class="help-crumbs"><a href="/help">{{ 'Help center'|t }}</a></p>
+        <h1>{{ category.title }}</h1>
+        {% if category.description %}<p class="site-lead">{{ category.description }}</p>{% endif %}
+        {% include 'help/_search.twig' with {query: ''} %}
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container site-narrow">
+        {% include 'partials/flash.twig' %}
+        <ul class="help-list">
+            {% for a in articles %}
+            <li><a href="/help/{{ category.slug }}/{{ a.slug }}"><strong>{{ a.title }}</strong><span class="site-muted site-small">{{ a.snippet }}</span></a></li>
+            {% else %}
+            <li class="site-muted">{{ 'There are no articles in this category yet.'|t }}</li>
+            {% endfor %}
+        </ul>
+        {% include 'help/_more_help.twig' %}
+    </div>
+</section>
+{% endblock %}

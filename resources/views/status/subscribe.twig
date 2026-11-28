@@ -1,0 +1,23 @@
+{% extends 'layouts/status.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Subscribe to status updates'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="st-section st-subscribe">
+    <h1>{{ 'Subscribe to status updates'|t }}</h1>
+    {% if sent %}
+        <div class="alert alert-success">{{ 'Thank you. If the address can receive updates, you will get an e-mail with a confirmation link in a few minutes. The subscription only starts after you confirm it.'|t }}</div>
+        <p><a href="/status">&larr; {{ 'Back to the status page'|t }}</a></p>
+    {% else %}
+        <p class="muted">{{ 'Get an e-mail when we report an incident or announce maintenance. You can unsubscribe with one click in every e-mail.'|t }}</p>
+        <form method="post" action="/status/subscribe" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('email', 'E-mail address', '', 'email', {required: true, maxlength: 190, autocomplete: 'email'}) }}
+            {% include 'partials/captcha.twig' with {captcha: captcha} %}
+            <p class="small muted">{{ 'We only use your address for status e-mails and delete it when you unsubscribe or do not confirm within 48 hours.'|t }}</p>
+            <button class="btn btn-primary" type="submit">{{ 'Subscribe'|t }}</button>
+            <a class="btn btn-outline" href="/status">{{ 'Cancel'|t }}</a>
+        </form>
+    {% endif %}
+</section>
+{% endblock %}

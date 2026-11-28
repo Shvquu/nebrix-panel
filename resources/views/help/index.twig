@@ -1,0 +1,35 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Help center'|t }}{% endblock %}
+{% block description %}{{ 'Answers to frequently asked questions about our services.'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="site-banner">
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('info') }}</span>
+        <h1>{{ 'Help center'|t }}</h1>
+        <p class="site-lead">{{ 'Answers to frequently asked questions about our services.'|t }}</p>
+        {% include 'help/_search.twig' with {query: ''} %}
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container">
+        {% include 'partials/flash.twig' %}
+        {% if categories is empty %}
+            <p class="site-center site-muted">{{ 'There are no help articles yet.'|t }}</p>
+        {% else %}
+        <div class="site-cards">
+            {% for c in categories %}
+            <a class="site-card site-card-link" href="/help/{{ c.slug }}">
+                <span class="site-icon-tile">{{ i.icon('file') }}</span>
+                <h3>{{ c.title }}</h3>
+                <p>{{ c.description }}</p>
+                <span class="site-more">{{ ':n articles'|t({n: c.article_count}) }} {{ i.icon('arrow-right') }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% include 'help/_more_help.twig' %}
+    </div>
+</section>
+{% endblock %}

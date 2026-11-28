@@ -1,0 +1,18 @@
+{% extends 'layouts/status.twig' %}
+{% block title %}{{ 'Unsubscribe'|t }}{% endblock %}
+{% block content %}
+<section class="st-section st-subscribe">
+    <h1>{{ 'Unsubscribe from status updates'|t }}</h1>
+    {% if done %}
+        <div class="alert alert-success">{{ 'You have been unsubscribed. Your e-mail address has been deleted.'|t }}</div>
+    {% elseif valid %}
+        <form method="post" action="/status/unsubscribe/{{ id }}/{{ token }}">
+            {{ csrf_field() }}
+            <button class="btn btn-primary" type="submit">{{ 'Unsubscribe'|t }}</button>
+        </form>
+    {% else %}
+        <div class="alert alert-warning">{{ 'This link is invalid or the subscription no longer exists.'|t }}</div>
+    {% endif %}
+    <p><a href="/status">&larr; {{ 'Back to the status page'|t }}</a></p>
+</section>
+{% endblock %}

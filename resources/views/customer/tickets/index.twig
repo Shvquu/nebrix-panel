@@ -1,7 +1,7 @@
 {% extends 'layouts/customer.twig' %}
 {% block title %}{{ 'Support tickets'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Support tickets'|t }}</h1></div><a class="btn btn-primary" href="/tickets/create">{{ 'New ticket'|t }}</a></div>
+<div class="page-header"><div><h1>{{ 'Support tickets'|t }}</h1>{% if setting('support.help_center_enabled') %}<p class="muted">{{ 'Many questions are already answered in our help center.'|t }} <a href="/help">{{ 'Open the help center'|t }}</a></p>{% endif %}</div><a class="btn btn-primary" href="/tickets/create">{{ 'New ticket'|t }}</a></div>
 <div class="card"><div class="table-wrap"><table class="table">
     <thead><tr><th>#</th><th>{{ 'Subject'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Last update'|t }}</th></tr></thead>
     <tbody>

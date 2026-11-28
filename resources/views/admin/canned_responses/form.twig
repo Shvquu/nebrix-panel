@@ -1,0 +1,21 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set r = response %}
+{% block title %}{{ r ? r.title : 'New canned response'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ r ? r.title : 'New canned response'|t }}</h1><p class="muted"><a href="/admin/canned-responses">&larr; {{ 'Canned responses'|t }}</a></p></div></div>
+<form method="post" action="{{ r ? '/admin/canned-responses/' ~ r.id : '/admin/canned-responses' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="card"><div class="card-body">
+        {{ f.input('title', 'Title', r.title|default(''), 'text', {required: true, maxlength: 120}) }}
+        {{ f.textarea('body', 'Text', r.body|default(''), {rows: 10, help: 'Placeholders: {customer_name}, {ticket_id}, {ticket_subject}, {staff_name}'}) }}
+        {{ f.input('sort_order', 'Order', r.sort_order|default(0), 'number') }}
+    </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div></div>
+</form>
+{% if r %}
+<form method="post" action="/admin/canned-responses/{{ r.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this canned response?'|t }}">
+    {{ csrf_field() }}
+    <button class="btn btn-outline btn-danger" type="submit">{{ 'Delete'|t }}</button>
+</form>
+{% endif %}
+{% endblock %}

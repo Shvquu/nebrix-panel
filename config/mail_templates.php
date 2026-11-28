@@ -154,6 +154,30 @@ return [
         'subject' => 'New reply to your ticket "{{ ticket_subject }}"',
         'html' => '<p>Hello {{ name }},</p><p>our support team has replied to your ticket <strong>{{ ticket_subject }}</strong>.</p><p><a class="button" href="{{ ticket_url }}">View ticket</a></p>',
     ],
+    'ticket_closed' => [
+        'name' => 'Support ticket closed (with rating link)',
+        'variables' => ['name', 'ticket_subject', 'ticket_url', 'rating_url'],
+        'subject' => 'Your ticket "{{ ticket_subject }}" has been closed',
+        'html' => '<p>Hello {{ name }},</p><p>we have closed your ticket <strong>{{ ticket_subject }}</strong>. If you still need help, simply reply in the ticket and it will be reopened.</p><p>How satisfied were you with our support? Your rating takes less than a minute:</p><p><a class="button" href="{{ rating_url }}">Rate our support</a></p>',
+    ],
+    'ticket_assigned' => [
+        'name' => 'Support ticket assigned (staff)',
+        'variables' => ['name', 'ticket_id', 'ticket_subject', 'priority', 'assigned_by', 'ticket_url'],
+        'subject' => 'Ticket #{{ ticket_id }} has been assigned to you',
+        'html' => '<p>Hello {{ name }},</p><p>{{ assigned_by }} has assigned ticket <strong>#{{ ticket_id }} – {{ ticket_subject }}</strong> (priority: {{ priority }}) to you.</p><p><a class="button" href="{{ ticket_url }}">Open ticket</a></p>',
+    ],
+    'status_subscription_confirm' => [
+        'name' => 'Status page: confirm subscription',
+        'variables' => ['confirm_url', 'expires_hours', 'status_url'],
+        'subject' => 'Please confirm your subscription to the {{ company_name }} status page',
+        'html' => '<p>Hello,</p><p>you (or someone using your address) asked to receive e-mails about incidents and maintenance on the {{ company_name }} status page. Please confirm within {{ expires_hours }} hours:</p><p><a class="button" href="{{ confirm_url }}">Confirm subscription</a></p><p>If you did not ask for this, simply ignore this e-mail – you will not receive any further messages.</p>',
+    ],
+    'status_subscriber_update' => [
+        'name' => 'Status page: update for subscribers',
+        'variables' => ['kind', 'title', 'message', 'window', 'status', 'status_url', 'unsubscribe_url'],
+        'subject' => '{{ kind }}: {{ title }}',
+        'html' => '<p>Hello,</p><p>there is news on the {{ company_name }} status page:</p><p><strong>{{ title }}</strong><br>{{ window }}<br>Status: {{ status }}</p><p>{{ message }}</p><p><a class="button" href="{{ status_url }}">Open status page</a></p><p>You receive this e-mail because you subscribed to status updates. <a href="{{ unsubscribe_url }}">Unsubscribe</a></p>',
+    ],
     'test' => [
         'name' => 'SMTP test message',
         'variables' => [],

@@ -1,0 +1,13 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Canned responses'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Canned responses'|t }}</h1><p class="muted">{{ 'Prepared answers staff can insert into ticket replies.'|t }} {{ 'Placeholders'|t }}: <span class="mono">{{ placeholders|join(', ') }}</span></p></div><a class="btn btn-primary" href="/admin/canned-responses/create">{{ 'New canned response'|t }}</a></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Title'|t }}</th><th>{{ 'Text'|t }}</th><th>{{ 'Order'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for r in responses %}
+        <tr><td><strong>{{ r.title }}</strong></td><td class="small muted">{{ r.body|length > 140 ? r.body|slice(0, 140) ~ ' …' : r.body }}</td><td>{{ r.sort_order }}</td><td class="actions"><a class="btn btn-sm btn-outline" href="/admin/canned-responses/{{ r.id }}">{{ 'Edit'|t }}</a></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">{{ 'No canned responses yet.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

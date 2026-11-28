@@ -114,6 +114,21 @@ class DiscordClient
         }
     }
 
+    /**
+     * Sends a direct message from the bot (opens the DM channel first).
+     * Discord only delivers it while the user shares a server with the bot
+     * and accepts direct messages; otherwise it answers 403 (code 50007).
+     * Mentions are never resolved.
+     */
+    public function sendDirectMessage(#[\SensitiveParameter] string $botToken, string $userId, string $content): void
+    {
+        $channel = $this->json($this->send('POST', '/users/@me/channels', ['headers' => $this->bot($botToken), 'json' => ['recipient_id' => self::snowflake($userId)]]), [200]);
+        $this->json($this->send('POST', '/channels/' . self::snowflake((string) ($channel['id'] ?? '')) . '/messages', [
+            'headers' => $this->bot($botToken),
+            'json' => ['content' => mb_substr($content, 0, 2000), 'allowed_mentions' => ['parse' => []]],
+        ]), [200]);
+    }
+
     public static function snowflake(string $id): string
     {
         if (preg_match('/^\d{17,20}$/', $id) !== 1) {

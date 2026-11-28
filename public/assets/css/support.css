@@ -1,0 +1,54 @@
+/* Nebrix – support area: help center (website layout), ticket attachments, ratings, suggestions. No inline styles (strict CSP). */
+
+/* ------------------------------------------------------------------ help center (website) */
+.help-banner-small { padding: 3rem 0 2.5rem; }
+.help-crumbs { font-size: .9rem; color: var(--s-muted, #71717a); margin-bottom: .75rem; }
+.help-crumbs a { color: inherit; }
+.help-search { text-align: left; }
+.help-list { list-style: none; margin: 0 0 2rem; padding: 0; display: grid; gap: .6rem; }
+.help-list li > a { display: flex; flex-direction: column; gap: .2rem; padding: 1rem 1.2rem; border-radius: var(--s-radius, 12px); background: var(--s-surface, #fff); border: 1px solid var(--s-border, #e4e4e7); text-decoration: none; transition: border-color .2s ease; }
+.help-list li > a:hover, .help-list li > a:focus-visible { border-color: var(--s-accent, #6d28d9); }
+.help-article-section { padding-top: 2.5rem; }
+.help-article h1 { font-size: clamp(1.8rem, 3.5vw, 2.4rem); }
+.help-body { line-height: 1.7; overflow-wrap: anywhere; }
+.help-body h2, .help-body h3, .help-body h4 { margin-top: 1.6em; }
+.help-body a { color: var(--s-accent, var(--brand-primary, #6d28d9)); }
+.help-body code { padding: .1em .35em; border-radius: 4px; background: rgba(127, 127, 127, .18); font-size: .92em; }
+.help-body pre { overflow: auto; padding: 1rem; border-radius: 8px; background: rgba(0, 0, 0, .35); }
+.help-body pre code { padding: 0; background: none; }
+.help-body blockquote { margin: 1em 0; padding: .2em 1em; border-left: 3px solid var(--s-accent, #6d28d9); color: var(--s-muted, #71717a); }
+.help-body ul, .help-body ol { padding-left: 1.4em; }
+.help-vote { margin: 2.5rem 0; }
+.help-vote-form { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.help-vote-form span { font-weight: 700; margin-right: .5rem; }
+.help-related-title { font-size: 1.2rem; }
+.help-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; }
+.help-more .site-actions { margin-top: 0; }
+.help-more h2 { font-size: 1.3rem; margin-bottom: .2rem; }
+.help-ai-notice { display: flex; gap: .75rem; align-items: flex-start; padding: 1rem 1.2rem; margin: 1rem 0 1.5rem; border-radius: 10px; border: 1px solid rgba(234, 179, 8, .45); background: rgba(234, 179, 8, .1); }
+.help-ai-notice p { margin: 0; font-size: .95rem; }
+.help-chat { display: grid; gap: .9rem; margin-bottom: 1.5rem; }
+.help-chat-question { padding: .8rem 1rem; border-radius: 10px; background: var(--s-surface-2, #f4f4f5); }
+.help-chat-answer { padding: 1rem 1.2rem; border-radius: 10px; border: 1px solid var(--s-border, #e4e4e7); background: var(--s-surface, #fff); }
+.help-chat-answer.is-local { border-style: dashed; }
+.help-chat-text { margin: .6rem 0; white-space: normal; }
+.help-chat-ticket { margin-top: .4rem; padding: .5rem .9rem; font-size: .9rem; }
+.help-chat-form label { display: block; font-weight: 700; margin-bottom: .4rem; }
+.help-chat-form textarea { width: 100%; padding: .75rem; border-radius: 8px; border: 1px solid var(--s-border, #d4d4d8); background: var(--s-surface, #fff); color: inherit; font: inherit; }
+.help-chat-clear { margin-top: 1rem; }
+.site-body .flash-stack { margin-bottom: 1.25rem; }
+.site-body .alert { padding: .8rem 1rem; border-radius: 10px; border: 1px solid var(--s-border, #e4e4e7); background: var(--s-surface, #fff); }
+.site-body .alert-success { border-color: rgba(22, 163, 74, .5); }
+.site-body .alert-error { border-color: rgba(220, 38, 38, .6); }
+.site-body .alert-info, .site-body .alert-warning { border-color: rgba(234, 179, 8, .5); }
+.site-body .field-error { color: #f87171; font-size: .9rem; margin-top: .3rem; }
+
+/* ------------------------------------------------------------------ tickets (panel) */
+.help-suggestions { margin: -.25rem 0 1rem; padding: .75rem 1rem; border-radius: 8px; border: 1px dashed currentColor; opacity: .9; }
+.help-suggestions ul { margin: .25rem 0 0; padding-left: 1.2rem; }
+.ticket-attachments { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.ticket-attachments a { display: inline-flex; align-items: center; gap: .3rem; }
+.ticket-rating { margin-bottom: 1.25rem; }
+.rating-scale { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; border: 0; margin: 0 0 1rem; padding: 0; }
+.st-subscribe { max-width: 34rem; }
+.st-subscribe-link { text-align: center; margin: 2rem 0; }

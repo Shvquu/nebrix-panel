@@ -1,0 +1,9 @@
+{# Attachments of one message. Parameters: files (list), base (URL prefix, e.g. /tickets/5/attachments) #}
+{% import 'macros/icons.twig' as i %}
+{% if files is not empty %}
+<ul class="ticket-attachments">
+    {% for a in files %}
+    <li><a href="{{ base }}/{{ a.id }}" rel="nofollow">{{ i.icon('file') }} {{ a.original_name }}</a> <span class="small muted">{{ a.size|bytes }}</span></li>
+    {% endfor %}
+</ul>
+{% endif %}

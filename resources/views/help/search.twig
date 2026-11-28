@@ -1,0 +1,28 @@
+{% extends 'layouts/website.twig' %}
+{% block title %}{{ 'Search'|t }} · {{ 'Help center'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="site-banner help-banner-small">
+    <div class="site-container">
+        <p class="help-crumbs"><a href="/help">{{ 'Help center'|t }}</a></p>
+        <h1>{{ 'Search the help center'|t }}</h1>
+        {% include 'help/_search.twig' with {query: query} %}
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container site-narrow">
+        {% include 'partials/flash.twig' %}
+        {% if query != '' %}
+            <p class="site-muted">{{ ':n results for ":query"'|t({n: results|length, query: query}) }}</p>
+            <ul class="help-list">
+                {% for a in results %}
+                <li><a href="/help/{{ a.category_slug }}/{{ a.slug }}"><strong>{{ a.title }}</strong><span class="site-muted site-small">{{ a.category_title }} · {{ a.snippet }}</span></a></li>
+                {% else %}
+                <li class="site-muted">{{ 'No articles match your search. Try other words or contact our support.'|t }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% include 'help/_more_help.twig' %}
+    </div>
+</section>
+{% endblock %}
