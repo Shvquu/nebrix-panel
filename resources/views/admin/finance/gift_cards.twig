@@ -1,0 +1,66 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Gift cards'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Gift cards'|t }}</h1><p class="muted">{{ 'Codes for account credit. Only a hash and the last four characters are stored: a code is shown once, right after it was created.'|t }}</p></div>
+    {% if can('finance.settings') %}<a class="btn btn-outline" href="/admin/settings/finance">{{ 'Finance settings'|t }}</a>{% endif %}
+</div>
+{% if not setting('giftcard.enabled') %}<div class="alert alert-info">{{ 'Redeeming is switched off in the finance settings; customers cannot use the codes yet.'|t }}</div>{% endif %}
+
+{% if new_batch %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'New gift cards'|t }}</h2>
+        <form method="post" action="/admin/gift-cards/batch/{{ new_batch.batch }}/csv" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-primary" type="submit">{{ 'Download as CSV'|t }}</button></form>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">{{ 'Copy or download the codes now. They are not shown again; the download is possible once within 15 minutes.'|t }}</div>
+        <p>{{ ':n × :value'|t({n: new_batch.codes|length, value: new_batch.value|money(new_batch.currency)}) }}{% if new_batch.expires_at %} · {{ 'valid until'|t }} {{ new_batch.expires_at|d }}{% endif %}</p>
+        <pre id="new-gift-cards" class="mono">{% for code in new_batch.codes %}{{ code }}
+{% endfor %}</pre>
+        <button class="btn btn-sm btn-outline" type="button" data-copy="#new-gift-cards">{{ 'Copy'|t }}</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Create gift cards'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/admin/gift-cards" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('value', 'Value (account credit)', '25.00', 'text', {required: true, inputmode: 'decimal', help: 'In the default currency.'}) }}
+            <div class="form-row"><label>{{ 'Currency'|t }}</label><input type="text" value="{{ currency }}" readonly></div>
+            {{ f.input('quantity', 'Quantity', '1', 'number', {required: true, min: 1, max: 500}) }}
+            {{ f.input('expires_at', 'Valid until (optional)', '', 'date') }}
+            {{ f.input('note', 'Internal note', '', 'text', {maxlength: 255}) }}
+            <button class="btn btn-primary" type="submit">{{ 'Create'|t }}</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-body"><form method="get" class="filters">
+        {{ f.select('status', 'Status', {'': 'All', active: 'active', redeemed: 'redeemed', void: 'void'}, filters.status, {'data-autosubmit': true}) }}
+        <div class="form-row"><label for="q">{{ 'Last 4 characters, batch or note'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}" maxlength="40"></div>
+        <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+    </form></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Code'|t }}</th><th class="text-right">{{ 'Value'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Origin'|t }}</th><th>{{ 'Valid until'|t }}</th><th>{{ 'Redeemed'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for g in result.items %}
+            <tr>
+                <td class="mono">****-{{ g.last4 }}<div class="small muted">{{ g.batch }}</div></td>
+                <td class="text-right">{{ g.value|money(g.currency) }}</td>
+                <td><span class="badge {{ g.status == 'active' ? 'badge-success' : (g.status == 'redeemed' ? 'badge-info' : 'badge-neutral') }}">{{ g.status|t }}</span>{% if g.void_reason %}<div class="small muted">{{ g.void_reason }}</div>{% endif %}</td>
+                <td class="small">{% if g.source == 'purchase' %}{{ 'Bought'|t }}{% if g.invoice_number %} · <a href="/admin/invoices/{{ g.invoice_id }}" class="mono">{{ g.invoice_number }}</a>{% endif %}{% if g.buyer_email %}<div>{{ g.buyer_email }}</div>{% endif %}{% else %}{{ 'Created by staff'|t }}{% endif %}{% if g.note %}<div class="muted">{{ g.note }}</div>{% endif %}</td>
+                <td>{{ g.expires_at ? g.expires_at|d : '–' }}</td>
+                <td>{% if g.redeemed_at %}{{ g.redeemed_at|d }}<div class="small">{% if can('customers.view') %}<a href="/admin/customers/{{ g.redeemed_by }}">{{ g.redeemed_email }}</a>{% else %}{{ g.redeemed_email }}{% endif %}</div>{% else %}–{% endif %}</td>
+                <td class="actions">{% if g.status == 'active' %}
+                    <form method="post" action="/admin/gift-cards/{{ g.id }}/void" class="inline" data-confirm="{{ 'Void this gift card? It can no longer be redeemed.'|t }}">{{ csrf_field() }}<input type="hidden" name="reason" value="Voided by staff"><button class="btn btn-sm btn-outline" type="submit">{{ 'Void'|t }}</button></form>
+                {% endif %}</td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No gift cards yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 50} %}
+</div>
+{% endblock %}

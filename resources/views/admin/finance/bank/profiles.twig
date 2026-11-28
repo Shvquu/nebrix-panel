@@ -1,0 +1,55 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'CSV profiles'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'CSV profiles'|t }}</h1><p class="muted"><a href="/admin/bank">&larr; {{ 'Bank transfers'|t }}</a> · {{ 'Column mappings for CSV exports of your bank. Column names are compared without regard to case; the header row is found automatically.'|t }}</p></div></div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Save a profile'|t }}</h2></div>
+        <div class="card-body">
+            <form method="post" action="/admin/bank/profiles" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('name', 'Name', '', 'text', {required: true, maxlength: 100, help: 'Saving under an existing name replaces that profile.'}) }}
+                {{ f.select('delimiter', 'Delimiter', {semicolon: 'Semicolon (;)', comma: 'Comma (,)', tab: 'Tab'}, 'semicolon') }}
+                {{ f.select('encoding', 'Encoding', {'UTF-8': 'UTF-8', 'Windows-1252': 'Windows-1252 (ANSI)', 'ISO-8859-1': 'ISO-8859-1'}, 'Windows-1252') }}
+                {{ f.select('date_format', 'Date format', {'d.m.Y': '31.12.2026', 'd.m.y': '31.12.26', 'Y-m-d': '2026-12-31', 'd/m/Y': '31/12/2026'}, 'd.m.Y') }}
+                {{ f.select('decimal', 'Decimal separator', {comma: 'Comma (1.234,56)', point: 'Point (1,234.56)'}, 'comma') }}
+                {{ f.input('booking_date', 'Column: booking date', 'Buchungstag', 'text', {required: true}) }}
+                {{ f.input('value_date', 'Column: value date (optional)', 'Valutadatum') }}
+                {{ f.input('amount', 'Column: amount (negative for outgoing payments)', 'Betrag', 'text', {required: true}) }}
+                {{ f.input('currency', 'Column: currency (optional)', 'Waehrung') }}
+                {{ f.input('remittance', 'Column(s): reference', 'Verwendungszweck', 'text', {required: true, help: 'Several columns separated by |, e.g. Verwendungszweck|Buchungstext.'}) }}
+                {{ f.input('counterparty_name', 'Column: payer (optional)', '') }}
+                {{ f.input('counterparty_iban', 'Column: IBAN of the payer (optional)', '') }}
+                {{ f.input('reference', 'Column: unique bank reference (optional)', '', 'text', {help: 'Improves the duplicate check when the bank provides one.'}) }}
+                {{ f.input('status', 'Column: booking status (optional)', '') }}
+                {{ f.input('booked_value', 'Value of booked entries (e.g. Gebucht)', '') }}
+                <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+            </form>
+        </div>
+    </div>
+    <div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Saved profiles'|t }}</h2></div>
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Columns'|t }}</th><th></th></tr></thead>
+                <tbody>
+                {% for p in profiles %}
+                    {% set m = p.columns %}
+                    <tr><td>{{ p.name }}</td><td class="small mono">{{ m.booking_date|default('') }} · {{ m.amount|default('') }} · {{ m.remittance|default('') }}</td>
+                        <td class="actions"><form method="post" action="/admin/bank/profiles/{{ p.id }}/delete" class="inline" data-confirm="{{ 'Delete this profile?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete'|t }}</button></form></td></tr>
+                {% else %}<tr><td colspan="3" class="empty">{{ 'No profiles saved yet.'|t }}</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div>
+        <div class="card mt-2">
+            <div class="card-header"><h2>{{ 'Built-in formats'|t }}</h2></div>
+            <div class="card-body small">
+                <ul>{% for preset in presets %}<li><strong>{{ preset.label|t }}</strong>: <span class="mono">{{ preset.mapping.booking_date }} · {{ preset.mapping.amount }} · {{ preset.mapping.remittance }}</span></li>{% endfor %}</ul>
+                <p class="muted">{{ 'The built-in formats follow the column names the banks publish. Check them with a sample file of your account; banks change their exports from time to time.'|t }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

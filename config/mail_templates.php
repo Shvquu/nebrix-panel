@@ -148,6 +148,18 @@ return [
         'subject' => 'Your welcome credit of {{ amount }}',
         'html' => '<p>Hello {{ name }},</p><p>you joined {{ company_name }} through a recommendation. As a welcome we have added <strong>{{ amount }}</strong> to your account credit. It is used for your next invoices.</p><p><a class="button" href="{{ invoices_url }}">View invoices</a></p>',
     ],
+    'gift_card_purchased' => [
+        'name' => 'Gift card: code after the purchase',
+        'variables' => ['name', 'code', 'value', 'valid_until', 'redeem_url', 'invoice_number'],
+        'subject' => 'Your gift card worth {{ value }}',
+        'html' => '<p>Hello {{ name }},</p><p>thank you for your payment of invoice {{ invoice_number }}. Here is your gift card for {{ company_name }}:</p><p><strong>{{ code }}</strong></p><p>Value: {{ value }} · valid until: {{ valid_until }}</p><p>The code can be redeemed once in the customer area under "Gift cards"; the value is added to the account credit. Keep this e-mail safe – the code is not stored with us and cannot be shown again.</p><p><a class="button" href="{{ redeem_url }}">Redeem gift card</a></p>',
+    ],
+    'partner_payout_paid' => [
+        'name' => 'Partner program: payout transferred',
+        'variables' => ['name', 'amount', 'reference', 'iban', 'partner_url'],
+        'subject' => 'Your partner payout of {{ amount }}',
+        'html' => '<p>Hello {{ name }},</p><p>we have transferred your partner commission of <strong>{{ amount }}</strong> to your account {{ iban }} (reference {{ reference }}). It usually arrives within one or two bank working days.</p><p>Please remember to invoice the commission to {{ company_name }} or to keep the statement for your tax records.</p><p><a class="button" href="{{ partner_url }}">View your statement</a></p>',
+    ],
     'ticket_reply' => [
         'name' => 'Support ticket reply',
         'variables' => ['name', 'ticket_subject', 'ticket_url'],

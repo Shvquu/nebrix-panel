@@ -1,0 +1,50 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Gift cards'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Gift cards'|t }}</h1><p class="muted">{{ 'Redeem a gift card: its value is added to your account credit and used for your next invoices.'|t }} {{ 'Account credit'|t }}: <strong>{{ auth_user.creditBalance|money }}</strong></p></div></div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Redeem a gift card'|t }}</h2></div>
+        <div class="card-body">
+            <form method="post" action="/account/gift-cards/redeem" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('code', 'Gift card code', '', 'text', {required: true, maxlength: 40, autocomplete: 'off', spellcheck: 'false', placeholder: 'XXXX-XXXX-XXXX-XXXX'}) }}
+                <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Redeem'|t }}</button></div>
+            </form>
+        </div>
+    </div>
+
+    {% if sale_enabled %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Buy a gift card'|t }}</h2></div>
+        <div class="card-body">
+            <form method="post" action="/account/gift-cards/buy" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('value', 'Value', (min / 100)|number_format(2, '.', ''), 'text', {required: true, inputmode: 'decimal'}) }}
+                <p class="small muted">{{ 'Between :min and :max. You receive an invoice; after the payment has been confirmed, the code is sent to your e-mail address. Gift cards cannot be paid with account credit.'|t({min: min|money(currency), max: max|money(currency)}) }}</p>
+                <p class="small muted">{{ 'The gift card is a multi-purpose voucher: its sale is not subject to VAT; VAT is charged on the invoices it pays for.'|t }}</p>
+                {{ f.checkbox('accept_terms', 'I have read the notes on gift cards.') }}
+                <div class="form-actions"><button class="btn btn-outline" type="submit">{{ 'Create invoice'|t }}</button></div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Your gift cards'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Code'|t }}</th><th class="text-right">{{ 'Value'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Valid until'|t }}</th><th>{{ 'Invoice'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in cards %}
+            <tr><td class="mono">****-{{ c.last4 }}<div class="small muted">{{ c.redeemed_by == auth_user.id ? 'Redeemed by you'|t : 'Bought by you'|t }}</div></td><td class="text-right">{{ c.value|money(c.currency) }}</td>
+                <td><span class="badge {{ c.status == 'active' ? 'badge-success' : 'badge-neutral' }}">{{ c.status|t }}</span>{% if c.redeemed_at %}<div class="small muted">{{ c.redeemed_at|d }}</div>{% endif %}</td>
+                <td>{{ c.expires_at ? c.expires_at|d : '–' }}</td>
+                <td>{% if c.invoice_id and c.purchased_by == auth_user.id %}<a class="mono" href="/invoices/{{ c.invoice_id }}">{{ c.invoice_number }}</a>{% else %}–{% endif %}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No gift cards yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

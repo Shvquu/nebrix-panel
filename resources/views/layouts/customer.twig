@@ -30,6 +30,8 @@
             <a href="/orders" class="{{ active('/orders') }}"><span class="p-nav-icon">{{ i.icon('cart') }}</span>{{ 'Orders'|t }}</a>
             <a href="/transactions" class="{{ active('/transactions') }}"><span class="p-nav-icon">{{ i.icon('transactions') }}</span>{{ 'Transactions'|t }}</a>
             {% if setting('referral.enabled') %}<a href="/account/referrals" class="{{ active('/account/referrals') }}"><span class="p-nav-icon">{{ i.icon('gift') }}</span>{{ 'Refer a friend'|t }}</a>{% endif %}
+            {% if setting('giftcard.enabled') %}<a href="/account/gift-cards" class="{{ active('/account/gift-cards') }}"><span class="p-nav-icon">{{ i.icon('tag') }}</span>{{ 'Gift cards'|t }}</a>{% endif %}
+            {% if setting('partner.enabled') and setting('referral.enabled') %}<a href="/account/partner" class="{{ active('/account/partner') }}"><span class="p-nav-icon">{{ i.icon('coins') }}</span>{{ 'Partner program'|t }}</a>{% endif %}
             {% if setting('api.enabled') and (setting('api.customer_tokens') or can('admin.access')) %}<a href="/account/api-tokens" class="{{ active('/account/api-tokens') }}"><span class="p-nav-icon">{{ i.icon('code') }}</span>{{ 'API interface'|t }}</a>{% endif %}
 
             <div class="p-nav-section">{{ 'Order now'|t }}</div>

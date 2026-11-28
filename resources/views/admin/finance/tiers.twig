@@ -1,0 +1,78 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Reseller tiers'|t }}{% endblock %}
+{% block content %}
+{% set metrics = {revenue_12m: 'Paid net revenue of the last 12 months', active_services: 'Number of active services'} %}
+<div class="page-header"><div><h1>{{ 'Reseller tiers'|t }}</h1><p class="muted">{{ 'Rules move customers into customer groups (and their discounts). Evaluated daily: upgrades at once, at most one downgrade per :days days. Customers in other groups assigned by hand are not changed.'|t({days: period}) }}</p></div>
+    <div>
+        <a class="btn btn-outline" href="/admin/customer-groups">{{ 'Customer groups'|t }}</a>
+        {% if enabled %}<form method="post" action="/admin/tiers/evaluate" class="inline">{{ csrf_field() }}<button class="btn btn-primary" type="submit">{{ 'Evaluate now'|t }}</button></form>{% endif %}
+    </div>
+</div>
+{% if not enabled %}<div class="alert alert-info">{{ 'Automatic tiers are switched off in the finance settings. Rules can be prepared already.'|t }}</div>{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Rules'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Rank'|t }}</th><th>{{ 'Name'|t }}</th><th>{{ 'Customer group'|t }}</th><th>{{ 'Condition'|t }}</th><th>{{ 'Customers'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for r in rules %}
+            <tr>
+                <td>{{ r.tier_rank }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.group_name }}{% if r.discount_bp > 0 %} <span class="small muted">(−{{ r.discount_bp|percent }})</span>{% endif %}</td>
+                <td>{{ metrics[r.metric]|t }} ≥ {{ r.metric == 'revenue_12m' ? r.threshold|money(currency) : r.threshold }}</td>
+                <td>{{ r.members }}</td>
+                <td><span class="badge {{ r.is_active ? 'badge-success' : 'badge-neutral' }}">{{ r.is_active ? 'active'|t : 'inactive'|t }}</span></td>
+                <td class="actions"><form method="post" action="/admin/tiers/{{ r.id }}/delete" class="inline" data-confirm="{{ 'Delete this rule?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete'|t }}</button></form></td>
+            </tr>
+            <tr><td colspan="7">
+                <details><summary class="small">{{ 'Edit'|t }}</summary>
+                <form method="post" action="/admin/tiers/{{ r.id }}" class="filters" novalidate>
+                    {{ csrf_field() }}
+                    <div class="form-row"><label for="n-{{ r.id }}">{{ 'Name'|t }}</label><input id="n-{{ r.id }}" type="text" name="name" value="{{ r.name }}" maxlength="100" required></div>
+                    <div class="form-row"><label for="g-{{ r.id }}">{{ 'Customer group'|t }}</label><select id="g-{{ r.id }}" name="customer_group_id">{% for id, name in groups %}<option value="{{ id }}"{% if id == r.customer_group_id %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
+                    <div class="form-row"><label for="m-{{ r.id }}">{{ 'Condition'|t }}</label><select id="m-{{ r.id }}" name="metric">{% for key, label in metrics %}<option value="{{ key }}"{% if key == r.metric %} selected{% endif %}>{{ label|t }}</option>{% endfor %}</select></div>
+                    <div class="form-row"><label for="t-{{ r.id }}">{{ 'Threshold'|t }}</label><input id="t-{{ r.id }}" type="text" name="threshold" value="{{ r.metric == 'revenue_12m' ? (r.threshold / 100)|number_format(2, '.', '') : r.threshold }}" required></div>
+                    <div class="form-row"><label for="r-{{ r.id }}">{{ 'Rank'|t }}</label><input id="r-{{ r.id }}" type="number" name="tier_rank" value="{{ r.tier_rank }}" min="1" max="100" required></div>
+                    <div class="form-row"><label class="checkbox"><input type="checkbox" name="is_active" value="1"{% if r.is_active %} checked{% endif %}> {{ 'Active'|t }}</label></div>
+                    <button class="btn btn-outline" type="submit">{{ 'Save'|t }}</button>
+                </form></details>
+            </td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No tier rules yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'New rule'|t }}</h2></div>
+    <div class="card-body">
+        {% if groups is empty %}<p class="muted">{{ 'Create the customer groups (e.g. Bronze, Silver, Gold with their discounts) first.'|t }}</p>{% else %}
+        <form method="post" action="/admin/tiers" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('name', 'Name', '', 'text', {required: true, maxlength: 100}) }}
+            {{ f.select('customer_group_id', 'Customer group', groups) }}
+            {{ f.select('metric', 'Condition', metrics) }}
+            {{ f.input('threshold', 'Threshold', '', 'text', {required: true, help: 'Amount (net, default currency) or number of services.'}) }}
+            {{ f.input('tier_rank', 'Rank', '1', 'number', {required: true, min: 1, max: 100, help: 'The best rule a customer meets wins; higher rank = better tier.'}) }}
+            {{ f.checkbox('is_active', 'Active', true) }}
+            <button class="btn btn-primary" type="submit">{{ 'Add rule'|t }}</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Customers in tiers'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Customer'|t }}</th><th>{{ 'Tier'|t }}</th><th>{{ 'Customer group'|t }}</th><th class="text-right">{{ 'Revenue (12 months)'|t }}</th><th class="text-right">{{ 'Active services'|t }}</th><th>{{ 'Last change'|t }}</th><th>{{ 'Last downgrade'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in overview %}
+            <tr><td>{% if can('customers.view') %}<a href="/admin/customers/{{ c.user_id }}">{{ c.company ?: (c.first_name ~ ' ' ~ c.last_name) }}</a>{% else %}{{ c.company ?: (c.first_name ~ ' ' ~ c.last_name) }}{% endif %}<div class="small muted">{{ c.email }}</div></td>
+                <td>{{ c.rule_name ?: '–' }}</td><td>{{ c.group_name ?: '–' }}</td><td class="text-right">{{ c.revenue_12m|money(currency) }}</td><td class="text-right">{{ c.active_services }}</td>
+                <td>{{ c.changed_at ? c.changed_at|dt : '–' }}</td><td>{{ c.last_downgrade_at ? c.last_downgrade_at|dt : '–' }}</td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No customer has been placed in a tier yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

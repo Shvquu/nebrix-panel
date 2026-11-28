@@ -1,0 +1,54 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Partner'|t }}{% endblock %}
+{% block content %}
+{% set statuses = {pending: 'In the holding period', payable: 'Payable', requested: 'Payout requested', paid: 'Paid out', reversed: 'Reversed'} %}
+{% set payout_statuses = {requested: 'Requested', approved: 'Approved', paid: 'Paid out', rejected: 'Rejected'} %}
+<div class="page-header"><div><h1>{{ customer.displayName }}</h1><p class="muted"><a href="/admin/partners">&larr; {{ 'Partners'|t }}</a>{% if can('customers.view') %} · <a href="/admin/customers/{{ customer.id }}">{{ customer.email }}</a>{% endif %}</p></div></div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Partner'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'Status'|t }}</dt><dd><span class="badge {{ partner.status == 'active' ? 'badge-success' : 'badge-warning' }}">{{ partner.status|t }}</span></dd>
+                <dt>{{ 'Consent'|t }}</dt><dd>{{ partner.consented_at|dt }} · {{ 'terms version'|t }} {{ partner.terms_version }}{% if partner.consent_ip %} · <span class="mono small">{{ partner.consent_ip }}</span>{% endif %}</dd>
+                <dt>{{ 'Payout account'|t }}</dt><dd>{{ partner.iban_last4 ? '**** ' ~ partner.iban_last4 : '–' }}{% if partner.bic %} · {{ partner.bic }}{% endif %}</dd>
+                <dt>{{ 'In the holding period'|t }}</dt><dd>{{ balance.pending|money }}</dd>
+                <dt>{{ 'Payable'|t }}</dt><dd>{{ balance.payable|money }}</dd>
+                <dt>{{ 'Payout requested'|t }}</dt><dd>{{ balance.requested|money }}</dd>
+                <dt>{{ 'Paid out'|t }}</dt><dd>{{ balance.paid|money }}</dd>
+            </dl>
+            <form method="post" action="/admin/partners/{{ partner.user_id }}/status" class="filters">
+                {{ csrf_field() }}
+                {{ f.select('status', 'Status', {active: 'active', suspended: 'suspended'}, partner.status) }}
+                <button class="btn btn-outline" type="submit">{{ 'Save'|t }}</button>
+            </form>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Payouts'|t }}</h2></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Requested'|t }}</th><th>{{ 'Reference'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for p in payouts %}
+                <tr><td>{{ p.requested_at|d }}</td><td class="mono">{{ p.reference }}</td><td class="text-right">{{ p.amount|money(p.currency) }}</td><td>{{ payout_statuses[p.status]|default(p.status)|t }}</td></tr>
+            {% else %}<tr><td colspan="4" class="empty">{{ 'No payouts yet.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Commissions'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Invoice'|t }}</th><th class="text-right">{{ 'Net invoice amount'|t }}</th><th class="text-right">{{ 'Commission'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in commissions %}
+            <tr><td>{{ c.created_at|d }}</td><td>{% if c.invoice_id is defined %}<a href="/admin/invoices/{{ c.invoice_id }}">#{{ c.invoice_id }}</a>{% else %}–{% endif %}</td><td class="text-right">{{ c.kind == 'accrual' ? c.basis|money(c.currency) : '–' }}</td><td class="text-right">{{ c.amount|money(c.currency) }}</td>
+                <td>{{ statuses[c.status]|default(c.status)|t }}{% if c.note %}<div class="small muted">{{ c.note|t }}</div>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No commissions yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

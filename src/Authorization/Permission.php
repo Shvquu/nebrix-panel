@@ -63,6 +63,11 @@ final class Permission
     public const NEWSLETTER_VIEW = 'newsletter.view';
     public const NEWSLETTER_MANAGE = 'newsletter.manage';
     public const NEWSLETTER_EXPORT = 'newsletter.export';
+    public const ACCOUNTING_EXPORT = 'accounting.export';
+    public const BANK_IMPORT = 'bank.import';
+    public const GIFT_CARDS_MANAGE = 'gift_cards.manage';
+    public const PARTNERS_MANAGE = 'partners.manage';
+    public const FINANCE_SETTINGS = 'finance.settings';
 
     /**
      * @return array<string, array<string, string>> group => [permission => description]
@@ -135,6 +140,13 @@ final class Permission
                 self::NEWSLETTER_MANAGE => 'Write and send newsletter campaigns, delete subscribers',
                 self::NEWSLETTER_EXPORT => 'Export the newsletter subscriber list (CSV)',
             ],
+            'Finance' => [
+                self::ACCOUNTING_EXPORT => 'Export accounting data (DATEV, CSV) and sync invoices to lexoffice',
+                self::BANK_IMPORT => 'Import bank statements and assign bank transfers to invoices',
+                self::GIFT_CARDS_MANAGE => 'Create, export and void gift cards',
+                self::PARTNERS_MANAGE => 'Manage partners, approve and pay out commissions',
+                self::FINANCE_SETTINGS => 'Edit accounting, bank import, gift card, partner and tier settings',
+            ],
         ];
     }
 
@@ -172,6 +184,7 @@ final class Permission
                 self::ADMIN_ACCESS, self::DASHBOARD_VIEW, self::CUSTOMERS_VIEW, self::CUSTOMERS_CREDIT,
                 self::ORDERS_VIEW, self::ORDERS_MANAGE, self::INVOICES_VIEW, self::INVOICES_MANAGE,
                 self::TRANSACTIONS_VIEW, self::PAYMENTS_REFUND, self::PRODUCTS_VIEW, self::SERVICES_VIEW,
+                self::ACCOUNTING_EXPORT, self::BANK_IMPORT, self::GIFT_CARDS_MANAGE, self::PARTNERS_MANAGE,
             ],
             'customer' => [],
         ];

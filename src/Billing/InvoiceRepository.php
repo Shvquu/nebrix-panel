@@ -17,6 +17,8 @@ class InvoiceRepository
     public const TYPE_ORDER = 'order';
     public const TYPE_RENEWAL = 'renewal';
     public const TYPE_CREDIT = 'credit';
+    /** Sale of a gift card (multi-purpose voucher, not taxable; the code is issued when paid). */
+    public const TYPE_GIFT_CARD = 'gift_card';
     /** Prorated difference for switching a service to a larger package. */
     public const TYPE_UPGRADE = 'upgrade';
     /** Add-on booked for a running service: prorated price for the rest of the term plus setup fee. */

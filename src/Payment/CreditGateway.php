@@ -44,7 +44,8 @@ class CreditGateway implements PaymentGateway
 
     public function isAvailableFor(array $invoice, User $user): bool
     {
-        return $invoice['type'] !== InvoiceRepository::TYPE_CREDIT
+        // Credit cannot buy credit: neither top-ups nor gift cards.
+        return !in_array($invoice['type'], [InvoiceRepository::TYPE_CREDIT, InvoiceRepository::TYPE_GIFT_CARD], true)
             && strtoupper((string) $invoice['currency']) === ($this->settings->string('general.default_currency') ?: 'EUR')
             && $this->credit->balance($user->id) >= (int) $invoice['total'];
     }

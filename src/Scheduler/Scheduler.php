@@ -69,6 +69,7 @@ class Scheduler
         private readonly \Nebrix\Marketing\Newsletter $newsletter,
         private readonly \Nebrix\Service\Addon\AddonService $addons,
         private readonly \Nebrix\Billing\Cart\CartService $carts,
+        private readonly \Nebrix\Finance\FinanceTasks $finance,
     ) {
     }
 
@@ -131,6 +132,7 @@ class Scheduler
                 return sprintf('%d add-on(s) ended, %d unpaid add-on booking(s) cancelled', $result['ended'], $result['expired']);
             }],
             'carts.prune' => [1440, fn (): string => sprintf('%d abandoned cart(s) removed', $this->carts->prune())],
+            ...$this->finance->tasks(),
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

@@ -40,6 +40,13 @@
             {% if can('content.view') or can('newsletter.view') %}<div class="p-nav-section">{{ 'Marketing'|t }}</div>{% endif %}
             {% if can('content.view') %}{{ m.link('/admin/landing-pages', 'Landing pages', 'layers') }}{{ m.link('/admin/blog', 'Blog', 'file') }}{% endif %}
             {% if can('newsletter.view') %}{{ m.link('/admin/newsletter', 'Newsletter', 'mail') }}{% endif %}
+            {% if can('accounting.export') or can('bank.import') or can('gift_cards.manage') or can('partners.manage') or can('finance.settings') or can('customer_groups.manage') %}<div class="p-nav-section">{{ 'Finance'|t }}</div>{% endif %}
+            {% if can('bank.import') %}{{ m.link('/admin/bank', 'Bank transfers', 'wallet') }}{% endif %}
+            {% if can('accounting.export') %}{{ m.link('/admin/accounting', 'Accounting export', 'database') }}{% endif %}
+            {% if can('gift_cards.manage') %}{{ m.link('/admin/gift-cards', 'Gift cards', 'gift') }}{% endif %}
+            {% if can('partners.manage') %}{{ m.link('/admin/partners', 'Partners', 'coins') }}{% endif %}
+            {% if can('customer_groups.manage') %}{{ m.link('/admin/tiers', 'Reseller tiers', 'trend') }}{% endif %}
+            {% if can('finance.settings') %}{{ m.link('/admin/settings/finance', 'Finance settings', 'gear') }}{% endif %}
 
             {% if can('integrations.view') or can('jobs.view') %}<div class="p-nav-section">{{ 'Infrastructure'|t }}</div>{% endif %}
             {% if can('integrations.view') %}{{ m.link('/admin/integrations', 'Integrations', 'plug') }}{{ m.link('/admin/ip-pools', 'IP pools', 'network') }}{% endif %}

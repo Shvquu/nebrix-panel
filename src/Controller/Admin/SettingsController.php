@@ -34,6 +34,7 @@ final class SettingsController extends Controller
         'payments' => [Permission::PAYMENTS_SETTINGS, 'Payment providers', ['payments_paypal' => 'PayPal', 'payments_stripe' => 'Stripe', 'payments_credit' => 'Account credit']],
         'system' => [Permission::SETTINGS_SYSTEM, 'System', ['system' => 'Operation', 'api' => 'REST API', 'discord' => 'Discord', 'server' => 'Server self-service', 'support' => 'Support & help center', 'assistant' => 'AI assistant', 'notifications' => 'Notifications']],
         'marketing' => [Permission::SETTINGS_BRANDING, 'Marketing', ['seo' => 'Search engines & social networks', 'blog' => 'Blog', 'newsletter' => 'Newsletter', 'reviews' => 'Review invitations']],
+        'finance' => [Permission::FINANCE_SETTINGS, 'Finance', ['accounting' => 'Accounting export (DATEV)', 'lexoffice' => 'lexoffice', 'bank' => 'Bank statement import', 'giftcard' => 'Gift cards', 'partner' => 'Partner program', 'tiers' => 'Reseller tiers']],
     ];
 
     public function __construct(

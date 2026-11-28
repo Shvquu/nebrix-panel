@@ -1,0 +1,57 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Partners'|t }}{% endblock %}
+{% block content %}
+{% set payout_statuses = {requested: 'Requested', approved: 'Approved', paid: 'Paid out', rejected: 'Rejected'} %}
+<div class="page-header"><div><h1>{{ 'Partners'|t }}</h1><p class="muted">{{ 'Customers in the partner program earn cash commissions on the paid invoices of the customers they referred. Payouts are approved here, transferred by you and then marked as paid.'|t }}</p></div>
+    {% if can('finance.settings') %}<a class="btn btn-outline" href="/admin/settings/finance">{{ 'Finance settings'|t }}</a>{% endif %}
+</div>
+{% if not enabled %}<div class="alert alert-info">{{ 'The partner program is switched off (it also needs "Refer a friend"). Existing commissions are still reversed when invoices are refunded.'|t }}</div>{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Payouts'|t }}</h2>
+        <form method="post" action="/admin/partners/payouts/sepa" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'SEPA file of approved payouts'|t }}</button></form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Requested'|t }}</th><th>{{ 'Partner'|t }}</th><th>{{ 'Reference'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Account'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for p in payouts %}
+            <tr>
+                <td>{{ p.requested_at|d }}</td>
+                <td><a href="/admin/partners/{{ p.partner_id }}">{{ p.email }}</a></td>
+                <td class="mono">{{ p.reference }}</td>
+                <td class="text-right">{{ p.amount|money(p.currency) }}</td>
+                <td class="mono small">**** {{ p.iban_last4 }}{% if p.bic %}<div>{{ p.bic }}</div>{% endif %}</td>
+                <td><span class="badge {{ p.status == 'paid' ? 'badge-success' : (p.status == 'rejected' ? 'badge-danger' : 'badge-warning') }}">{{ payout_statuses[p.status]|default(p.status)|t }}</span>{% if p.sepa_exported_at %}<div class="small muted">{{ 'SEPA file'|t }} {{ p.sepa_exported_at|d }}</div>{% endif %}{% if p.bank_reference %}<div class="small muted">{{ p.bank_reference }}</div>{% endif %}</td>
+                <td class="actions">
+                    {% if p.status == 'requested' %}
+                    <form method="post" action="/admin/partners/payouts/{{ p.id }}/approve" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-primary" type="submit">{{ 'Approve'|t }}</button></form>
+                    {% endif %}
+                    {% if p.status == 'approved' %}
+                    <form method="post" action="/admin/partners/payouts/{{ p.id }}/paid" class="inline" data-confirm="{{ 'Has the amount been transferred?'|t }}">{{ csrf_field() }}<input type="text" name="bank_reference" maxlength="100" placeholder="{{ 'Bank reference (optional)'|t }}" aria-label="{{ 'Bank reference (optional)'|t }}"><button class="btn btn-sm btn-primary" type="submit">{{ 'Mark as paid'|t }}</button></form>
+                    {% endif %}
+                    {% if p.status in ['requested', 'approved'] %}
+                    <form method="post" action="/admin/partners/payouts/{{ p.id }}/reject" class="inline">{{ csrf_field() }}<input type="text" name="note" maxlength="255" required placeholder="{{ 'Reason'|t }}" aria-label="{{ 'Reason'|t }}"><button class="btn btn-sm btn-outline" type="submit">{{ 'Reject'|t }}</button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No payouts yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Partners'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Partner'|t }}</th><th>{{ 'Since'|t }}</th><th>{{ 'Status'|t }}</th><th class="text-right">{{ 'In the holding period'|t }}</th><th class="text-right">{{ 'Payable'|t }}</th><th class="text-right">{{ 'Paid out'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for p in partners %}
+            <tr><td>{{ p.company ?: (p.first_name ~ ' ' ~ p.last_name) }}<div class="small muted">{{ p.email }}</div></td><td>{{ p.consented_at|d }}</td>
+                <td><span class="badge {{ p.status == 'active' ? 'badge-success' : 'badge-warning' }}">{{ p.status|t }}</span></td>
+                <td class="text-right">{{ p.pending|money }}</td><td class="text-right">{{ p.payable|money }}</td><td class="text-right">{{ p.paid|money }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/partners/{{ p.user_id }}">{{ 'View'|t }}</a></td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No partners yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}
