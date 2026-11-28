@@ -100,6 +100,10 @@ return [
         'subject' => 'Ihr Willkommensguthaben über {{ amount }}',
         'html' => '<p>Hallo {{ name }},</p><p>Sie sind über eine Empfehlung zu {{ company_name }} gekommen. Zur Begrüßung haben wir Ihrem Kundenkonto <strong>{{ amount }}</strong> Guthaben gutgeschrieben. Es wird für Ihre nächsten Rechnungen verwendet.</p><p><a class="button" href="{{ invoices_url }}">Rechnungen ansehen</a></p>',
     ],
+    'gift_card_purchased' => [
+        'subject' => 'Ihr Gutschein über {{ value }}',
+        'html' => '<p>Hallo {{ name }},</p><p>vielen Dank für Ihre Zahlung der Rechnung {{ invoice_number }}. Hier ist Ihr Gutschein für {{ company_name }}:</p><p><strong>{{ code }}</strong></p><p>Wert: {{ value }} · gültig bis: {{ valid_until }}</p><p>Der Code kann einmal im Kundenbereich unter „Gutscheine“ eingelöst werden; der Wert wird dem Guthaben des Kundenkontos gutgeschrieben. Bewahren Sie diese E-Mail sicher auf – der Code ist bei uns nicht gespeichert und kann nicht erneut angezeigt werden.</p><p><a class="button" href="{{ redeem_url }}">Gutschein einlösen</a></p>',
+    ],
     'ticket_reply' => [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',

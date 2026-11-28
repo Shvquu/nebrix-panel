@@ -42,6 +42,7 @@ class PaymentService
         private readonly ServiceRepository $services,
         private readonly ServiceManager $serviceManager,
         private readonly \Nebrix\Settings\SettingsRepository $settings,
+        private readonly \Nebrix\Finance\GiftCards\GiftCardService $giftCards,
     ) {
     }
 
@@ -237,6 +238,14 @@ class PaymentService
         $invoiceId = (int) $invoice['id'];
         $userId = (int) $invoice['user_id'];
         $label = sprintf('%s (invoice %s)', $reason, (string) $invoice['number']);
+
+        if ($invoice['type'] === InvoiceRepository::TYPE_GIFT_CARD) {
+            // The bought gift card is voided (or its credit taken back if it was redeemed).
+            $this->giftCards->reverseForInvoice($invoice, $reason);
+            $this->event($gateway, 'gift_card.reversed', $reference, $invoiceId, $userId, $amount, (string) $invoice['currency']);
+
+            return;
+        }
 
         if ($invoice['type'] === InvoiceRepository::TYPE_CREDIT) {
             if (in_array($invoice['status'], [InvoiceRepository::STATUS_PAID, InvoiceRepository::STATUS_REFUNDED], true) && $amount > 0) {

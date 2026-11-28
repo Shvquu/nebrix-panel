@@ -97,6 +97,13 @@ final class PaymentController extends Controller
             // Refunding a credit top-up removes the credit again; credit that
             // was already spent cannot be paid out a second time.
             $invoiceType = $transaction['invoice_id'] !== null ? $this->db->fetchValue('SELECT `type` FROM `nx_invoices` WHERE `id` = ?', [(int) $transaction['invoice_id']]) : null;
+            // A bought gift card that was redeemed has become credit of its recipient.
+            if ($invoiceType === InvoiceRepository::TYPE_GIFT_CARD && $this->container->get(\Nebrix\Finance\GiftCards\GiftCardService::class)->redeemedForInvoice((int) $transaction['invoice_id'])) {
+                throw ValidationException::withMessages(['amount' => 'The gift card has already been redeemed and cannot be refunded.']);
+            }
+            if ($invoiceType === InvoiceRepository::TYPE_GIFT_CARD && $amount + $refunded !== (int) $transaction['amount']) {
+                throw ValidationException::withMessages(['amount' => 'A gift card is refunded in full only (the card is voided).']);
+            }
             if ($invoiceType === InvoiceRepository::TYPE_CREDIT) {
                 $balance = (int) $this->db->fetchValue('SELECT `credit_balance` FROM `nx_users` WHERE `id` = ?', [(int) $transaction['user_id']]);
                 if ($balance < $amount) {

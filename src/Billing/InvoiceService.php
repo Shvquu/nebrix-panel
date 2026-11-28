@@ -48,6 +48,7 @@ class InvoiceService
         private readonly \Nebrix\Repository\ProductRepository $products,
         private readonly Translator $translator,
         private readonly Coupons\CouponService $coupons,
+        private readonly \Nebrix\Finance\GiftCards\GiftCardService $giftCards,
     ) {
     }
 
@@ -334,6 +335,11 @@ class InvoiceService
 
             case InvoiceRepository::TYPE_CREDIT:
                 $this->credit->adjust((int) $invoice['user_id'], (int) $invoice['total'], 'Credit top-up ' . $invoice['number'], 'invoice', (string) $id);
+                break;
+
+            case InvoiceRepository::TYPE_GIFT_CARD:
+                // The code is created and e-mailed only now, after the payment was confirmed.
+                $this->giftCards->issueForInvoice($invoice);
                 break;
         }
 
