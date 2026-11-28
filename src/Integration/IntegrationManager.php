@@ -18,6 +18,8 @@ use Nebrix\Integration\Proxmox\ProxmoxClient;
 use Nebrix\Integration\Pterodactyl\PterodactylClient;
 use Nebrix\Integration\TeamSpeak\ServerQueryClient;
 use Nebrix\Integration\TeamSpeak\SocketTransport;
+use Nebrix\Integration\TeamSpeak\SshTransport;
+use Nebrix\Integration\Ssh\SecureShell;
 use Nebrix\Integration\TeamSpeak\Transport;
 use Nebrix\Security\UnsafeUrlException;
 use Nebrix\Security\UrlGuard;
@@ -97,8 +99,20 @@ class IntegrationManager
             throw new IntegrationException('ServerQuery host rejected: ' . $exception->getMessage());
         }
 
+        $port = (int) $integration->config('query_port', 10011);
+        $transport = (string) $integration->config('query_protocol', 'raw') === 'ssh'
+            ? new SshTransport(
+                $ip,
+                $port,
+                (string) $integration->config('query_user', 'serveradmin'),
+                $integration->secret('query_password'),
+                SecureShell::parseHostKeysSafe((string) $integration->config('query_host_keys', '')),
+                $this->config->int('integrations.timeout', 20),
+            )
+            : ($this->transportFactory)($ip, $port);
+
         return new ServerQueryClient(
-            ($this->transportFactory)($ip, (int) $integration->config('query_port', 10011)),
+            $transport,
             (string) $integration->config('query_user', 'serveradmin'),
             $integration->secret('query_password'),
             $this->logger,

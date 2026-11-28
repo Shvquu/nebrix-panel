@@ -90,6 +90,7 @@
                 <dt>{{ 'Storage writable'|t }}</dt><dd>{{ system.storage_writable ? 'yes'|t : 'no'|t }} / {{ 'uploads'|t }}: {{ system.uploads_writable ? 'yes'|t : 'no'|t }}</dd>
                 <dt>{{ 'Log level'|t }}</dt><dd>{{ system.log_level }}</dd>
                 <dt>{{ 'Sessions'|t }}</dt><dd>{{ 'idle timeout'|t }} {{ system.session_idle }} min · {{ 'lifetime'|t }} {{ system.session_lifetime }} h · {{ 'secure cookies'|t }}: {{ system.secure_cookies ? 'yes'|t : 'no'|t }}</dd>
+                <dt>{{ 'Session and rate-limit store'|t }}</dt><dd>{{ 'sessions'|t }}: {{ system.drivers['sessions'] }} · {{ 'rate limits'|t }}: {{ system.drivers['rate limits'] }}{% if system.redis_status %} <span class="badge {{ system.redis_status == 'connected' ? 'badge-success' : 'badge-danger' }}">Redis {{ system.redis_status|t }}</span>{% endif %}</dd>
                 <dt>{{ 'Server time (UTC)'|t }}</dt><dd>{{ system.server_time }}</dd>
             </dl>
             <p class="mt-2">{% for ext, loaded in system.extensions %}<span class="badge {{ loaded ? 'badge-success' : (ext in system.required_extensions ? 'badge-danger' : 'badge-neutral') }}">{{ ext }}</span> {% endfor %}</p>

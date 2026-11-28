@@ -222,6 +222,7 @@ If a page shows "500 – Reference: …", find the cause with `grep -h <referenc
 4. Admin → Products: create products and link them to an integration.
 5. Configure the payment webhooks (see [PAYMENTS.md](PAYMENTS.md)).
 6. Check `GET /health` (returns `{"status":"ok"}` when the database is reachable) from your monitoring.
+7. Optional, for many users: sessions and rate limits in Redis – see [CONFIGURATION.md](CONFIGURATION.md#redis-optional).
 
 ## Verifying an installation
 

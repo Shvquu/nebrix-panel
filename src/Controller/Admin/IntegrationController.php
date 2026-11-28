@@ -357,6 +357,16 @@ final class IntegrationController extends Controller
                 }
             }
         }
+        if ($type === IntegrationType::TEAMSPEAK && ($config['query_protocol'] ?? 'raw') === 'ssh') {
+            try {
+                $keys = \Nebrix\Integration\Ssh\SecureShell::parseHostKeys((string) ($config['query_host_keys'] ?? ''));
+            } catch (\InvalidArgumentException $exception) {
+                throw ValidationException::withMessages(['config_query_host_keys' => $exception->getMessage()]);
+            }
+            if ($keys === []) {
+                throw ValidationException::withMessages(['config_query_host_keys' => 'Enter the SSH host key of the ServerQuery interface (ssh-keyscan output).']);
+            }
+        }
         if ($type === IntegrationType::TEAMSPEAK && (int) $config['port_min'] > (int) $config['port_max']) {
             throw ValidationException::withMessages(['config_port_max' => 'The last port must be greater than the first port.']);
         }
@@ -367,7 +377,7 @@ final class IntegrationController extends Controller
         $endpointChanged = false;
         if ($id !== null) {
             $existing = $this->integrations->find($id);
-            foreach (['base_url', 'host', 'username', 'admin_user', 'token_id', 'query_user', 'query_port'] as $key) {
+            foreach (['base_url', 'host', 'username', 'admin_user', 'token_id', 'query_user', 'query_port', 'query_protocol'] as $key) {
                 if ($existing !== null && array_key_exists($key, $config) && (string) $config[$key] !== (string) $existing->config($key, '')) {
                     $endpointChanged = true;
                 }

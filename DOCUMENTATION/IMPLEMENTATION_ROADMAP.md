@@ -155,6 +155,7 @@ This file is the single source of truth for modernization progress. It is update
 - Customer portal redesigned after the layout the owner provided (sidebar with order menu, search, profile card, tabs per product group, key figures, community card), in the Nebrix colours; dark/light mode and phone layout checked in Chromium.
 - Discord account link (OAuth2, optional server join, role sync with queue job and scheduler) and support PIN; tests against a fake Discord API. Not tested against the live Discord API (no application credentials).
 
+- TeamSpeak ServerQuery over SSH (pinned host key) and optional Redis store for sessions and rate limits.
 - SKRIME domain registrar (sandbox/live) next to INWX.
 - Security alert e-mails (lockout, wrong 2FA code after a correct password), cached PayPal access tokens, OSS location evidence (payment country, conflict review).
 - Proxmox IPv6 pools (static addresses alongside IPv4) and LXC root password reset through an SSH forced command on the nodes.

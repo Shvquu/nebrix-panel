@@ -19,6 +19,11 @@ Configuration is split into two layers:
 | `TRUSTED_PROXIES` | – | Comma-separated IPs/CIDRs of reverse proxies. Only these may set `X-Forwarded-For/Proto/Host`. |
 | `APP_PORT` | `8080` | Host port used by `docker-compose.yml`. |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SOCKET` | – | Database connection. `DB_SOCKET` takes precedence over host/port. |
+| `SESSION_DRIVER` | `database` | Where sessions are stored: `database` (`nx_sessions`) or `redis` (needs `REDIS_URL`). |
+| `RATE_LIMIT_DRIVER` | `database` | Where rate-limit counters are stored: `database` (`nx_rate_limits`) or `redis`. |
+| `REDIS_URL` | – | `redis://[user:password@]host:6379/0`, `rediss://…` for TLS, or `unix:///path/to/redis.sock`. Only used by the Redis drivers. |
+| `REDIS_PREFIX` | `nebrix:` | Key prefix – use a different one per installation when several share a Redis server. |
+| `REDIS_TIMEOUT` | `2` | Connect and read timeout in seconds. |
 | `SESSION_IDLE_MINUTES` | `60` | Sign-out after inactivity. |
 | `SESSION_LIFETIME_HOURS` | `12` | Absolute session lifetime. |
 | `SESSION_SECURE_COOKIE` | `true` if `APP_URL` is HTTPS | Marks the session cookie `Secure` (and uses the `__Host-` prefix). Leave it unset so it follows `APP_URL`; `true` on a plain-HTTP installation makes sign-in impossible (the browser drops the cookie). |
@@ -42,6 +47,16 @@ Configuration is split into two layers:
 1. Generate a new key: `php bin/nebrix key:generate`.
 2. Set `APP_PREVIOUS_KEYS` to the current key and `APP_KEY` to the new one. Restart web, worker and scheduler.
 3. Values are decrypted with any configured key; new and updated values are encrypted with the new key. Re-save secrets in the admin panel (SMTP password, payment keys, integration tokens) to re-encrypt them, then remove the old key once nothing depends on it. Customer 2FA secrets and service credentials keep working as long as the old key stays in `APP_PREVIOUS_KEYS`.
+
+## Redis (optional)
+
+For many concurrent users, sessions and rate limits can move from the database to Redis (`SESSION_DRIVER=redis`, `RATE_LIMIT_DRIVER=redis`, both independent). Behaviour stays the same: session IDs are stored only as SHA-256 hashes, sessions expire after the idle timeout and the absolute lifetime (Redis TTL), a revoked session is never written back (atomic Lua update), counters are incremented atomically. Requirements:
+
+* Redis 6 or newer with a password (`requirepass` or ACL user), reachable only from the panel hosts (web, worker, scheduler); use `rediss://` across networks.
+* `maxmemory-policy noeviction`: with an evicting policy Redis could drop sessions or rate-limit counters when memory is full (counters dropped = limits reset).
+* Docker Compose: `docker compose --profile redis up -d` starts the bundled Redis (password from `REDIS_PASSWORD`, `noeviction`, no persistence); set `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379/0`.
+
+When Redis is unreachable, requests that need a session or a rate limit fail with an error page (nothing falls back silently to an unlimited state). Switching the session driver signs everybody out; switching the rate-limit driver starts all counters at zero. Admin → Settings → System shows the drivers in use and whether Redis answers.
 
 ## Admin settings (database)
 

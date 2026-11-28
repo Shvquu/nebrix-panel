@@ -38,9 +38,23 @@ return [
     ],
 
     'session' => [
+        // "database" (default) or "redis" (needs REDIS_URL)
+        'driver' => Env::get('SESSION_DRIVER', 'database'),
         'idle_minutes' => Env::int('SESSION_IDLE_MINUTES', 60),
         'lifetime_hours' => Env::int('SESSION_LIFETIME_HOURS', 12),
         'secure_cookie' => Env::bool('SESSION_SECURE_COOKIE', str_starts_with($appUrl, 'https://')),
+    ],
+
+    'rate_limit' => [
+        // "database" (default) or "redis" (needs REDIS_URL)
+        'driver' => Env::get('RATE_LIMIT_DRIVER', 'database'),
+    ],
+
+    'redis' => [
+        // redis://[user:password@]host:6379/0, rediss://… for TLS, or unix:///path/to/socket
+        'url' => Env::get('REDIS_URL', ''),
+        'prefix' => Env::get('REDIS_PREFIX', 'nebrix:'),
+        'timeout' => Env::int('REDIS_TIMEOUT', 2),
     ],
 
     'log' => [

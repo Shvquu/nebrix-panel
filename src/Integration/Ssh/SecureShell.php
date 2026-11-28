@@ -34,7 +34,7 @@ class SecureShell
             throw new IntegrationException('Invalid SSH port.');
         }
         try {
-            $ssh = new SSH2($host, $port, self::TIMEOUT);
+            $ssh = new SSH2(self::socketHost($host), $port, self::TIMEOUT);
             $serverKey = $ssh->getServerPublicHostKey();
             if ($serverKey === false) {
                 throw new IntegrationException('The server did not present an SSH host key.');
@@ -76,6 +76,15 @@ class SecureShell
     }
 
     /**
+     * Host for the socket: IPv6 literals in brackets, otherwise PHP splits
+     * "host:port" at the first colon and connects somewhere else.
+     */
+    public static function socketHost(string $ip): string
+    {
+        return str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
+    }
+
+    /**
      * A new Ed25519 key pair.
      *
      * @return array{private: string, public: string} OpenSSH formats
@@ -90,11 +99,61 @@ class SecureShell
         ];
     }
 
-    /** "type base64" without comment. */
+    /**
+     * Host keys in ssh-keyscan or known_hosts format ("[host] type base64 [comment]").
+     *
+     * @return list<string> "type base64"
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function parseHostKeys(string $text): array
+    {
+        $keys = [];
+        foreach (preg_split('/\R/', $text) ?: [] as $number => $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $parts = preg_split('/\s+/', $line) ?: [];
+            $typeIndex = preg_match('/^(ssh-|ecdsa-|sk-)/', $parts[0] ?? '') === 1 ? 0 : 1;
+            $type = $parts[$typeIndex] ?? '';
+            $blob = $parts[$typeIndex + 1] ?? '';
+            if (preg_match('/^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521))$/', $type) !== 1 || preg_match('#^[A-Za-z0-9+/]{40,}={0,2}$#', $blob) !== 1) {
+                throw new \InvalidArgumentException(sprintf('Line %d is not an SSH host key (use the output of ssh-keyscan).', $number + 1));
+            }
+            $keys[] = $type . ' ' . $blob;
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * Like parseHostKeys(), but invalid input yields no keys (connections are then refused).
+     *
+     * @return list<string>
+     */
+    public static function parseHostKeysSafe(string $text): array
+    {
+        try {
+            return self::parseHostKeys($text);
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+    }
+
+    /**
+     * "type base64" without comment. RSA keys are reported with the signature
+     * algorithm (rsa-sha2-256/512) after the key exchange but are the same
+     * "ssh-rsa" key.
+     */
     public static function normalize(string $key): string
     {
         $parts = preg_split('/\s+/', trim($key)) ?: [];
+        $type = $parts[0] ?? '';
+        if (in_array($type, ['rsa-sha2-256', 'rsa-sha2-512'], true)) {
+            $type = 'ssh-rsa';
+        }
 
-        return ($parts[0] ?? '') . ' ' . ($parts[1] ?? '');
+        return $type . ' ' . ($parts[1] ?? '');
     }
 }

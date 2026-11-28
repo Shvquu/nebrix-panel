@@ -289,9 +289,16 @@ Storage quota (GB), optional Nextcloud group.
 ## TeamSpeak 3
 
 ### Connection settings
-ServerQuery host and port (default 10011), query login (default `serveradmin`), query password, public host name shown to customers, voice port range for new servers.
+ServerQuery host, connection type and port, query login (default `serveradmin`), query password, public host name shown to customers, voice port range for new servers.
 
-> Raw ServerQuery (TCP) is **not encrypted**. Allow the query port only from the panel's IP address and connect over a private network or VPN. Add the panel IP to `query_ip_allowlist.txt` on the TeamSpeak server so it is not flood-banned.
+| Connection | Notes |
+|---|---|
+| **SSH** (recommended) | Encrypted ServerQuery over SSH, TeamSpeak 3 server 3.3 or newer (and TeamSpeak 6), default port **10022**. Enable it on the TeamSpeak server (TeamSpeak 3: start parameter / ini `query_protocols=raw,ssh`, port `query_ssh_port=10022`). The SSH login uses the ServerQuery login and password. Enter the server's SSH host key (`ssh-keyscan -p 10022 <host>`); the panel connects only to a server presenting that key – without a key, SSH connections are refused. |
+| Raw TCP | Port 10011, **not encrypted**. Allow the query port only from the panel's IP address and connect over a private network or VPN. |
+
+Changing the connection type asks for the query password again. Add the panel IP to `query_ip_allowlist.txt` on the TeamSpeak server so it is not flood-banned.
+
+The SSH transport was tested against a real SSH server running a simulated ServerQuery (password login, host key pinning, commands and errors), not against a TeamSpeak server; run the connection test after switching.
 
 ### Product configuration
 Slots. Customers choose a server name.

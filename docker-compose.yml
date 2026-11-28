@@ -77,6 +77,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Optional: sessions and rate limits in Redis (docker compose --profile redis up -d,
+  # then SESSION_DRIVER=redis, RATE_LIMIT_DRIVER=redis and
+  # REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379/0 in .env). Not published to the host.
+  # noeviction: Redis refuses writes when full instead of silently dropping
+  # sessions or rate-limit counters.
+  redis:
+    image: redis:7.4-alpine
+    profiles: ["redis"]
+    command: ["sh", "-c", "test -n \"$$REDIS_PASSWORD\" || { echo 'Set REDIS_PASSWORD in .env' >&2; exit 1; }; exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory-policy noeviction --save '' --appendonly no"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    restart: unless-stopped
+
   db:
     image: mariadb:11.4
     environment:

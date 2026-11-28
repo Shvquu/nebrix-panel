@@ -1576,4 +1576,9 @@ return [
     'Correct password, wrong two-factor code' => 'Richtiges Passwort, falscher Zwei-Faktor-Code',
     'This is a premium domain with a special price and cannot be ordered here. Please contact our support.' => 'Das ist eine Premium-Domain mit Sonderpreis und kann hier nicht bestellt werden. Bitte wenden Sie sich an unseren Support.',
     '.eu domains can only be registered for customers in the EU or the EEA (Account → Profile).' => '.eu-Domains können nur für Kunden in der EU oder im EWR registriert werden (Konto → Profil).',
+    'Session and rate-limit store' => 'Speicher für Sessions und Rate-Limits',
+    'sessions' => 'Sessions',
+    'rate limits' => 'Rate-Limits',
+    'connected' => 'verbunden',
+    'unavailable' => 'nicht erreichbar',
 ];

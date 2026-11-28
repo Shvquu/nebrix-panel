@@ -163,22 +163,6 @@ class NodeShell
      */
     public static function parseHostKeys(string $text): array
     {
-        $keys = [];
-        foreach (preg_split('/\R/', $text) ?: [] as $number => $line) {
-            $line = trim($line);
-            if ($line === '' || str_starts_with($line, '#')) {
-                continue;
-            }
-            $parts = preg_split('/\s+/', $line) ?: [];
-            $typeIndex = preg_match('/^(ssh-|ecdsa-|sk-)/', $parts[0] ?? '') === 1 ? 0 : 1;
-            $type = $parts[$typeIndex] ?? '';
-            $blob = $parts[$typeIndex + 1] ?? '';
-            if (preg_match('/^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521))$/', $type) !== 1 || preg_match('#^[A-Za-z0-9+/]{40,}={0,2}$#', $blob) !== 1) {
-                throw new \InvalidArgumentException(sprintf('Line %d is not an SSH host key (use the output of ssh-keyscan).', $number + 1));
-            }
-            $keys[] = $type . ' ' . $blob;
-        }
-
-        return array_values(array_unique($keys));
+        return SecureShell::parseHostKeys($text);
     }
 }

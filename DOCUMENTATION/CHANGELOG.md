@@ -65,6 +65,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 
+### Added (TeamSpeak over SSH, Redis)
+- **TeamSpeak ServerQuery over SSH** (encrypted, TeamSpeak 3.3+/6, port 10022): password login with the ServerQuery credentials, pinned host key (required), selectable per integration next to raw TCP; changing the connection type requires the password again.
+- **Redis** as optional store for sessions and rate limits (`SESSION_DRIVER`, `RATE_LIMIT_DRIVER`, `REDIS_URL`, new dependency `predis/predis`): atomic Lua scripts, hashed keys, TTL-based expiry, revoked sessions are never written back; Docker Compose profile `redis` (password, `noeviction`); drivers and Redis status on the system page; CI runs the Redis tests against a Redis service.
+- SSH host key comparison accepts RSA keys reported with their signature algorithm (`rsa-sha2-256/512`) – previously RSA-only hosts could never be pinned.
+
 ### Added (SKRIME domains)
 - **SKRIME** as second domain registrar (sandbox or live, API key encrypted): availability check, registration and transfer with the customer as registrant, auto renewal after activation, name servers, auth code on request, suspension/termination through auto renewal; premium domains refused, `.eu` registrant rule checked before the order (all registrars). Domain products can use INWX or SKRIME.
 - Registrar interface: auth codes are fetched only on request; registrars that take the registrant inline receive the contact data.

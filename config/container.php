@@ -39,12 +39,34 @@ return static function (Container $c, Config $config, string $basePath): void {
         return Encrypter::fromAppKey($key, $config->array('app.previous_keys'));
     });
 
-    $c->set(SessionStore::class, static fn (Container $c): SessionStore => new SessionStore(
-        $c->get(Connection::class),
-        $c->get(Clock::class),
-        max(5, $config->int('session.idle_minutes', 60)) * 60,
-        max(1, $config->int('session.lifetime_hours', 12)) * 3600,
+    $c->set(Nebrix\Redis\RedisConnection::class, static fn (): Nebrix\Redis\RedisConnection => new Nebrix\Redis\RedisConnection(
+        $config->string('redis.url'),
+        $config->string('redis.prefix') !== '' ? $config->string('redis.prefix') : 'nebrix:',
+        (float) max(1, $config->int('redis.timeout', 2)),
     ));
+
+    $driver = static function (string $key) use ($config): string {
+        $value = $config->string($key) !== '' ? $config->string($key) : 'database';
+        if (!in_array($value, ['database', 'redis'], true)) {
+            throw new RuntimeException(sprintf('Unknown driver "%s" for %s (use database or redis).', $value, $key));
+        }
+
+        return $value;
+    };
+
+    $c->set(SessionStore::class, static function (Container $c) use ($config, $driver): SessionStore {
+        $idle = max(5, $config->int('session.idle_minutes', 60)) * 60;
+        $lifetime = max(1, $config->int('session.lifetime_hours', 12)) * 3600;
+        $backend = $driver('session.driver') === 'redis'
+            ? new Nebrix\Session\RedisSessionBackend($c->get(Nebrix\Redis\RedisConnection::class), $idle, $lifetime)
+            : new Nebrix\Session\DatabaseSessionBackend($c->get(Connection::class));
+
+        return new SessionStore($backend, $c->get(Clock::class), $idle, $lifetime);
+    });
+
+    $c->set(Nebrix\Security\RateLimitStore::class, static fn (Container $c): Nebrix\Security\RateLimitStore => $driver('rate_limit.driver') === 'redis'
+        ? new Nebrix\Security\RedisRateLimitStore($c->get(Nebrix\Redis\RedisConnection::class))
+        : new Nebrix\Security\DatabaseRateLimitStore($c->get(Connection::class), $c->get(Clock::class)));
 
     $c->set(SettingsRepository::class, static fn (Container $c): SettingsRepository => new SettingsRepository(
         $c->get(Connection::class),

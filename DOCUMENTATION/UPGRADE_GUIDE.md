@@ -132,6 +132,10 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to TeamSpeak over SSH and Redis
+
+New Composer dependency `predis/predis` – run `composer install --no-dev --optimize-autoloader` (Docker: rebuild the image). No migration. Nothing changes until you switch a TeamSpeak integration to *SSH* (enter the host key) or set `SESSION_DRIVER=redis` / `RATE_LIMIT_DRIVER=redis` with `REDIS_URL` ([CONFIGURATION.md](CONFIGURATION.md#redis-optional)); switching the session driver signs everybody out once.
+
 ### Updating to SKRIME domains
 
 No migration. Add the integration under Admin → Integrations → *SKRIME (domains)* (start with the sandbox), enter the API key, tick the terms box when you are ready to order, and assign it to your domain products. Existing INWX products are unchanged.

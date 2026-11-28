@@ -4,27 +4,20 @@ declare(strict_types=1);
 
 namespace Nebrix\Security;
 
-use Nebrix\Core\Clock;
-use Nebrix\Database\Connection;
-
 /**
- * Fixed-window rate limiter backed by nx_rate_limits.
+ * Fixed-window rate limiter.
  *
- * The counter is incremented atomically with INSERT … ON DUPLICATE KEY UPDATE,
- * so concurrent requests cannot bypass the limit (legacy finding H-06).
- * Keys are hashed before storage (they may contain e-mail addresses / IPs).
+ * Counters live in the configured store (database by default, Redis with
+ * RATE_LIMIT_DRIVER=redis); both count atomically, so concurrent requests
+ * cannot bypass a limit (legacy finding H-06). Keys are hashed before
+ * storage (they may contain e-mail addresses / IPs).
  */
 class RateLimiter
 {
-    public function __construct(
-        private readonly Connection $db,
-        private readonly Clock $clock,
-    ) {
+    public function __construct(private readonly RateLimitStore $store)
+    {
     }
 
-    /**
-     * Registers a hit and returns the number of hits in the current window.
-     */
     /**
      * Key part for a client address: IPv4 as is, IPv6 by network (a single
      * customer usually holds a whole /64 or larger), so rotating addresses
@@ -41,32 +34,15 @@ class RateLimiter
         return bin2hex(substr($packed, 0, $bytes)) . '::/' . ($bytes * 8);
     }
 
+    /** Registers a hit and returns the number of hits in the current window. */
     public function hit(string $key, int $decaySeconds): int
     {
-        $now = $this->clock->now();
-        $nowString = $now->format('Y-m-d H:i:s');
-        $expiresAt = $now->modify(sprintf('+%d seconds', $decaySeconds))->format('Y-m-d H:i:s');
-        $hash = hash('sha256', $key);
-
-        $this->db->run(
-            'INSERT INTO `nx_rate_limits` (`key_hash`, `hits`, `expires_at`) VALUES (:k, 1, :expires)
-             ON DUPLICATE KEY UPDATE
-                `hits` = IF(`expires_at` <= :now1, 1, `hits` + 1),
-                `expires_at` = IF(`expires_at` <= :now2, :expires2, `expires_at`)',
-            ['k' => $hash, 'expires' => $expiresAt, 'now1' => $nowString, 'now2' => $nowString, 'expires2' => $expiresAt],
-        );
-
-        return (int) $this->db->fetchValue('SELECT `hits` FROM `nx_rate_limits` WHERE `key_hash` = ?', [$hash]);
+        return $this->store->hit(hash('sha256', $key), $decaySeconds);
     }
 
     public function attempts(string $key): int
     {
-        $row = $this->db->fetchOne(
-            'SELECT `hits` FROM `nx_rate_limits` WHERE `key_hash` = ? AND `expires_at` > ?',
-            [hash('sha256', $key), $this->clock->nowString()],
-        );
-
-        return $row === null ? 0 : (int) $row['hits'];
+        return $this->store->attempts(hash('sha256', $key));
     }
 
     public function tooManyAttempts(string $key, int $maxAttempts): bool
@@ -77,15 +53,7 @@ class RateLimiter
     /** Seconds until the key's window resets. */
     public function availableIn(string $key): int
     {
-        $expires = $this->db->fetchValue(
-            'SELECT `expires_at` FROM `nx_rate_limits` WHERE `key_hash` = ?',
-            [hash('sha256', $key)],
-        );
-        if (!is_string($expires)) {
-            return 0;
-        }
-
-        return max(0, (strtotime($expires . ' UTC') ?: 0) - $this->clock->now()->getTimestamp());
+        return $this->store->secondsLeft(hash('sha256', $key));
     }
 
     /**
@@ -102,16 +70,16 @@ class RateLimiter
     /** Takes back one counted attempt (e.g. a successful sign-in from an IP). */
     public function release(string $key): void
     {
-        $this->db->run('UPDATE `nx_rate_limits` SET `hits` = IF(`hits` > 0, `hits` - 1, 0) WHERE `key_hash` = ?', [hash('sha256', $key)]);
+        $this->store->release(hash('sha256', $key));
     }
 
     public function clear(string $key): void
     {
-        $this->db->run('DELETE FROM `nx_rate_limits` WHERE `key_hash` = ?', [hash('sha256', $key)]);
+        $this->store->clear(hash('sha256', $key));
     }
 
     public function garbageCollect(): int
     {
-        return $this->db->run('DELETE FROM `nx_rate_limits` WHERE `expires_at` < ?', [$this->clock->nowString()])->rowCount();
+        return $this->store->garbageCollect();
     }
 }

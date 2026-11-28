@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace Nebrix\Session;
 
 use Nebrix\Core\Clock;
-use Nebrix\Database\Connection;
 
 /**
- * Database-backed session persistence.
+ * Session persistence (database by default, Redis with SESSION_DRIVER=redis).
  *
- * Only the SHA-256 hash of a session ID is stored, so a database leak does
+ * Only the SHA-256 hash of a session ID is stored, so a leak of the store does
  * not allow session hijacking (legacy finding C-05). Sessions expire after an
  * idle timeout and after an absolute lifetime.
  */
 class SessionStore
 {
     public function __construct(
-        private readonly Connection $db,
+        private readonly SessionBackend $backend,
         private readonly Clock $clock,
         private readonly int $idleTimeoutSeconds,
         private readonly int $absoluteLifetimeSeconds,
@@ -42,34 +41,21 @@ class SessionStore
             return null;
         }
 
-        $row = $this->db->fetchOne(
-            'SELECT `user_id`, `payload`, `created_at`, `last_activity` FROM `nx_sessions` WHERE `id` = ?',
-            [self::hashId($id)],
-        );
+        $row = $this->backend->find(self::hashId($id));
         if ($row === null) {
             return null;
         }
 
         $now = $this->clock->now()->getTimestamp();
-        $createdAt = strtotime($row['created_at'] . ' UTC') ?: 0;
-        $lastActivity = strtotime($row['last_activity'] . ' UTC') ?: 0;
-
-        if ($now - $lastActivity > $this->idleTimeoutSeconds || $now - $createdAt > $this->absoluteLifetimeSeconds) {
+        if ($now - $row['last_activity'] > $this->idleTimeoutSeconds || $now - $row['created_at'] > $this->absoluteLifetimeSeconds) {
             $this->destroy($id);
 
             return null;
         }
 
-        $data = json_decode((string) $row['payload'], true);
+        $data = json_decode($row['payload'], true);
 
-        return new Session(
-            $id,
-            is_array($data) ? $data : [],
-            false,
-            $row['user_id'] !== null ? (int) $row['user_id'] : null,
-            $createdAt,
-            $lastActivity,
-        );
+        return new Session($id, is_array($data) ? $data : [], false, $row['user_id'], $row['created_at'], $row['last_activity']);
     }
 
     /**
@@ -84,7 +70,7 @@ class SessionStore
     {
         $previous = $session->previousId();
         if ($previous !== null) {
-            $deleted = $this->db->run('DELETE FROM `nx_sessions` WHERE `id` = ?', [self::hashId($previous)])->rowCount();
+            $deleted = $this->backend->delete(self::hashId($previous));
             if ($deleted === 0 && !$session->isNew()) {
                 return; // revoked during this request – stays revoked under the new ID as well
             }
@@ -95,8 +81,8 @@ class SessionStore
             return;
         }
 
-        $now = $this->clock->now();
-        $mustTouch = $now->getTimestamp() - $session->lastActivity() >= 60;
+        $now = $this->clock->now()->getTimestamp();
+        $mustTouch = $now - $session->lastActivity() >= 60;
         if (!$session->isDirty() && !$session->isNew() && $previous === null && !$mustTouch) {
             return;
         }
@@ -106,30 +92,18 @@ class SessionStore
         if ($session->isNew() || $previous !== null) {
             // A freshly generated ID is unknown to anyone else, so an upsert is
             // safe here (it only matters if the same request saves twice).
-            $this->db->run(
-                'INSERT INTO `nx_sessions` (`id`, `user_id`, `ip`, `user_agent`, `payload`, `created_at`, `last_activity`)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE `user_id` = ?, `ip` = ?, `user_agent` = ?, `payload` = ?, `last_activity` = ?',
-                [
-                    self::hashId($session->id()), $session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'), $now->format('Y-m-d H:i:s'),
-                    $session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'),
-                ],
-            );
+            $this->backend->insert(self::hashId($session->id()), $session->userId(), $ip, $userAgent, $payload, $now);
 
             return;
         }
 
-        // Zero affected rows means the session was deleted meanwhile; it is
-        // deliberately not recreated.
-        $this->db->run(
-            'UPDATE `nx_sessions` SET `user_id` = ?, `ip` = ?, `user_agent` = ?, `payload` = ?, `last_activity` = ? WHERE `id` = ?',
-            [$session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'), self::hashId($session->id())],
-        );
+        // A session deleted meanwhile is deliberately not recreated.
+        $this->backend->update(self::hashId($session->id()), $session->userId(), $ip, $userAgent, $payload, $now);
     }
 
     public function destroy(string $id): void
     {
-        $this->db->run('DELETE FROM `nx_sessions` WHERE `id` = ?', [self::hashId($id)]);
+        $this->backend->delete(self::hashId($id));
     }
 
     /**
@@ -138,34 +112,26 @@ class SessionStore
      */
     public function destroyForUser(int $userId, ?string $exceptId = null): int
     {
-        if ($exceptId !== null) {
-            return $this->db->run(
-                'DELETE FROM `nx_sessions` WHERE `user_id` = ? AND `id` <> ?',
-                [$userId, self::hashId($exceptId)],
-            )->rowCount();
-        }
-
-        return $this->db->run('DELETE FROM `nx_sessions` WHERE `user_id` = ?', [$userId])->rowCount();
+        return $this->backend->deleteForUser($userId, $exceptId !== null ? self::hashId($exceptId) : null);
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<array{id: string, ip: string|null, user_agent: string|null, created_at: string, last_activity: string}>
      */
     public function listForUser(int $userId): array
     {
-        return $this->db->fetchAll(
-            'SELECT `id`, `ip`, `user_agent`, `created_at`, `last_activity` FROM `nx_sessions` WHERE `user_id` = ? ORDER BY `last_activity` DESC',
-            [$userId],
-        );
+        return $this->backend->listForUser($userId);
+    }
+
+    public function countForUser(int $userId): int
+    {
+        return $this->backend->countForUser($userId);
     }
 
     public function garbageCollect(): int
     {
         $now = $this->clock->now()->getTimestamp();
 
-        return $this->db->run(
-            'DELETE FROM `nx_sessions` WHERE `last_activity` < ? OR `created_at` < ?',
-            [gmdate('Y-m-d H:i:s', $now - $this->idleTimeoutSeconds), gmdate('Y-m-d H:i:s', $now - $this->absoluteLifetimeSeconds)],
-        )->rowCount();
+        return $this->backend->garbageCollect($now - $this->idleTimeoutSeconds, $now - $this->absoluteLifetimeSeconds);
     }
 }

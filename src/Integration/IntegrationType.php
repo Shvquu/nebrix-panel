@@ -73,14 +73,16 @@ final class IntegrationType
                 'description' => 'Virtual TeamSpeak 3 servers through the ServerQuery interface.',
                 'config' => [
                     'host' => ['label' => 'ServerQuery host', 'rules' => 'required|hostname|max:253'],
-                    'query_port' => ['label' => 'ServerQuery port', 'rules' => 'required|int|min:1|max:65535', 'default' => 10011],
+                    'query_protocol' => ['label' => 'ServerQuery connection', 'rules' => 'required|in:raw,ssh', 'default' => 'raw', 'type' => 'select', 'options' => ['raw' => 'Raw TCP (unencrypted, default port 10011)', 'ssh' => 'SSH (encrypted, default port 10022, TeamSpeak 3.3 or newer)']],
+                    'query_port' => ['label' => 'ServerQuery port', 'rules' => 'required|int|min:1|max:65535', 'default' => 10011, 'help' => 'Raw: 10011, SSH: 10022 (TeamSpeak defaults).'],
+                    'query_host_keys' => ['label' => 'SSH host key of the ServerQuery interface (only for SSH)', 'rules' => 'nullable|string|max:5000', 'type' => 'text', 'help' => 'Output of: ssh-keyscan -p 10022 <host> – the panel connects only to a server presenting this key.'],
                     'query_user' => ['label' => 'ServerQuery login', 'rules' => 'required|string|max:64|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'serveradmin'],
                     'voice_host' => ['label' => 'Public host name for customers', 'rules' => 'required|hostname|max:253'],
                     'port_min' => ['label' => 'First voice port', 'rules' => 'required|int|min:1024|max:65535', 'default' => 9987],
                     'port_max' => ['label' => 'Last voice port', 'rules' => 'required|int|min:1024|max:65535', 'default' => 10986],
                 ],
                 'secrets' => [
-                    'query_password' => ['label' => 'ServerQuery password', 'rules' => 'string|max:255', 'required' => true, 'help' => 'Raw ServerQuery is not encrypted: only connect over a private network or VPN.'],
+                    'query_password' => ['label' => 'ServerQuery password', 'rules' => 'string|max:255', 'required' => true, 'help' => 'Raw ServerQuery is not encrypted: use SSH, or connect only over a private network or VPN.'],
                 ],
             ],
             self::HETZNER_ROBOT => [

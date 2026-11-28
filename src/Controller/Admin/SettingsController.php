@@ -249,6 +249,18 @@ final class SettingsController extends Controller
 
         $storage = $this->config->string('paths.base') . '/storage';
 
+        // Where sessions and rate limits live; Redis is pinged when used (never its URL or password).
+        $drivers = ['sessions' => $this->config->string('session.driver') ?: 'database', 'rate limits' => $this->config->string('rate_limit.driver') ?: 'database'];
+        $redisStatus = null;
+        if (in_array('redis', $drivers, true)) {
+            try {
+                $this->container->get(\Nebrix\Redis\RedisConnection::class)->client()->ping();
+                $redisStatus = 'connected';
+            } catch (\Throwable) {
+                $redisStatus = 'unavailable';
+            }
+        }
+
         return [
             'app_version' => $this->config->string('app.version'),
             'environment' => $this->config->string('app.env'),
@@ -265,6 +277,8 @@ final class SettingsController extends Controller
             'session_idle' => $this->config->int('session.idle_minutes'),
             'session_lifetime' => $this->config->int('session.lifetime_hours'),
             'secure_cookies' => $this->config->bool('session.secure_cookie'),
+            'drivers' => $drivers,
+            'redis_status' => $redisStatus,
             'jobs' => $this->jobs->counts(),
             'scheduler' => $this->db->fetchAll('SELECT * FROM `nx_scheduler_runs` ORDER BY `task`'),
             'server_time' => $this->clock->nowString(),
