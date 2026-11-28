@@ -7,6 +7,7 @@ namespace Nebrix\Tests\Unit\View;
 use Nebrix\Api\ApiScope;
 use Nebrix\Authorization\Permission;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\View\Translator;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -25,7 +26,7 @@ final class TranslationCoverageTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->german = require self::ROOT . '/resources/lang/de.php';
+        $this->german = Translator::load(self::ROOT . '/resources/lang', 'de');
     }
 
     public function testTemplateAndControllerTextsAreTranslated(): void
@@ -102,7 +103,7 @@ final class TranslationCoverageTest extends TestCase
                 $missing[] = $text . '  (' . $source . ')';
             }
         }
-        self::assertSame([], $missing, 'Add these texts to resources/lang/de.php');
+        self::assertSame([], $missing, 'Add these texts to resources/lang/de.php or resources/lang/de/<area>.php');
     }
 
     /**

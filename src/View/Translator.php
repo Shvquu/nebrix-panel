@@ -7,7 +7,8 @@ namespace Nebrix\View;
 /**
  * Message-based translator: templates use the English text as the key, so a
  * missing translation always falls back to readable English.
- * Language files: resources/lang/<code>.php returning [english => translated].
+ * Language files: resources/lang/<code>.php returning [english => translated],
+ * plus optional area files resources/lang/<code>/*.php in the same format.
  */
 final class Translator
 {
@@ -78,12 +79,26 @@ final class Translator
             return [];
         }
 
-        if (!isset($this->catalogs[$locale])) {
-            $file = $this->path . '/' . $locale . '.php';
-            $catalog = is_file($file) ? require $file : [];
-            $this->catalogs[$locale] = is_array($catalog) ? $catalog : [];
+        return $this->catalogs[$locale] ??= self::load($this->path, $locale);
+    }
+
+    /**
+     * The catalog of a language: resources/lang/<code>.php plus the area files
+     * resources/lang/<code>/*.php (later files add to, never replace, earlier ones).
+     *
+     * @return array<string, string>
+     */
+    public static function load(string $path, string $locale): array
+    {
+        $catalog = [];
+        $files = [$path . '/' . $locale . '.php', ...(glob($path . '/' . $locale . '/*.php') ?: [])];
+        foreach ($files as $file) {
+            $part = is_file($file) ? require $file : [];
+            if (is_array($part)) {
+                $catalog += array_filter($part, 'is_string');
+            }
         }
 
-        return $this->catalogs[$locale];
+        return $catalog;
     }
 }

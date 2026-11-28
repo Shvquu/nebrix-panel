@@ -383,4 +383,10 @@ return static function (Router $r): void {
         $r->post('/jobs/{id:\d+}/retry', [Admin\JobController::class, 'retry'], ['middleware' => ['permission:jobs.manage']]);
         $r->post('/jobs/{id:\d+}/cancel', [Admin\JobController::class, 'cancel'], ['middleware' => ['permission:jobs.manage']]);
     });
+
+    // Further areas keep their routes in config/routes/<area>.php, each
+    // returning static function (Router $r): void.
+    foreach (glob(__DIR__ . '/routes/*.php') ?: [] as $file) {
+        (require $file)($r);
+    }
 };

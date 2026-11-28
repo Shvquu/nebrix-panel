@@ -14,7 +14,7 @@ declare(strict_types=1);
 $languages = ['en' => 'English', 'de' => 'Deutsch'];
 $currencies = ['EUR' => 'EUR – Euro', 'USD' => 'USD – US Dollar', 'GBP' => 'GBP – Pound Sterling', 'CHF' => 'CHF – Swiss Franc'];
 
-return [
+$settings = [
     // ---------------------------------------------------------------- general
     'general.company_name' => ['group' => 'general', 'type' => 'string', 'default' => 'Nebrix', 'label' => 'Company name', 'rules' => 'required|string|max:150'],
     'general.company_address' => ['group' => 'general', 'type' => 'text', 'default' => '', 'label' => 'Company address', 'help' => 'Shown on invoices and in e-mail footers.'],
@@ -170,3 +170,10 @@ return [
     'discord.role_active' => ['group' => 'discord', 'type' => 'string', 'default' => '', 'label' => 'Role for customers with an active service (role ID)', 'rules' => 'nullable|regex:/^(\d{17,20})?$/'],
     'discord.invite_url' => ['group' => 'discord', 'type' => 'url', 'default' => '', 'label' => 'Invite link to the server', 'rules' => 'nullable|url|max:200|regex:#^https://(discord\.gg|discord\.com/invite)/[A-Za-z0-9-]+$#'],
 ];
+
+// Further areas keep their settings in config/settings/<area>.php (same format).
+foreach (glob(__DIR__ . '/settings/*.php') ?: [] as $file) {
+    $settings += require $file;
+}
+
+return $settings;
