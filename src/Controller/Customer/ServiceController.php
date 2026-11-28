@@ -96,9 +96,12 @@ final class ServiceController extends Controller
     private function serverFeatures(Request $request, Service $service): array
     {
         $features = $this->container->get(\Nebrix\Server\ServerFeatures::class)->forService($service);
-        if (!$this->mayManage($request)) {
+        if (!$this->mayManage($request, $service)) {
             $features['snapshots'] = false;
             $features['rdns'] = false;
+            if (array_key_exists('dns', $features)) {
+                $features['dns'] = false;
+            }
         }
 
         return $features;

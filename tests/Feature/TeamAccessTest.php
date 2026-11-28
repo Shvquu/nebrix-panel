@@ -81,6 +81,9 @@ final class TeamAccessTest extends FeatureTestCase
         self::assertSame(404, $this->get('/services/' . $this->server . '/console')->status());
         self::assertSame(404, $this->get('/services/' . $this->server . '/package')->status());
         self::assertSame(404, $this->post('/services/' . $this->server . '/cancellation/withdraw')->status());
+        self::assertSame(404, $this->get('/services/' . $this->server . '/snapshots')->status());
+        self::assertSame(404, $this->get('/services/' . $this->server . '/rdns')->status());
+        self::assertSame(404, $this->get('/services/' . $this->server . '/dns')->status());
         self::assertStringNotContainsString('/cancel-contract?service=', $this->get('/services/' . $this->server)->body());
     }
 

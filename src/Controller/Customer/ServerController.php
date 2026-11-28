@@ -16,7 +16,6 @@ use Nebrix\Server\Graphs\ResourceGraphs;
 use Nebrix\Server\ReverseDns\ReverseDnsService;
 use Nebrix\Server\Snapshots\SnapshotService;
 use Nebrix\Service\Service;
-use Nebrix\Service\ServiceRepository;
 use Nebrix\Settings\SettingsRepository;
 use Psr\Log\LoggerInterface;
 
@@ -28,7 +27,6 @@ use Psr\Log\LoggerInterface;
 final class ServerController extends Controller
 {
     public function __construct(
-        private readonly ServiceRepository $services,
         private readonly CustomerGroupRepository $groups,
         private readonly SnapshotService $snapshots,
         private readonly ResourceGraphs $graphs,
@@ -120,7 +118,7 @@ final class ServerController extends Controller
 
     public function graphs(Request $request, int $id): Response
     {
-        $service = $this->find($request, $id);
+        $service = $this->find($request, $id, 'services.view');
         if (!$this->graphs->available($service)) {
             throw HttpException::notFound();
         }
@@ -135,7 +133,7 @@ final class ServerController extends Controller
 
     public function graphData(Request $request, int $id): Response
     {
-        $service = $this->services->findForUser($id, $this->user($request)->id);
+        $service = $this->container->get(\Nebrix\Account\TeamService::class)->service($id, $this->user($request), 'services.view');
         if ($service === null || !$this->graphs->available($service)) {
             return Response::json(['error' => 'not_found'], 404);
         }
@@ -231,8 +229,9 @@ final class ServerController extends Controller
         return $group === null || (bool) $group['can_manage_services'];
     }
 
-    private function find(Request $request, int $id): Service
+    /** An own service or one shared with the user (team access) with the given permission. */
+    private function find(Request $request, int $id, string $permission = 'services.manage'): Service
     {
-        return $this->services->findForUser($id, $this->user($request)->id) ?? throw HttpException::notFound();
+        return $this->container->get(\Nebrix\Account\TeamService::class)->service($id, $this->user($request), $permission) ?? throw HttpException::notFound();
     }
 }

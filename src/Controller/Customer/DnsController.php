@@ -16,7 +16,6 @@ use Nebrix\Repository\CustomerGroupRepository;
 use Nebrix\Security\RateLimiter;
 use Nebrix\Security\ValidationException;
 use Nebrix\Service\Service;
-use Nebrix\Service\ServiceRepository;
 use Nebrix\Settings\SettingsRepository;
 use Psr\Log\LoggerInterface;
 
@@ -30,7 +29,6 @@ final class DnsController extends Controller
     private const RECORD_ID = '/^[A-Za-z0-9]{1,40}$/';
 
     public function __construct(
-        private readonly ServiceRepository $services,
         private readonly CustomerGroupRepository $groups,
         private readonly DnsZoneService $dns,
         private readonly RateLimiter $limiter,
@@ -156,6 +154,7 @@ final class DnsController extends Controller
 
     private function find(Request $request, int $id): Service
     {
-        return $this->services->findForUser($id, $this->user($request)->id) ?? throw HttpException::notFound();
+        // Own domains or ones shared with the manage permission (team access).
+        return $this->container->get(\Nebrix\Account\TeamService::class)->service($id, $this->user($request), 'services.manage') ?? throw HttpException::notFound();
     }
 }
