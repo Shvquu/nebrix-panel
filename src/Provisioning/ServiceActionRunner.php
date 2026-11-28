@@ -55,7 +55,7 @@ class ServiceActionRunner
             return ['message' => $action->queuedMessage ?? 'The reinstallation has been started. New access data will be available when it is finished.', 'redirect' => null];
         }
 
-        $audit = ['action' => $key] + array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $values);
+        $audit = ['action' => $key] + array_map(static fn (mixed $v): string => mb_substr(is_array($v) ? implode(',', array_map('strval', $v)) : (string) $v, 0, 100), $values);
         if ($action->mode === ServiceAction::REDIRECT) {
             $url = $this->provisioners->for($service->category)->perform($service, $key, $values + ['_client_ip' => (string) $ip]);
             if (preg_match('#^https?://[^\s/?\#]+#i', $url) !== 1) {

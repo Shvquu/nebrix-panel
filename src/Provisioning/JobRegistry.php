@@ -25,6 +25,8 @@ final class JobRegistry
             InvoiceService::JOB_APPLY_CHANGE => \Nebrix\Service\ServiceChangeJob::class,
             \Nebrix\Notification\NotificationRouter::JOB_DISCORD_DM => \Nebrix\Notification\DiscordDirectMessageJob::class,
             \Nebrix\Notification\StaffNotifier::JOB => \Nebrix\Notification\StaffWebhookJob::class,
+            \Nebrix\Server\Snapshots\SnapshotService::JOB_TYPE => \Nebrix\Server\Snapshots\SnapshotJob::class,
+            \Nebrix\Server\AdditionalIpv4Job::JOB_TYPE => \Nebrix\Server\AdditionalIpv4Job::class,
         ];
     }
 }

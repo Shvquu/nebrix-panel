@@ -629,6 +629,29 @@ final class HetznerRobotProvisioner implements Provisioner
         return $number;
     }
 
+    /**
+     * Robot client and the live server data (addresses, subnets) of the
+     * service's server – after checking the marker name (reverse DNS).
+     *
+     * @return array{0: RobotClient, 1: array<string, mixed>}
+     *
+     * @throws IntegrationException
+     */
+    public function ownedServerData(Service $service): array
+    {
+        [, $client] = $this->client($service);
+        $number = (int) ($service->remote['server_number'] ?? 0);
+        if ($number < 1) {
+            throw new IntegrationException('No server has been assigned yet.');
+        }
+        $server = $client->server($number);
+        if ((string) ($server['server_name'] ?? '') !== self::marker($service)) {
+            throw new IntegrationException(sprintf('Server #%d is no longer named "%s"; the action was not executed.', $number, self::marker($service)));
+        }
+
+        return [$client, $server];
+    }
+
     /** Checks (uncached) that the server still carries the service's marker name. */
     private function assertMarker(Service $service, RobotClient $client, int $number): void
     {

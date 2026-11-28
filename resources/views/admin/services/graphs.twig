@@ -1,0 +1,5 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Resource graphs'|t }} · {{ service.name }}{% endblock %}
+{% block content %}
+{% include 'partials/server_graphs.twig' with {service: service, data_url: data_url, back_url: back_url, timeframes: timeframes} only %}
+{% endblock %}

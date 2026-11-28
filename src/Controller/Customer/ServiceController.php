@@ -85,7 +85,23 @@ final class ServiceController extends Controller
             'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
             'can_withdraw_cancellation' => $this->container->get(\Nebrix\Contract\CancellationService::class)->canWithdraw($service),
             'package_change' => $this->packageChange($service),
+            // DNS records, graphs, snapshots, reverse DNS and additional addresses (server self-service).
+            'server_features' => $this->serverFeatures($request, $service),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serverFeatures(Request $request, Service $service): array
+    {
+        $features = $this->container->get(\Nebrix\Server\ServerFeatures::class)->forService($service);
+        if (!$this->mayManage($request)) {
+            $features['snapshots'] = false;
+            $features['rdns'] = false;
+        }
+
+        return $features;
     }
 
     /**

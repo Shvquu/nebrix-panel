@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nebrix\Integration\Inwx;
 
+use Nebrix\Domain\Dns\DnsHosting;
 use Nebrix\Domain\OrderRejectedException;
 use Nebrix\Domain\Registrar;
 use Nebrix\Integration\HealthResult;
@@ -19,8 +20,11 @@ use RobThree\Auth\TwoFactorAuth;
  * The session cookie from account.login is kept for the lifetime of this
  * object; accounts with two-factor authentication are unlocked with a TOTP
  * code generated from the configured secret.
+ *
+ * DNS records of zones hosted at INWX use the nameserver.* methods (record
+ * IDs, relative names in requests, fully qualified names in answers).
  */
-class InwxClient implements Registrar
+class InwxClient implements Registrar, DnsHosting
 {
     public const ENDPOINTS = ['ote' => 'https://api.ote.domrobot.com', 'live' => 'https://api.domrobot.com'];
 
@@ -204,6 +208,90 @@ class InwxClient implements Registrar
     {
         $value = self::RENEWAL_MODES[$mode] ?? throw new IntegrationException('Unsupported renewal mode.');
         $this->call('domain.update', ['domain' => $this->domain($domain), 'renewalMode' => $value]);
+    }
+
+    // ------------------------------------------------------------------ DNS (nameserver.*)
+
+    public function supportsDnsTtl(): bool
+    {
+        return true;
+    }
+
+    public function dnsRecords(string $domain): ?array
+    {
+        $domain = $this->domain($domain);
+        try {
+            $result = $this->call('nameserver.info', ['domain' => $domain]);
+        } catch (InwxException $exception) {
+            if ($exception->resultCode === self::OBJECT_NOT_FOUND) {
+                return null; // no zone at INWX
+            }
+            throw $exception;
+        }
+        $records = [];
+        foreach (is_array($result['record'] ?? null) ? $result['record'] : [] as $record) {
+            if (!is_array($record) || !is_numeric($record['id'] ?? null) || !is_string($record['type'] ?? null)) {
+                continue;
+            }
+            // INWX returns fully qualified names.
+            $name = rtrim(mb_strtolower((string) ($record['name'] ?? '')), '.');
+            $name = $name === '' || $name === $domain ? '@' : (str_ends_with($name, '.' . $domain) ? substr($name, 0, -strlen($domain) - 1) : $name);
+            $type = strtoupper($record['type']);
+            $records[] = [
+                'id' => (string) (int) $record['id'],
+                'name' => $name,
+                'type' => $type,
+                'content' => (string) ($record['content'] ?? ''),
+                'ttl' => is_numeric($record['ttl'] ?? null) ? (int) $record['ttl'] : null,
+                'prio' => in_array($type, ['MX', 'SRV'], true) && is_numeric($record['prio'] ?? null) ? (int) $record['prio'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    public function createDnsRecord(string $domain, array $record): void
+    {
+        $this->call('nameserver.createRecord', ['domain' => $this->domain($domain)] + $this->recordParams($record));
+    }
+
+    public function updateDnsRecord(string $domain, string $id, array $record): void
+    {
+        $this->call('nameserver.updateRecord', ['id' => $this->recordId($id)] + $this->recordParams($record));
+    }
+
+    public function deleteDnsRecord(string $domain, string $id): void
+    {
+        $this->call('nameserver.deleteRecord', ['id' => $this->recordId($id)]);
+    }
+
+    /**
+     * @param array{name: string, type: string, content: string, ttl: int|null, prio: int|null} $record
+     * @return array<string, scalar>
+     */
+    private function recordParams(array $record): array
+    {
+        $params = [
+            'type' => $record['type'],
+            'content' => $record['content'],
+            // Relative name; empty for the domain itself.
+            'name' => $record['name'] === '@' ? '' : $record['name'],
+            'ttl' => $record['ttl'] ?? 3600,
+        ];
+        if ($record['prio'] !== null) {
+            $params['prio'] = $record['prio'];
+        }
+
+        return $params;
+    }
+
+    private function recordId(string $id): int
+    {
+        if (preg_match('/^[1-9]\d{0,17}$/', $id) !== 1) {
+            throw new IntegrationException('Invalid DNS record.');
+        }
+
+        return (int) $id;
     }
 
     public function logout(): void

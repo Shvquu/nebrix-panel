@@ -109,6 +109,8 @@ final class StoreController extends Controller
             'coupon' => $coupon,
             'cycles' => BillingCycle::labels(),
             'require_legal' => true,
+            // Servers: offered templates and the customer's SSH keys.
+            'server_order' => $this->container->get(\Nebrix\Server\ServerOrderOptions::class)->forProduct($product, $user),
         ]);
     }
 

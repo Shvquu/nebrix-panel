@@ -14,7 +14,8 @@ namespace Nebrix\Security;
  * Supported rules: required, nullable, sometimes, string, int, numeric,
  * decimal, bool, email, url, https_url, hostname, ip, color, in:a,b,
  * min:n, max:n, between:a,b, regex:/…/, alpha_dash, slug, confirmed,
- * same:field, different:field, date, array, json, country, currency, timezone.
+ * same:field, different:field, date, array, json, country, currency, timezone,
+ * ids (list of positive integer IDs; combine with "array").
  */
 final class Validator
 {
@@ -305,6 +306,19 @@ final class Validator
                     if (!is_array($value)) {
                         $errors[] = sprintf('The %s must be a list.', $label);
                     }
+                    break;
+
+                case 'ids':
+                    // A list of positive record IDs (e.g. "ssh_keys[]=3"), normalized to unique integers.
+                    $ids = [];
+                    foreach (is_array($value) ? $value : [$value] as $item) {
+                        if (!(is_int($item) && $item > 0) && !(is_string($item) && preg_match('/^[1-9]\d{0,17}$/', $item) === 1)) {
+                            $errors[] = sprintf('The %s is invalid.', $label);
+                            break;
+                        }
+                        $ids[(int) $item] = (int) $item;
+                    }
+                    $value = array_values($ids);
                     break;
 
                 case 'json':

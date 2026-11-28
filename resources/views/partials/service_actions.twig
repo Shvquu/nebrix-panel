@@ -10,7 +10,9 @@
         {{ csrf_field() }}<input type="hidden" name="action" value="{{ key }}">
         <h3>{{ a.label|t }}</h3>
         {% for name, field in a.fields %}
-            {% if field.options is defined %}
+            {% if field.type|default('') == 'checkboxes' %}
+                {{ f.multiselect(name, field.label, field.options, field.default|default([])) }}
+            {% elseif field.options is defined %}
                 {{ f.select(name, field.label, field.options, field.default|default('')) }}
             {% else %}
                 {{ f.input(name, field.label, field.default|default(''), field.type|default('text')) }}

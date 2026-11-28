@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nebrix\Integration\Skrime;
 
+use Nebrix\Domain\Dns\DnsHosting;
 use Nebrix\Domain\OrderRejectedException;
 use Nebrix\Domain\PremiumDomainException;
 use Nebrix\Domain\Registrar;
@@ -21,8 +22,11 @@ use Nebrix\Integration\IntegrationException;
  * off: the panel renews each period explicitly once the customer has paid
  * for it (renew()). The sandbox validates like the live API but changes
  * nothing and costs nothing.
+ *
+ * DNS zones hosted at SKRIME (GET/POST /domain/dns) are replaced as a whole
+ * with every change; records the panel does not edit are sent back unchanged.
  */
-final class SkrimeClient implements Registrar
+final class SkrimeClient implements Registrar, DnsHosting
 {
     public const ENDPOINTS = [
         'sandbox' => 'https://skrime.eu/sandbox',
@@ -230,6 +234,150 @@ final class SkrimeClient implements Registrar
             throw new IntegrationException('Invalid renewal mode.');
         }
         $this->call('POST', '/product/autorenew', ['json' => ['domain' => $this->domain($domain), 'autoRenew' => false]], 'product.autorenew');
+    }
+
+    // ------------------------------------------------------------------ DNS
+
+    /** SKRIME records have no TTL of their own (the zone default applies). */
+    public function supportsDnsTtl(): bool
+    {
+        return false;
+    }
+
+    public function dnsRecords(string $domain): ?array
+    {
+        $raw = $this->rawDnsRecords($domain);
+
+        return $raw === null ? null : self::normalizeDnsRecords($raw, mb_strtolower(trim($domain)));
+    }
+
+    public function createDnsRecord(string $domain, array $record): void
+    {
+        $raw = $this->rawDnsRecords($domain) ?? throw new IntegrationException('The DNS zone of the domain is not hosted at SKRIME.');
+        $raw[] = self::encodeDnsRecord($record);
+        $this->replaceDnsRecords($domain, $raw);
+    }
+
+    public function updateDnsRecord(string $domain, string $id, array $record): void
+    {
+        $raw = $this->rawDnsRecords($domain) ?? throw new IntegrationException('The DNS zone of the domain is not hosted at SKRIME.');
+        $raw[$this->dnsRecordIndex($raw, $domain, $id)] = self::encodeDnsRecord($record);
+        $this->replaceDnsRecords($domain, $raw);
+    }
+
+    public function deleteDnsRecord(string $domain, string $id): void
+    {
+        $raw = $this->rawDnsRecords($domain) ?? throw new IntegrationException('The DNS zone of the domain is not hosted at SKRIME.');
+        unset($raw[$this->dnsRecordIndex($raw, $domain, $id)]);
+        $this->replaceDnsRecords($domain, array_values($raw));
+    }
+
+    /**
+     * The zone as SKRIME returns it; null when the domain has no zone at SKRIME.
+     *
+     * @return list<array{name: string, type: string, data: string}>|null
+     */
+    private function rawDnsRecords(string $domain): ?array
+    {
+        try {
+            $zone = $this->call('GET', '/domain/dns', ['query' => ['domain' => $this->domain($domain)]], 'domain.dns.get');
+        } catch (IntegrationException $exception) {
+            if ($exception->isNotFound()) {
+                return null;
+            }
+            throw $exception;
+        }
+        if (!is_array($zone['records'] ?? null)) {
+            return null;
+        }
+        $records = [];
+        foreach ($zone['records'] as $record) {
+            if (is_array($record) && is_string($record['name'] ?? null) && is_string($record['type'] ?? null) && is_scalar($record['data'] ?? null)) {
+                $records[] = ['name' => $record['name'], 'type' => strtoupper($record['type']), 'data' => (string) $record['data']];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * SKRIME replaces the whole zone: every record must be sent, also those
+     * the panel does not edit (they are passed on unchanged).
+     *
+     * @param list<array{name: string, type: string, data: string}> $records
+     */
+    private function replaceDnsRecords(string $domain, array $records): void
+    {
+        $this->call('POST', '/domain/dns', ['json' => ['domain' => $this->domain($domain), 'records' => array_values($records)]], 'domain.dns.update');
+    }
+
+    /**
+     * @param list<array{name: string, type: string, data: string}> $raw
+     */
+    private function dnsRecordIndex(array $raw, string $domain, string $id): int
+    {
+        foreach (self::normalizeDnsRecords($raw, mb_strtolower(trim($domain))) as $index => $record) {
+            if (hash_equals($record['id'], $id)) {
+                return $index;
+            }
+        }
+
+        throw new IntegrationException('The DNS record does not exist (anymore).');
+    }
+
+    /**
+     * Records with relative names and separate priorities. SKRIME has no
+     * record IDs: the ID is derived from the record's content (and its
+     * position among identical records).
+     *
+     * @param list<array{name: string, type: string, data: string}> $raw
+     * @return list<array{id: string, name: string, type: string, content: string, ttl: int|null, prio: int|null}>
+     */
+    public static function normalizeDnsRecords(array $raw, string $domain): array
+    {
+        $records = [];
+        $seen = [];
+        foreach ($raw as $record) {
+            $name = rtrim(mb_strtolower(trim($record['name'])), '.');
+            $name = $name === '' || $name === '@' || $name === $domain ? '@' : (str_ends_with($name, '.' . $domain) ? substr($name, 0, -strlen($domain) - 1) : $name);
+            $data = trim($record['data']);
+            $prio = null;
+            $content = $data;
+            if (in_array($record['type'], ['MX', 'SRV'], true) && preg_match('/^(\d{1,5})\s+(.+)$/', $data, $match) === 1 && ($record['type'] === 'MX' || count(preg_split('/\s+/', $match[2]) ?: []) === 3)) {
+                $prio = (int) $match[1];
+                $content = $match[2];
+            }
+            if (in_array($record['type'], ['MX', 'CNAME'], true)) {
+                $content = rtrim(mb_strtolower($content), '.');
+            }
+            if ($record['type'] === 'TXT' && strlen($content) >= 2 && str_starts_with($content, '"') && str_ends_with($content, '"')) {
+                $content = substr($content, 1, -1);
+            }
+            $fingerprint = $name . "\0" . $record['type'] . "\0" . $data;
+            $seen[$fingerprint] = ($seen[$fingerprint] ?? 0) + 1;
+            $records[] = [
+                'id' => substr(hash('sha256', $fingerprint . "\0" . $seen[$fingerprint]), 0, 24),
+                'name' => $name,
+                'type' => $record['type'],
+                'content' => $content,
+                'ttl' => null,
+                'prio' => $prio,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array{name: string, type: string, content: string, ttl: int|null, prio: int|null} $record
+     * @return array{name: string, type: string, data: string}
+     */
+    private static function encodeDnsRecord(array $record): array
+    {
+        // MX and SRV: the priority is the first field of the value ("10 mail.example.com").
+        $data = in_array($record['type'], ['MX', 'SRV'], true) && $record['prio'] !== null ? $record['prio'] . ' ' . $record['content'] : $record['content'];
+
+        return ['name' => $record['name'], 'type' => $record['type'], 'data' => $data];
     }
 
     /**

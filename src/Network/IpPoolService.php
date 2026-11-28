@@ -270,7 +270,8 @@ class IpPoolService
             if ($family !== null && (str_contains((string) $pool['network'], ':') ? 6 : 4) !== $family) {
                 throw new PoolExhaustedException(sprintf('The IP pool "%s" is not an IPv%d pool.', $pool['name'], $family));
             }
-            $address = $this->db->fetchValue("SELECT `address` FROM `nx_ip_addresses` WHERE `pool_id` = ? AND `service_id` = ? AND `status` = 'assigned'", [$poolId, $serviceId]);
+            // The main address of the service; additional (add-on) addresses carry an add-on key.
+            $address = $this->db->fetchValue("SELECT `address` FROM `nx_ip_addresses` WHERE `pool_id` = ? AND `service_id` = ? AND `status` = 'assigned' AND `addon_key` IS NULL ORDER BY `id` LIMIT 1", [$poolId, $serviceId]);
 
             if (!is_string($address)) {
                 $row = $this->db->fetchOne("SELECT `id`, `address` FROM `nx_ip_addresses` WHERE `pool_id` = ? AND `status` = 'free' ORDER BY `id` LIMIT 1 FOR UPDATE SKIP LOCKED", [$poolId]);
@@ -291,13 +292,170 @@ class IpPoolService
         });
     }
 
-    /** Returns every address of the service to its pool. */
+    /** Returns every address of the service (main and additional ones) to its pool. */
     public function release(int $serviceId): int
     {
         return $this->db->run(
-            "UPDATE `nx_ip_addresses` SET `status` = 'free', `service_id` = NULL, `assigned_at` = NULL, `updated_at` = ? WHERE `service_id` = ? AND `status` = 'assigned'",
+            "UPDATE `nx_ip_addresses` SET `status` = 'free', `service_id` = NULL, `addon_key` = NULL, `guest_interface` = NULL, `assigned_at` = NULL, `updated_at` = ? WHERE `service_id` = ? AND `status` = 'assigned'",
             [$this->clock->nowString(), $serviceId],
         )->rowCount();
+    }
+
+    /**
+     * Assigns an additional IPv4 address of the pool to the service for an
+     * add-on (idempotent per add-on key: a second call returns the address
+     * assigned before). Runs in a transaction with the service row locked, so
+     * parallel calls neither take two addresses nor the same guest interface.
+     *
+     * @param list<string> $usedInterfaces guest interfaces that are taken (e.g. ["net0"])
+     * @return array{id: int, pool_id: int, address: string, prefix: int, gateway: string, guest_interface: string}
+     *
+     * @throws PoolExhaustedException
+     */
+    public function allocateAdditional(int $poolId, int $serviceId, string $addonKey, array $usedInterfaces = []): array
+    {
+        if (preg_match('/^(addon|manual):[A-Za-z0-9]{1,40}$/', $addonKey) !== 1) {
+            throw new \InvalidArgumentException('Invalid add-on key.');
+        }
+
+        return $this->db->transaction(function () use ($poolId, $serviceId, $addonKey, $usedInterfaces): array {
+            $this->db->fetchValue('SELECT `id` FROM `nx_services` WHERE `id` = ? FOR UPDATE', [$serviceId]);
+            $existing = $this->db->fetchOne("SELECT * FROM `nx_ip_addresses` WHERE `addon_key` = ? AND `status` = 'assigned'", [$addonKey]);
+            if ($existing !== null) {
+                if ((int) $existing['service_id'] !== $serviceId) {
+                    throw new PoolExhaustedException('The add-on address belongs to another service.');
+                }
+
+                return $this->additionalRow($existing);
+            }
+
+            $pool = $this->db->fetchOne('SELECT * FROM `nx_ip_pools` WHERE `id` = ?', [$poolId]) ?? throw new PoolExhaustedException('The IP pool no longer exists.');
+            if (str_contains((string) $pool['network'], ':')) {
+                throw new PoolExhaustedException(sprintf('The IP pool "%s" is not an IPv4 pool.', $pool['name']));
+            }
+            $taken = array_map('strval', $usedInterfaces);
+            foreach ($this->db->fetchAll("SELECT `guest_interface` FROM `nx_ip_addresses` WHERE `service_id` = ? AND `status` = 'assigned' AND `guest_interface` IS NOT NULL FOR UPDATE", [$serviceId]) as $row) {
+                $taken[] = (string) $row['guest_interface'];
+            }
+            $interface = null;
+            for ($n = 1; $n <= 31; $n++) {
+                if (!in_array('net' . $n, $taken, true)) {
+                    $interface = 'net' . $n;
+                    break;
+                }
+            }
+            if ($interface === null) {
+                throw new PoolExhaustedException('The server has no free network interface for another address.');
+            }
+
+            $row = $this->db->fetchOne("SELECT `id` FROM `nx_ip_addresses` WHERE `pool_id` = ? AND `status` = 'free' ORDER BY `id` LIMIT 1 FOR UPDATE SKIP LOCKED", [$poolId]);
+            if ($row === null) {
+                throw new PoolExhaustedException(sprintf('The IP pool "%s" has no free addresses left.', $pool['name']));
+            }
+            $now = $this->clock->nowString();
+            $this->db->update('nx_ip_addresses', ['status' => 'assigned', 'service_id' => $serviceId, 'addon_key' => $addonKey, 'guest_interface' => $interface, 'assigned_at' => $now, 'updated_at' => $now], ['id' => (int) $row['id']]);
+
+            return $this->additionalRow((array) $this->db->fetchOne('SELECT * FROM `nx_ip_addresses` WHERE `id` = ?', [(int) $row['id']]));
+        });
+    }
+
+    /**
+     * Additional (add-on) addresses of a service, oldest first.
+     *
+     * @return list<array{id: int, pool_id: int, address: string, prefix: int, gateway: string, guest_interface: string, addon_key: string}>
+     */
+    public function additionalAddresses(int $serviceId): array
+    {
+        $rows = [];
+        foreach ($this->db->fetchAll("SELECT * FROM `nx_ip_addresses` WHERE `service_id` = ? AND `status` = 'assigned' AND `addon_key` IS NOT NULL ORDER BY `id`", [$serviceId]) as $row) {
+            $rows[] = $this->additionalRow($row) + ['addon_key' => (string) $row['addon_key']];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{id: int, pool_id: int, address: string, prefix: int, gateway: string, guest_interface: string, addon_key: string, service_id: int}|null
+     */
+    public function additionalByKey(string $addonKey): ?array
+    {
+        $row = $this->db->fetchOne("SELECT * FROM `nx_ip_addresses` WHERE `addon_key` = ? AND `status` = 'assigned'", [$addonKey]);
+
+        return $row === null ? null : $this->additionalRow($row) + ['addon_key' => (string) $row['addon_key'], 'service_id' => (int) $row['service_id']];
+    }
+
+    /** Returns an additional address to its pool (idempotent). */
+    public function releaseAdditional(string $addonKey): bool
+    {
+        return $this->db->run(
+            "UPDATE `nx_ip_addresses` SET `status` = 'free', `service_id` = NULL, `addon_key` = NULL, `guest_interface` = NULL, `assigned_at` = NULL, `updated_at` = ? WHERE `addon_key` = ? AND `status` = 'assigned'",
+            [$this->clock->nowString(), $addonKey],
+        )->rowCount() === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{id: int, pool_id: int, address: string, prefix: int, gateway: string, guest_interface: string}
+     */
+    private function additionalRow(array $row): array
+    {
+        $pool = $this->db->fetchOne('SELECT `network`, `gateway` FROM `nx_ip_pools` WHERE `id` = ?', [(int) $row['pool_id']]) ?? ['network' => '0.0.0.0/32', 'gateway' => ''];
+
+        return [
+            'id' => (int) $row['id'],
+            'pool_id' => (int) $row['pool_id'],
+            'address' => (string) $row['address'],
+            'prefix' => (int) explode('/', (string) $pool['network'])[1],
+            'gateway' => (string) $pool['gateway'],
+            'guest_interface' => (string) $row['guest_interface'],
+        ];
+    }
+
+    /** Dotted IPv4 netmask of a prefix length (24 → 255.255.255.0). */
+    public static function netmask(int $prefix): string
+    {
+        $prefix = max(0, min(32, $prefix));
+
+        return (string) long2ip($prefix === 0 ? 0 : (0xFFFFFFFF << (32 - $prefix)) & 0xFFFFFFFF);
+    }
+
+    /**
+     * Pools whose addresses get reverse DNS through a Hetzner Robot integration.
+     *
+     * @return array<int, int> pool ID => integration ID
+     */
+    public function rdnsIntegrations(): array
+    {
+        $map = [];
+        foreach ($this->db->fetchAll('SELECT `id`, `rdns_integration_id` FROM `nx_ip_pools` WHERE `rdns_integration_id` IS NOT NULL') as $row) {
+            $map[(int) $row['id']] = (int) $row['rdns_integration_id'];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Addresses (main and additional) of a service with their pool.
+     *
+     * @return list<array{address: string, pool_id: int, rdns_integration_id: int|null}>
+     */
+    public function serviceAddresses(int $serviceId): array
+    {
+        return array_map(static fn (array $row): array => [
+            'address' => (string) $row['address'],
+            'pool_id' => (int) $row['pool_id'],
+            'rdns_integration_id' => $row['rdns_integration_id'] !== null ? (int) $row['rdns_integration_id'] : null,
+        ], $this->db->fetchAll(
+            "SELECT a.`address`, a.`pool_id`, p.`rdns_integration_id` FROM `nx_ip_addresses` a JOIN `nx_ip_pools` p ON p.`id` = a.`pool_id`
+             WHERE a.`service_id` = ? AND a.`status` = 'assigned' ORDER BY a.`addon_key` IS NOT NULL, a.`id`",
+            [$serviceId],
+        ));
+    }
+
+    /** Sets the Hetzner Robot integration used for reverse DNS of a pool (null = none). */
+    public function setRdnsIntegration(int $poolId, ?int $integrationId): void
+    {
+        $this->db->update('nx_ip_pools', ['rdns_integration_id' => $integrationId, 'updated_at' => $this->clock->nowString()], ['id' => $poolId]);
     }
 
     /**

@@ -1,0 +1,21 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Server templates'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Server templates'|t }}</h1><p class="muted">{{ 'Operating systems and applications customers choose when ordering or reinstalling a Proxmox server. The template of the product and its reinstall list stay available as before.'|t }}</p></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/server-templates/create">{{ 'Add template'|t }}</a>{% endif %}</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Integration'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Template'|t }}</th><th>{{ 'SSH keys'|t }}</th><th>{{ 'Products'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+    <tbody>{% for t in templates %}
+        <tr>
+            <td><span class="server-template-icon">{{ i.icon(t.icon) }}</span> <strong>{{ t.name }}</strong>{% if t.description %}<div class="small muted">{{ t.description }}</div>{% endif %}</td>
+            <td>{{ t.integration_name }}</td>
+            <td>{{ t.type == 'lxc' ? 'LXC' : 'KVM' }}</td>
+            <td class="mono small">{{ t.source }}{% if t.cloud_init_user %}<div class="muted">{{ 'User'|t }}: {{ t.cloud_init_user }}</div>{% endif %}</td>
+            <td>{{ t.ssh_keys ? 'yes'|t : 'no'|t }}</td>
+            <td>{{ t.product_count }}</td>
+            <td><span class="badge {{ t.is_active ? 'badge-success' : 'badge-neutral' }}">{{ t.is_active ? 'active'|t : 'inactive'|t }}</span></td>
+            <td>{% if can('products.manage') %}<a class="btn btn-sm btn-outline" href="/admin/server-templates/{{ t.id }}">{{ 'Edit'|t }}</a>{% endif %}</td>
+        </tr>
+    {% else %}<tr><td colspan="8" class="empty">{{ 'No server templates yet.'|t }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

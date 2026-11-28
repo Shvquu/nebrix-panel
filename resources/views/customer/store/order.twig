@@ -52,7 +52,11 @@
                 {% if product.description %}<p>{{ product.description }}</p>{% endif %}
                 {% if cfg and cfg.cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':cores vCores, :memory GB RAM, :disk GB disk'|t({cores: cfg.cores, memory: cfg.memory_gb, disk: cfg.disk_gb}) }}</span></p>{% elseif cfg and cfg.slots is defined %}<p><span class="badge badge-info badge-sentence">{{ ':slots slots'|t({slots: cfg.slots}) }}</span></p>{% elseif cfg and cfg.cpu_cores is defined %}<p><span class="badge badge-info badge-sentence">{{ ':n GB memory'|t({n: cfg.memory_gb}) }}, {{ ':n cores'|t({n: cfg.cpu_cores}) }}, {{ ':n GB storage'|t({n: cfg.disk_gb}) }}</span></p>{% endif %}
                 {% for name, option in options %}
+                    {% if option.type|default('') in ['os_template', 'ssh_keys'] %}
+                        {% include 'customer/store/_server_choices.twig' with {name: name, option: option, choices: server_order|default({templates: [], keys: {}})} only %}
+                    {% else %}
                     {{ f.input(name, option.label, prefill[name]|default(''), 'text', option.help is defined ? {required: true, help: option.help} : {required: true}) }}
+                    {% endif %}
                 {% else %}
                     <p class="muted">{{ 'No configuration needed.'|t }}</p>
                 {% endfor %}

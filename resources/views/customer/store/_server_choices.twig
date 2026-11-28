@@ -1,0 +1,28 @@
+{# Order choices of Proxmox servers. Parameters: name, option, choices {templates, keys}. #}
+{% import 'macros/forms.twig' as f %}
+{% import 'macros/icons.twig' as i %}
+{% if option.type == 'os_template' and choices.templates|length > 0 %}
+    {% set current = old(name, '') ~ '' %}
+    <fieldset class="form-row server-templates">
+        <legend>{{ option.label|t }}</legend>
+        <label class="server-template">
+            <input type="radio" name="{{ name }}" value=""{% if current == '' %} checked{% endif %}>
+            <span class="server-template-icon">{{ i.icon('server') }}</span>
+            <span><strong>{{ 'Standard image'|t }}</strong><span class="help d-block">{{ 'The operating system of the package.'|t }}</span></span>
+        </label>
+        {% for template in choices.templates %}
+        <label class="server-template">
+            <input type="radio" name="{{ name }}" value="{{ template.id }}"{% if current == (template.id ~ '') %} checked{% endif %}>
+            <span class="server-template-icon">{{ i.icon(template.icon) }}</span>
+            <span><strong>{{ template.name }}</strong>{% if template.description %}<span class="help d-block">{{ template.description }}</span>{% endif %}{% if not template.ssh_keys %}<span class="help d-block">{{ 'Without SSH keys (password login).'|t }}</span>{% endif %}</span>
+        </label>
+        {% endfor %}
+        {% if error(name) %}<div class="field-error">{{ error(name)|t }}</div>{% endif %}
+    </fieldset>
+{% elseif option.type == 'ssh_keys' %}
+    {% if choices.keys|length > 0 %}
+        {{ f.multiselect(name, option.label, choices.keys, [], {help: 'Installed for the login of the server (Account → SSH keys).'}) }}
+    {% else %}
+        <p class="small muted">{{ 'Log in with SSH keys instead of a password:'|t }} <a href="/account/ssh-keys">{{ 'add an SSH key to your account'|t }}</a>.</p>
+    {% endif %}
+{% endif %}

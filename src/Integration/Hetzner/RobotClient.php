@@ -218,6 +218,33 @@ class RobotClient
         $this->post('/rdns/' . $this->ip($ip), ['ptr' => $ptr], 'rdns.set');
     }
 
+    /** Current PTR record of an address (null when none is set). */
+    public function reverseDns(string $ip): ?string
+    {
+        try {
+            $data = $this->get('/rdns/' . $this->ip($ip), 'rdns.get');
+        } catch (IntegrationException $exception) {
+            if ($exception->isNotFound()) {
+                return null; // RDNS_NOT_FOUND
+            }
+            throw $exception;
+        }
+        $ptr = is_array($data) && is_array($data['rdns'] ?? null) ? ($data['rdns']['ptr'] ?? null) : null;
+
+        return is_string($ptr) && $ptr !== '' ? $ptr : null;
+    }
+
+    public function deleteReverseDns(string $ip): void
+    {
+        try {
+            $this->api->request('DELETE', '/rdns/' . $this->ip($ip), ['action' => 'rdns.delete']);
+        } catch (IntegrationException $exception) {
+            if (!$exception->isNotFound()) {
+                throw $exception; // already removed = done
+            }
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */

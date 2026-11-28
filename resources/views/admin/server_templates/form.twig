@@ -1,0 +1,34 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ template ? 'Edit template'|t : 'Add template'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ template ? 'Edit template'|t : 'Add template'|t }}</h1><p class="muted"><a href="/admin/server-templates">&larr; {{ 'Server templates'|t }}</a></p></div></div>
+<form method="post" action="/admin/server-templates{{ template ? '/' ~ template.id : '' }}" novalidate class="card">
+    {{ csrf_field() }}
+    <div class="card-body">
+        <div class="form-grid">
+            {{ f.input('name', 'Name', template.name|default(''), 'text', {required: true, maxlength: 80, placeholder: 'Debian 12 with Docker'}) }}
+            {{ f.select('integration_id', 'Proxmox integration', integrations, template.integration_id|default('')) }}
+            {{ f.select('type', 'Type', {'kvm': 'KVM virtual machine (VPS)', 'lxc': 'LXC container'}, template.type|default('kvm')) }}
+            {{ f.select('icon', 'Icon', icons, template.icon|default('server')) }}
+            {{ f.input('source', 'Template', template.source|default(''), 'text', {required: true, help: 'KVM: VM ID of a cloud-init template (e.g. 9000). LXC: OS template volume (e.g. local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst).'}) }}
+            {{ f.input('cloud_init_user', 'Default cloud-init user (KVM, optional)', template.cloud_init_user|default(''), 'text', {help: 'Login of the server, e.g. debian or ubuntu. Empty = root.'}) }}
+            {{ f.input('sort_order', 'Sort order', template.sort_order|default(0), 'number') }}
+        </div>
+        {{ f.textarea('description', 'Description', template.description|default(''), {rows: 2, maxlength: 500, help: 'Shown to customers when they choose the template.'}) }}
+        {{ f.checkbox('ssh_keys', 'Install the customer\'s SSH keys', template ? template.ssh_keys : true, {help: 'KVM through cloud-init (sshkeys), LXC through ssh-public-keys. Switch off for images without SSH.'}) }}
+        {{ f.checkbox('is_active', 'Active (offered to customers)', template ? template.is_active : true) }}
+        {% if products|length > 0 %}
+            {{ f.multiselect('products', 'Offered by these products', products, selected_products, {help: 'Only products of the same integration and type are accepted.'}) }}
+        {% else %}
+            <p class="muted small">{{ 'There are no VPS or LXC products with a Proxmox integration yet.'|t }}</p>
+        {% endif %}
+    </div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+</form>
+{% if template %}
+<form method="post" action="/admin/server-templates/{{ template.id }}/delete" data-confirm="{{ 'Delete this template? Installed servers are not affected.'|t }}">
+    {{ csrf_field() }}<button class="btn btn-danger" type="submit">{{ 'Delete template'|t }}</button>
+</form>
+{% endif %}
+{% endblock %}

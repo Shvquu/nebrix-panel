@@ -1,0 +1,72 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Snapshots'|t }} · {{ service.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Snapshots'|t }}</h1><p class="muted">{{ service.name }} · <a href="/services/{{ service.id }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+
+<div class="alert alert-info">{{ 'A snapshot saves the state of the server\'s disks. Rolling back restores that state and discards every change made since. Snapshots are not a replacement for backups: they are stored on the same storage as the server.'|t }}</div>
+{% if error %}<div class="alert alert-warning">{{ error|t }}</div>{% endif %}
+{% if blocker %}<div class="alert alert-warning">{{ blocker|t }}</div>{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Snapshots'|t }}</h2><span class="muted small">{{ ':count of :max'|t({count: snapshots|length, max: max}) }}</span></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Description'|t }}</th><th>{{ 'Created'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for s in snapshots %}
+            <tr>
+                <td class="mono">{{ s.name }}</td>
+                <td class="small">{{ s.description }}</td>
+                <td>{{ s.snaptime > 0 ? s.snaptime|date('Y-m-d H:i') ~ ' UTC' : '–' }}</td>
+                <td class="actions">{% if not blocker and not error %}
+                    <form method="post" action="/services/{{ service.id }}/snapshots/rollback" class="inline" data-confirm="{{ 'Roll the server back to this snapshot? The current state of the server is overwritten; all changes since the snapshot are lost.'|t }}">
+                        {{ csrf_field() }}<input type="hidden" name="snapshot" value="{{ s.name }}">
+                        <label class="checkbox small"><input type="checkbox" name="confirm" value="1"> <span>{{ 'Overwrite the current state'|t }}</span></label>
+                        <button class="btn btn-sm btn-danger" type="submit">{{ 'Roll back'|t }}</button>
+                    </form>
+                    <form method="post" action="/services/{{ service.id }}/snapshots/delete" class="inline" data-confirm="{{ 'Delete this snapshot permanently?'|t }}">
+                        {{ csrf_field() }}<input type="hidden" name="snapshot" value="{{ s.name }}">
+                        <button class="btn btn-sm btn-outline" type="submit">{{ 'Delete'|t }}</button>
+                    </form>
+                {% endif %}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" class="muted">{{ 'There are no snapshots yet.'|t }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+{% if not blocker and not error and snapshots|length < max %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Create a snapshot'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/services/{{ service.id }}/snapshots" novalidate>
+            {{ csrf_field() }}
+            <div class="form-grid">
+                {{ f.input('name', 'Name', '', 'text', {required: true, maxlength: 40, pattern: '[A-Za-z][A-Za-z0-9_\\-]{1,39}', help: 'Starts with a letter; letters, digits, - and _ (e.g. before-update).'}) }}
+                {{ f.input('description', 'Description', '', 'text', {maxlength: 200}) }}
+            </div>
+            <button class="btn btn-primary" type="submit">{{ 'Create snapshot'|t }}</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if tasks|length > 0 %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Recent tasks'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Requested'|t }}</th><th>{{ 'Action'|t }}</th><th>{{ 'Snapshot'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>{% for t in tasks %}
+            <tr>
+                <td>{{ t.created_at|dt }}</td>
+                <td>{{ {'create': 'Create', 'rollback': 'Roll back', 'delete': 'Delete'}[t.action]|default(t.action)|t }}</td>
+                <td class="mono">{{ t.snapshot }}</td>
+                <td><span class="badge {{ t.status == 'done' ? 'badge-success' : (t.status == 'failed' ? 'badge-danger' : 'badge-info') }}">{{ {'queued': 'queued', 'running': 'running', 'done': 'done', 'failed': 'failed'}[t.status]|default(t.status)|t }}</span>{% if t.status == 'failed' %}<div class="small muted">{{ 'The task failed. Please try again or contact support.'|t }}</div>{% endif %}</td>
+            </tr>
+        {% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endblock %}
