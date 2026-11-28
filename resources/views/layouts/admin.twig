@@ -34,6 +34,9 @@
             {% if can('invoices.view') %}{{ m.link('/admin/invoices', 'Invoices', 'invoice') }}{% endif %}
             {% if can('transactions.view') %}{{ m.link('/admin/transactions', 'Transactions', 'transactions') }}{{ m.link('/admin/payments/webhooks', 'Payment events', 'bell') }}{% endif %}
 
+            {% if can('content.view') %}<div class="p-nav-section">{{ 'Marketing'|t }}</div>{% endif %}
+            {% if can('content.view') %}{{ m.link('/admin/landing-pages', 'Landing pages', 'layers') }}{{ m.link('/admin/blog', 'Blog', 'file') }}{% endif %}
+
             {% if can('integrations.view') or can('jobs.view') %}<div class="p-nav-section">{{ 'Infrastructure'|t }}</div>{% endif %}
             {% if can('integrations.view') %}{{ m.link('/admin/integrations', 'Integrations', 'plug') }}{{ m.link('/admin/ip-pools', 'IP pools', 'network') }}{% endif %}
             {% if can('jobs.view') %}{{ m.link('/admin/jobs', 'Background jobs', 'cpu') }}{% endif %}
@@ -41,6 +44,7 @@
             {% if can('settings.general') or can('settings.branding') or can('settings.email') or can('mail_templates.manage') or can('payments.settings') or can('settings.system') %}<div class="p-nav-section">{{ 'Configuration'|t }}</div>{% endif %}
             {% if can('settings.general') %}{{ m.link('/admin/settings/general', 'General', 'gear') }}{% endif %}
             {% if can('settings.branding') %}{{ m.link('/admin/settings/branding', 'Branding', 'palette') }}{% endif %}
+            {% if can('settings.branding') %}{{ m.link('/admin/settings/marketing', 'Marketing', 'trend') }}{% endif %}
             {% if can('settings.email') %}{{ m.link('/admin/settings/email', 'E-mail', 'mail') }}{% endif %}
             {% if can('mail_templates.manage') %}{{ m.link('/admin/mail-templates', 'E-mail templates', 'file') }}{% endif %}
             {% if can('payments.settings') %}{{ m.link('/admin/settings/payments', 'Payments', 'card') }}{% endif %}

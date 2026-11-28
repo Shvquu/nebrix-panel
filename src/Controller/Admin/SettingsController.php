@@ -33,6 +33,7 @@ final class SettingsController extends Controller
         'email' => [Permission::SETTINGS_EMAIL, 'E-mail delivery', ['mail' => 'SMTP server']],
         'payments' => [Permission::PAYMENTS_SETTINGS, 'Payment providers', ['payments_paypal' => 'PayPal', 'payments_stripe' => 'Stripe', 'payments_credit' => 'Account credit']],
         'system' => [Permission::SETTINGS_SYSTEM, 'System', ['system' => 'Operation', 'api' => 'REST API', 'discord' => 'Discord']],
+        'marketing' => [Permission::SETTINGS_BRANDING, 'Marketing', ['seo' => 'Search engines & social networks', 'blog' => 'Blog']],
     ];
 
     public function __construct(

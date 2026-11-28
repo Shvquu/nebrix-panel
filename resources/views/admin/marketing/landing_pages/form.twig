@@ -1,0 +1,47 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set l = landing %}
+{% block title %}{{ l ? '/' ~ l.slug : 'New landing page'|t }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ l ? l.hero_title : 'New landing page'|t }}</h1>
+        <p class="muted"><a href="/admin/landing-pages">&larr; {{ 'Landing pages'|t }}</a>{% if l %} · <span class="badge {{ l.status == 'published' ? 'badge-success' : 'badge-neutral' }}">{{ (l.status == 'published' ? 'published' : 'draft')|t }}</span> · <a href="/admin/landing-pages/{{ l.id }}/preview" target="_blank" rel="noopener">{{ 'Preview'|t }}</a>{% endif %}</p>
+    </div>
+</div>
+{% if shadowed %}<div class="alert alert-danger">{{ 'Another page of the panel now uses this address, so the landing page is not shown. Please choose another address.'|t }}</div>{% endif %}
+<form method="post" action="{{ l ? '/admin/landing-pages/' ~ l.id : '/admin/landing-pages' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Page'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('slug', 'Address', l.slug|default(''), 'text', {required: true, maxlength: 100, pattern: '[a-z0-9]+(-[a-z0-9]+)*', help: 'Lowercase letters, numbers and dashes, e.g. minecraft-server-mieten – the page is reachable at /minecraft-server-mieten.'}) }}
+                {{ f.select('status', 'Status', {draft: 'Draft (only visible in the preview)', published: 'Published'}, l.status|default('draft')) }}
+                {{ f.input('hero_title', 'Headline', l.hero_title|default(''), 'text', {required: true, maxlength: 150, help: 'Words between *asterisks* are highlighted in the brand color.'}) }}
+                {{ f.textarea('hero_teaser', 'Text below the headline', l.hero_teaser|default(''), {rows: 3, maxlength: 400}) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Search engines'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('seo_title', 'Title for search engines (empty = headline)', l.seo_title|default(''), 'text', {maxlength: 120, help: 'About 60 characters; your brand name is added automatically.'}) }}
+                {{ f.textarea('meta_description', 'Meta description (empty = text below the headline)', l.meta_description|default(''), {rows: 3, maxlength: 320, help: 'About 150 characters; shown by search engines below the title.'}) }}
+                {{ f.select('website_page', 'Show the packages of', catalog_pages, l.website_page|default(''), {placeholder: '– no packages –'}) }}
+                {{ f.select('product_line', 'Only this product line', lines, l.product_line|default(''), {placeholder: 'All product lines', help: 'Product lines are set on the products (website: product line).'}) }}
+            </div>
+        </div>
+    </div>
+    <div class="card mt-2">
+        <div class="card-header"><h2>{{ 'Content'|t }}</h2></div>
+        <div class="card-body">
+            {{ f.textarea('intro', 'Introduction (Markdown)', l.intro|default(''), {rows: 10, class: 'mono', help: 'Markdown: ## heading, **bold**, *italic*, - lists, [link text](https://…). HTML is shown as text.'}) }}
+            {{ f.textarea('features', 'Advantages (one per line: Title | Text)', l.features|default(''), {rows: 6, help: 'Only write what you really offer.'}) }}
+            {{ f.textarea('faq', 'Frequently asked questions', l.faq|default(''), {rows: 10, help: 'One question per block: the first line is the question, the following lines are the answer; separate the blocks with a blank line. Shown on the page and as FAQ data for search engines.'}) }}
+        </div>
+    </div>
+    {% if can('content.manage') %}<div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+{% if l and can('content.manage') %}
+<form method="post" action="/admin/landing-pages/{{ l.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this landing page?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Delete landing page'|t }}</button></form>
+{% endif %}
+{% endblock %}

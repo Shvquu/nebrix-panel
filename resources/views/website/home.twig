@@ -106,6 +106,8 @@
     </div>
 </section>
 
+{% if latest_posts|default([]) is not empty %}{% include 'website/_latest_posts.twig' with {posts: latest_posts} %}{% endif %}
+
 {% if trustpilot %}
 {% set tp_host = locale == 'de' ? 'https://de.trustpilot.com' : 'https://www.trustpilot.com' %}
 <section class="site-section site-section-alt">

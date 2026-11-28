@@ -1,0 +1,32 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Blog'|t }}{% if page > 1 %} ({{ 'page :n'|t({n: page}) }}){% endif %}{% endblock %}
+{% block content %}
+<section class="site-banner">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('file') }}</span>
+        <h1>{{ 'Blog'|t }}</h1>
+        <p class="site-lead">{{ 'News, tips and updates from :brand.'|t({brand: brand.name}) }}</p>
+        <p class="site-small"><a class="site-accent" href="/blog/feed.xml" type="application/atom+xml">{{ 'Subscribe to the feed (Atom)'|t }}</a></p>
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container">
+        {% if posts is empty %}
+            <p class="site-center site-muted">{{ 'There are no posts yet.'|t }}</p>
+        {% else %}
+        <div class="site-post-grid">
+            {% for post in posts %}{% include 'website/_post_card.twig' with {post: post} %}{% endfor %}
+        </div>
+        {% endif %}
+        {% if pages > 1 %}
+        <nav class="site-blog-pager" aria-label="{{ 'Pagination'|t }}">
+            {% if page > 1 %}<a class="site-btn site-btn-ghost" href="/blog{{ page > 2 ? '?page=' ~ (page - 1) : '' }}" rel="prev">&larr; {{ 'Newer posts'|t }}</a>{% else %}<span></span>{% endif %}
+            <span class="site-muted site-small">{{ 'Page :n of :total'|t({n: page, total: pages}) }}</span>
+            {% if page < pages %}<a class="site-btn site-btn-ghost" href="/blog?page={{ page + 1 }}" rel="next">{{ 'Older posts'|t }} &rarr;</a>{% else %}<span></span>{% endif %}
+        </nav>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

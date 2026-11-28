@@ -1,0 +1,23 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block content %}
+{% if preview %}<div class="site-preview-bar" role="status">{{ i.icon('info') }} {% if scheduled %}{{ 'Preview: this post is scheduled and becomes public on :date.'|t({date: post.published_at|dt}) }}{% else %}{{ 'Preview: this is how the post looks. It is only public while it is published.'|t }}{% endif %}</div>{% endif %}
+<article class="site-post">
+    <header class="site-banner site-post-header">
+        <div class="site-container site-narrow">
+            <p class="site-small"><a class="site-accent" href="/blog">&larr; {{ 'Blog'|t }}</a></p>
+            <h1>{{ post.title }}</h1>
+            <p class="site-post-meta">{% if post.published_at %}<time datetime="{{ post.published_at|replace({' ': 'T'}) }}Z">{{ post.published_at|d }}</time>{% endif %}{% if post.author_name %} · {{ post.author_name }}{% endif %}</p>
+            {% if post.teaser %}<p class="site-lead">{{ post.teaser }}</p>{% endif %}
+        </div>
+    </header>
+    <div class="site-section site-section-tight">
+        <div class="site-container site-narrow">
+            {% if post.cover_image %}<img class="site-post-image" src="/media/{{ post.cover_image }}" alt="">{% endif %}
+            <div class="site-markdown">{{ body }}</div>
+            <p class="site-actions"><a class="site-btn site-btn-ghost" href="/blog">&larr; {{ 'All posts'|t }}</a></p>
+        </div>
+    </div>
+</article>
+{% endblock %}

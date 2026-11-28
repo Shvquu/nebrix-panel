@@ -56,6 +56,9 @@ final class Permission
     public const JOBS_VIEW = 'jobs.view';
     public const JOBS_MANAGE = 'jobs.manage';
 
+    public const CONTENT_VIEW = 'content.view';
+    public const CONTENT_MANAGE = 'content.manage';
+
     /**
      * @return array<string, array<string, string>> group => [permission => description]
      */
@@ -117,6 +120,10 @@ final class Permission
             'System' => [
                 self::JOBS_VIEW => 'View background jobs and scheduled tasks',
                 self::JOBS_MANAGE => 'Retry and cancel background jobs',
+            ],
+            'Marketing' => [
+                self::CONTENT_VIEW => 'View landing pages and blog posts, preview drafts',
+                self::CONTENT_MANAGE => 'Create, edit, publish and delete landing pages and blog posts',
             ],
         ];
     }

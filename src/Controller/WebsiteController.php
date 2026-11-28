@@ -37,6 +37,7 @@ final class WebsiteController extends Controller
         private readonly RateLimiter $limiter,
         private readonly LoggerInterface $logger,
         private readonly Connection $db,
+        private readonly \Nebrix\Marketing\SiteContext $marketing,
     ) {
     }
 
@@ -56,6 +57,7 @@ final class WebsiteController extends Controller
             'show_partner' => $this->settings->bool('website.show_partner'),
             'referral' => $this->settings->bool('referral.enabled') ? ['reward' => Money::parse($this->settings->string('referral.reward')), 'currency' => $this->settings->string('general.default_currency')] : null,
             'api_enabled' => $this->settings->bool('api.enabled'),
+            'latest_posts' => $this->marketing->latestPosts(),
         ]));
     }
 
@@ -215,7 +217,7 @@ final class WebsiteController extends Controller
             'about_page' => trim($this->settings->string('website.about_text')) !== '',
             'small_business' => $catalog->smallBusiness(),
             'trustpilot' => $this->trustpilot(),
-        ]);
+        ] + $this->marketing->website($template, $context));
     }
 
     /**
