@@ -78,7 +78,7 @@ final class BankImportController extends Controller
             'excess_as_credit' => 'bool',
             'note' => 'nullable|string|max:255',
         ]);
-        $invoiceId = $this->container->get(\Nebrix\Database\Connection::class)->fetchValue("SELECT `id` FROM `nx_invoices` WHERE `number` = ? AND `type` <> 'credit_note'", [strtoupper((string) $data['invoice'])]);
+        $invoiceId = $this->container->get(\Nebrix\Database\Connection::class)->fetchValue("SELECT `id` FROM `nx_invoices` WHERE `number` = ? AND `type` <> 'credit_note'", [(string) $data['invoice']]);
         if ($invoiceId === null) {
             throw ValidationException::withMessages(['invoice' => 'No invoice with this number.']);
         }

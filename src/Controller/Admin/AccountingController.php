@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Controller\Admin;
 
 use InvalidArgumentException;
+use Nebrix\Core\Clock;
 use Nebrix\Finance\Accounting\AccountingExport;
 use Nebrix\Finance\Accounting\AccountingSync;
 use Nebrix\Http\Controller;
@@ -24,13 +25,13 @@ final class AccountingController extends Controller
     public function __construct(
         private readonly AccountingExport $export,
         private readonly AccountingSync $sync,
+        private readonly Clock $clock,
     ) {
     }
 
     public function index(Request $request): Response
     {
-        $zone = $this->export->timezone();
-        $lastMonth = (new \DateTimeImmutable('first day of last month', $zone));
+        $lastMonth = $this->clock->now()->setTimezone($this->export->timezone())->modify('first day of last month');
 
         return $this->render($request, 'admin/finance/accounting.twig', [
             'from' => $lastMonth->format('Y-m-d'),
