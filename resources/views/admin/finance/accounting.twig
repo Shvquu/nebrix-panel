@@ -1,0 +1,60 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Accounting export'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Accounting export'|t }}</h1><p class="muted">{{ 'Issued invoices, cancellation and correction documents of a period for your tax advisor. Nothing is changed by an export.'|t }}</p></div>
+    {% if can('finance.settings') %}<a class="btn btn-outline" href="/admin/settings/finance">{{ 'Finance settings'|t }}</a>{% endif %}
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Export'|t }}</h2></div>
+        <div class="card-body">
+            <form method="post" action="/admin/accounting/export" novalidate>
+                {{ csrf_field() }}
+                {{ f.select('format', 'Format', {'datev': 'DATEV posting batch (EXTF, Windows-1252)', 'invoices': 'CSV: invoices and correction documents', 'payments': 'CSV: payments and refunds'}, 'datev') }}
+                {{ f.input('from', 'From', from, 'date', {required: true}) }}
+                {{ f.input('to', 'To', to, 'date', {required: true}) }}
+                {{ f.input('description', 'Description of the posting batch (DATEV, optional)', '', 'text', {maxlength: 30}) }}
+                <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Download'|t }}</button></div>
+            </form>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'How the DATEV export books'|t }}</h2></div>
+        <div class="card-body">
+            <ul class="small">
+                <li>{{ 'Invoices: customer account to the revenue account of the tax case (domestic, reduced rate, reverse charge, OSS, outside the EU, small business), gross amount per tax rate.'|t }}</li>
+                <li>{{ 'Cancellation and correction documents: the same accounts on the credit side (H).'|t }}</li>
+                <li>{{ 'Credit top-ups and gift cards: customer account to the account for prepaid customer credit (no revenue).'|t }}</li>
+                <li>{{ 'Payments (optional): clearing account of the payment method to the customer account.'|t }}</li>
+                <li>{{ 'A posting batch covers one fiscal year at most; documents in other currencies are left out.'|t }}</li>
+            </ul>
+            <p class="small muted">{{ 'Account numbers, consultant and client number are set in the finance settings. Have them checked by your tax advisor before the first import.'|t }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'lexoffice'|t }}</h2>
+        {% if lexoffice_enabled %}<form method="post" action="/admin/accounting/lexoffice/sync" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-primary" type="submit">{{ 'Sync now'|t }}</button></form>{% endif %}
+    </div>
+    <div class="card-body">
+        {% if lexoffice_enabled %}
+        <p>{{ ':n documents transferred, :open open.'|t({n: lexoffice.synced, open: lexoffice.open}) }}</p>
+        {% else %}
+        <p class="muted">{{ 'The transfer to lexoffice is switched off. Enable it and store an API key in the finance settings.'|t }}</p>
+        {% endif %}
+    </div>
+    {% if lexoffice.failed is not empty %}
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Document'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Attempts'|t }}</th><th>{{ 'Last error'|t }}</th><th>{{ 'Updated'|t }}</th></tr></thead>
+        <tbody>
+        {% for row in lexoffice.failed %}
+            <tr><td><a class="mono" href="/admin/invoices/{{ row.invoice_id }}">{{ row.number }}</a></td><td><span class="badge badge-warning">{{ row.status|t }}</span></td><td>{{ row.attempts }}</td><td class="small">{{ row.last_error }}</td><td>{{ row.updated_at|dt }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+    {% endif %}
+</div>
+{% endblock %}

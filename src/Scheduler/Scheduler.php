@@ -62,6 +62,7 @@ class Scheduler
         private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
         private readonly \Nebrix\Cache\SecureCache $cache,
         private readonly \Nebrix\Provisioning\DomainRenewals $domainRenewals,
+        private readonly \Nebrix\Finance\FinanceTasks $finance,
     ) {
     }
 
@@ -108,6 +109,7 @@ class Scheduler
                 return sprintf('%d referral(s) qualified, %d rewarded, %d reset after a refund, %d reward(s) reversed', $result['qualified'], $result['rewarded'], $result['reset'], $result['reversed']);
             }],
             'tax.recheck_vat_ids' => [60, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
+            ...$this->finance->tasks(),
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }
