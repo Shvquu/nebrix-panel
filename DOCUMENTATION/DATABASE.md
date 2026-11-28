@@ -85,6 +85,7 @@ php bin/nebrix migrate
 | Table | Purpose |
 |---|---|
 | `nx_ip_pools`, `nx_ip_addresses` | IPv4 pools and their addresses (`free`, `assigned`, `reserved`); unique `(pool_id, address)`. |
+| `nx_hetzner_wipes` | Automatic disk wipes of returned Hetzner servers: integration, server number, former service, state (`pending`, `booting`, `running`, `done`, `failed`), method, attempts, pinned rescue host keys, reset/start/end times, last error and the last lines of the wipe log. |
 | `nx_console_sessions` | Single-use console tokens (SHA-256 hash), encrypted upstream target, expiry, use time; pruned after a day. |
 | `nx_registrar_contacts` | Registrant contacts created at the registrar per customer and contact data hash. |
 | `nx_legacy_map` | Imported RED-Host records → Nebrix entities (idempotent imports). |

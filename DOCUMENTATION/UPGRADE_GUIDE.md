@@ -132,6 +132,20 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to Hetzner disk wiping and the server auction
+
+This update adds the Composer dependency `phpseclib/phpseclib` (SSH to rescue systems) and migration `2026_11_29_000017_create_hetzner_wipes` (table `nx_hetzner_wipes`, additive). After pulling:
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+```bash
+php bin/nebrix migrate
+```
+
+Docker: rebuild the image. Nothing changes until you switch on *Wipe disks of returned servers automatically* on a Hetzner integration or create a product in the auction mode. Servers that already wait under `nebrix-wipe-<number>` are not wiped by themselves: use *Queue waiting servers* on the integration page after switching the option on. The scheduler needs outbound SSH (TCP 22) to your Hetzner servers.
+
 ### Updating to the status page
 
 Migration `2026_11_29_000016_create_status_page` adds the status page tables and grants the new permission `status.manage` to the built-in Administrator and Support roles (custom roles: Admin → Roles). The page `/status` is public right away; add components under *Status page* in the admin area.

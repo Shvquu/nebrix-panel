@@ -176,6 +176,7 @@ Coupon codes have no global settings; they are managed under Sales → Coupons (
 | `status.maintenance` | 5 min | Starts announced maintenance at its start time and completes it at its planned end (status page). |
 | `services.package_changes` | 15 min | Starts downgrades whose date has come (queue job `service.change`) and cancels upgrade invoices that stayed unpaid for 14 days. |
 | `referrals.process` | 60 min | Qualifies referrals whose referred customer has paid with real money, credits rewards after the holding period, resets referrals whose payment was refunded, removes sign-up IP addresses after the login-history retention. Does nothing (except the IP clean-up) while the feature is off. |
+| `hetzner.wipe` | 5 min | Advances the automatic disk wipes of returned Hetzner servers by one step each (rescue system, SSH start, progress, return to the pool); up to 20 per run. Does nothing for integrations without *automatic wiping*. |
 | `discord.sync_roles` | 30 min | Queues a role sync for Discord links whose roles changed (or were not checked for a day). |
 | `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |

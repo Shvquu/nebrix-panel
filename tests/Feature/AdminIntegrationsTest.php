@@ -106,6 +106,47 @@ final class AdminIntegrationsTest extends FeatureTestCase
         self::assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_integrations WHERE id = ?', [$id]));
     }
 
+    public function testHetznerWipeQueueCanBeRetriedAndFilledByManagersOnly(): void
+    {
+        $robot = new \Nebrix\Tests\Support\FakeRobot();
+        $robot->register($this->http);
+        $robot->addServer(700, 'nebrix-wipe-700');
+        $robot->addServer(701, 'nebrix-free-701');
+        $integrations = $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class);
+        $id = $integrations->create('hetzner_robot', 'Robot', true, [
+            'base_url' => 'https://203.0.113.50', 'username' => '#ws+AbCdEf', 'pool_prefix' => 'nebrix-free', 'allow_orders' => false,
+            'order_test_mode' => true, 'cancel_on_terminate' => false, 'auto_wipe' => true, 'wipe_method' => 'full', 'verify_tls' => true,
+        ], ['password' => 'robot-pass']);
+        $this->db->insert('nx_hetzner_wipes', [
+            'integration_id' => $id, 'server_number' => 699, 'status' => 'failed', 'method' => 'full', 'attempts' => 3,
+            'error' => 'The rescue system could not be reached after several resets.', 'created_at' => '2026-11-28 09:00:00', 'updated_at' => '2026-11-28 09:00:00',
+        ]);
+        $wipeId = (int) $this->db->fetchValue('SELECT `id` FROM `nx_hetzner_wipes` WHERE `server_number` = 699');
+
+        // Support may look, not change.
+        $this->actingAs($this->createUser(Role::SUPPORT));
+        $page = $this->get('/admin/integrations/' . $id)->body();
+        self::assertStringContainsString('Disk wiping', $page);
+        self::assertStringContainsString('could not be reached after several resets', $page);
+        self::assertStringNotContainsString('/wipes/' . $wipeId . '/retry', $page);
+        self::assertSame(403, $this->post('/admin/integrations/' . $id . '/wipes/' . $wipeId . '/retry')->status());
+        self::assertSame(403, $this->post('/admin/integrations/' . $id . '/wipes')->status());
+
+        $this->actingAs($this->createUser(Role::ADMIN));
+        self::assertStringContainsString('/wipes/' . $wipeId . '/retry', $this->get('/admin/integrations/' . $id)->body());
+        $this->post('/admin/integrations/' . $id . '/wipes/' . $wipeId . '/retry');
+        self::assertSame(['pending', 0], [$this->db->fetchValue('SELECT `status` FROM `nx_hetzner_wipes` WHERE `id` = ?', [$wipeId]), (int) $this->db->fetchValue('SELECT `attempts` FROM `nx_hetzner_wipes` WHERE `id` = ?', [$wipeId])]);
+        self::assertStringContainsString('Only failed wipes', $this->followRedirect($this->post('/admin/integrations/' . $id . '/wipes/' . $wipeId . '/retry'))->body());
+
+        // Servers waiting under the wipe name are queued, pool servers are not.
+        $this->post('/admin/integrations/' . $id . '/wipes');
+        self::assertSame([700], array_map('intval', array_column($this->db->fetchAll('SELECT `server_number` FROM `nx_hetzner_wipes` WHERE `server_number` >= 700'), 'server_number')));
+
+        // A wipe of another integration cannot be addressed through this one.
+        $other = $integrations->create('hetzner_robot', 'Robot 2', true, ['base_url' => 'https://203.0.113.51', 'username' => '#ws+Other', 'pool_prefix' => 'nebrix-free', 'auto_wipe' => true, 'wipe_method' => 'quick', 'verify_tls' => true], ['password' => 'robot-pass-2']);
+        self::assertSame(404, $this->post('/admin/integrations/' . $other . '/wipes/' . $wipeId . '/retry')->status());
+    }
+
     public function testPagesRender(): void
     {
         $this->actingAs($this->createUser(Role::SUPER_ADMIN));

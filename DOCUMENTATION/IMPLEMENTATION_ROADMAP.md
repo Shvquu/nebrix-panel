@@ -155,12 +155,15 @@ This file is the single source of truth for modernization progress. It is update
 - Customer portal redesigned after the layout the owner provided (sidebar with order menu, search, profile card, tabs per product group, key figures, community card), in the Nebrix colours; dark/light mode and phone layout checked in Chromium.
 - Discord account link (OAuth2, optional server join, role sync with queue job and scheduler) and support PIN; tests against a fake Discord API. Not tested against the live Discord API (no application credentials).
 
+- Hetzner automatic disk wiping (rescue system with the panel's own key, pinned host key, wipe script over SSH, return to the pool, retry queue) and server auction purchases within product limits; leftover firewalls are cleared before wipes and on pool assignment.
+
 ## Remaining work
 - Run the KoSIT validator (EN 16931 + XRechnung Schematron) on sample invoices of every tax category; optionally add ZUGFeRD (PDF/A-3 with embedded XML).
 - Keep the built-in EU VAT rates current (or maintain `tax.rate_overrides`); have the tax logic and legal texts (cancellation/withdrawal pages, invoice notes) reviewed.
-- Backups: scheduled automatic customer backups and backup quotas by size are not implemented.- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
+- Backups: scheduled automatic customer backups and backup quotas by size are not implemented.
+- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
 - Verify every integration (Proxmox incl. console, Hetzner Robot in order test mode, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only tests against fakes exist.
-- Hetzner: automatic disk wipe of returned pool servers and server market (auction) orders are not implemented.
+- Hetzner: run the first automatic disk wipes and an auction order (test mode first) on real Robot servers; both were tested against a simulated Robot API and a local SSH server only.
 - Proxmox: IPv6 address management (SLAAC only); LXC root password changes only by reinstall (no API).
 - Additional registrars or hosting panels can be added behind `Domain\Registrar` / `Provisioner`.
 

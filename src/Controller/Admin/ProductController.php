@@ -198,6 +198,11 @@ final class ProductController extends Controller
             }
         }
 
+        // Buying auction servers costs money: never without an upper price limit.
+        if ($category === ProductCategory::DEDICATED && ($config['mode'] ?? '') === 'market' && trim((string) ($config['market_max_price'] ?? '')) === '') {
+            throw new ValidationException(['config_market_max_price' => ['Enter the maximum monthly price for auction servers.']], Validator::safeInput($request->all()));
+        }
+
         $currency = (string) $data['currency'];
 
         return [

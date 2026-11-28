@@ -107,6 +107,38 @@ class RobotClient
         return $this->unwrap($this->post('/boot/' . $this->number($number) . '/rescue', ['os' => 'linux', 'authorized_key' => $authorizedKeys], 'boot.rescue.activate'), 'rescue');
     }
 
+    /**
+     * SSH keys stored in the Robot account.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function keys(): array
+    {
+        $list = $this->getList('/key', 'key.list');
+        $keys = [];
+        foreach (is_array($list) ? $list : [] as $entry) {
+            if (is_array($entry) && is_array($entry['key'] ?? null)) {
+                $keys[] = $entry['key'];
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Stores a public key (OpenSSH format) in the Robot account.
+     *
+     * @return array<string, mixed> the key with its fingerprint
+     */
+    public function addKey(string $name, string $publicKey): array
+    {
+        if (preg_match('/^[A-Za-z0-9 ._-]{1,50}$/', $name) !== 1 || preg_match('#^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+( .*)?$#', trim($publicKey)) !== 1) {
+            throw new IntegrationException('Invalid SSH key.');
+        }
+
+        return $this->unwrap($this->post('/key', ['name' => $name, 'data' => trim($publicKey)], 'key.add'), 'key');
+    }
+
     public function deactivateRescue(int $number): void
     {
         $this->api->request('DELETE', '/boot/' . $this->number($number) . '/rescue', ['action' => 'boot.rescue.deactivate']);
@@ -150,6 +182,37 @@ class RobotClient
         $this->post('/firewall/' . $this->number($number), $params, 'firewall.set');
     }
 
+    /** Removes the whole firewall configuration (status disabled, no rules). */
+    public function clearFirewall(int $number): void
+    {
+        $this->api->request('DELETE', '/firewall/' . $this->number($number), ['action' => 'firewall.clear']);
+    }
+
+    /**
+     * Clears a firewall that is active or has rules (left by a suspension or a former
+     * customer). Returns false while Robot is still applying a firewall change.
+     */
+    public function clearFirewallIfConfigured(int $number): bool
+    {
+        try {
+            $firewall = $this->firewall($number);
+        } catch (IntegrationException $exception) {
+            if ($exception->httpStatus() === 404) {
+                return true; // server type without Robot firewall
+            }
+            throw $exception;
+        }
+        if (($firewall['status'] ?? '') === 'in process') {
+            return false;
+        }
+        $rules = is_array($firewall['rules'] ?? null) ? $firewall['rules'] : [];
+        if (($firewall['status'] ?? 'disabled') !== 'disabled' || ($rules['input'] ?? []) !== [] || ($rules['output'] ?? []) !== []) {
+            $this->clearFirewall($number);
+        }
+
+        return true;
+    }
+
     public function setReverseDns(string $ip, string $ptr): void
     {
         $this->post('/rdns/' . $this->ip($ip), ['ptr' => $ptr], 'rdns.set');
@@ -187,6 +250,56 @@ class RobotClient
     public function orderTransactions(): array
     {
         return $this->unwrapList($this->getList('/order/server/transaction', 'order.transactions'), 'transaction');
+    }
+
+    /**
+     * Servers currently offered in the Hetzner server auction.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function marketProducts(): array
+    {
+        return $this->unwrapList($this->getList('/order/server_market/product', 'market.products'), 'product');
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function marketTransactions(): array
+    {
+        return $this->unwrapList($this->getList('/order/server_market/transaction', 'market.transactions'), 'transaction');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function marketTransaction(string $id): array
+    {
+        if (preg_match('/^[A-Za-z0-9-]{5,64}$/', $id) !== 1) {
+            throw new IntegrationException('Invalid transaction ID.');
+        }
+
+        return $this->unwrap($this->get('/order/server_market/transaction/' . $id, 'market.transaction'), 'transaction');
+    }
+
+    /**
+     * Buys a server from the auction (costs money unless $test).
+     *
+     * @param list<string> $authorizedKeys key fingerprints
+     * @return array<string, mixed> the transaction
+     */
+    public function orderMarketServer(int $productId, string $dist, array $authorizedKeys, string $comment, bool $test): array
+    {
+        if ($productId < 1) {
+            throw new IntegrationException('Invalid auction product.');
+        }
+        $this->assertImage($dist);
+        $params = ['product_id' => (string) $productId, 'dist' => $dist, 'lang' => 'en', 'comment' => mb_substr($comment, 0, 200), 'authorized_key' => $authorizedKeys];
+        if ($test) {
+            $params['test'] = 'true';
+        }
+
+        return $this->unwrap($this->post('/order/server_market/transaction', $params, 'market.order'), 'transaction');
     }
 
     /**

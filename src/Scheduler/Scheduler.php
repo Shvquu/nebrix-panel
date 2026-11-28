@@ -59,6 +59,7 @@ class Scheduler
         private readonly \Nebrix\Referral\ReferralService $referrals,
         private readonly \Nebrix\Service\ServiceChangeService $serviceChanges,
         private readonly \Nebrix\Status\StatusService $status,
+        private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
     ) {
     }
 
@@ -79,6 +80,11 @@ class Scheduler
             'billing.cancel_stale_orders' => [60, $this->cancelStaleOrders(...)],
             'integrations.health' => [30, fn (): string => sprintf('%d integration(s) checked', count($this->integrations->checkAll()))],
             'discord.sync_roles' => [30, fn (): string => sprintf('%d Discord link(s) queued for a role sync', $this->discord->syncAll())],
+            'hetzner.wipe' => [5, function (): string {
+                $result = $this->hetznerWipes->process();
+
+                return sprintf('%d wipe(s) started, %d running, %d completed, %d failed', $result['started'], $result['running'], $result['done'], $result['failed']);
+            }],
             'status.maintenance' => [5, function (): string {
                 $result = $this->status->advanceMaintenance();
 

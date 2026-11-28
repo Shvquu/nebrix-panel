@@ -102,6 +102,19 @@ class IntegrationRepository
         ], ['id' => $id]);
     }
 
+    /**
+     * Stores a secret the panel created itself (e.g. a generated SSH key) and
+     * merges non-secret settings (e.g. its fingerprint), keeping everything else.
+     *
+     * @param array<string, string> $secrets
+     * @param array<string, mixed> $config
+     */
+    public function storeGenerated(int $id, array $secrets, array $config): void
+    {
+        $current = $this->find($id) ?? throw new \RuntimeException('Integration not found.');
+        $this->update($id, $current->name, $current->enabled, array_merge($current->config, $config), $secrets);
+    }
+
     public function recordHealth(int $id, HealthResult $result): void
     {
         $this->db->update('nx_integrations', [

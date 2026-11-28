@@ -94,6 +94,25 @@ final class HetznerRobotTest extends IntegrationTestCase
         self::assertSame('done', $this->reload($service->id)->remote['step']);
     }
 
+    public function testALeftoverFirewallIsClearedWhenAPoolServerIsAssigned(): void
+    {
+        $integrationId = $this->integration();
+        $this->robot->addServer(104, 'nebrix-free-4');
+        // Wiped by hand after the suspended former customer was terminated: everything is still dropped.
+        $this->robot->firewall[104] = ['status' => 'in process', 'whitelist_hos' => true, 'rules' => ['input' => []]];
+        $service = $this->dedicated($integrationId);
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($service->userId) ?? throw new \RuntimeException('missing'));
+            self::fail('A firewall change in progress is awaited.');
+        } catch (RetryLaterException) {
+        }
+        $this->robot->firewall[104]['status'] = 'active';
+
+        self::assertSame('hetzner:104', $this->provisionToEnd($service)->externalId);
+        self::assertSame('disabled', $this->robot->firewall[104]['status']);
+        self::assertCount(1, $this->http->requests('DELETE', '/firewall/104'));
+    }
+
     public function testTwoServicesNeverGetTheSameServer(): void
     {
         $integrationId = $this->integration();
@@ -259,6 +278,96 @@ final class HetznerRobotTest extends IntegrationTestCase
 
         $this->provisioner()->terminate($this->reload($service->id));
         self::assertSame('2026-12-31', $this->robot->cancelled[800], 'Ordered servers are cancelled at the earliest date when configured.');
+    }
+
+    public function testAuctionServersAreChosenWithinTheLimitsAndBoughtOnce(): void
+    {
+        $offer = static fn (int $id, string $price, int $memory, int $disk, string $cpu, string $dc, int $bench = 10000): array => [
+            'id' => $id, 'name' => 'SB' . $id, 'cpu' => $cpu, 'cpu_benchmark' => $bench, 'memory_size' => $memory, 'hdd_size' => $disk,
+            'datacenter' => $dc, 'price' => $price, 'price_setup' => '0.0000', 'dist' => ['Debian 12 base', 'Ubuntu 24.04 LTS base'],
+        ];
+        $this->robot->market = [
+            1001 => $offer(1001, '29.0000', 64, 1024, 'Intel Core i7-8700', 'FSN1-DC5'),
+            1002 => $offer(1002, '31.0000', 64, 2048, 'Intel Core i7-8700', 'FSN1-DC7'),
+            1003 => $offer(1003, '25.0000', 32, 1024, 'Intel Core i7-8700', 'FSN1-DC1'),   // too little memory
+            1004 => $offer(1004, '27.0000', 64, 1024, 'Intel Core i7-8700', 'HEL1-DC2'),   // wrong location
+            1005 => $offer(1005, '45.0000', 128, 4096, 'Intel Core i7-8700', 'FSN1-DC1'),  // too expensive
+            1006 => $offer(1006, '29.0000', 64, 1024, 'Intel Core i7-8700', 'FSN1-DC9', 12000), // same price, faster CPU
+        ];
+        $limits = ['mode' => 'market', 'market_max_price' => '40.00', 'market_min_memory_gb' => 64, 'market_min_disk_gb' => 1000, 'market_cpu' => 'i7', 'location' => 'FSN1'];
+
+        // Without the opt-in nothing is bought; test mode only validates.
+        $locked = $this->dedicated($this->integration(), $limits);
+        $owner = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($locked->userId);
+        self::assertNotNull($owner);
+        try {
+            $this->provisioner()->provision($this->reload($locked->id), $owner);
+            self::fail('Ordering must be opt-in.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('disabled', $exception->getMessage());
+        }
+        $testService = $this->dedicated($this->integration(['allow_orders' => true]), $limits);
+        try {
+            $this->provisioner()->provision($this->reload($testService->id), $owner);
+            self::fail('Test mode must not buy a server.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('test mode', $exception->getMessage());
+        }
+        self::assertSame([], $this->robot->marketTransactions);
+        self::assertCount(1, $this->http->requests('POST', '/order/server_market/transaction'), 'Test mode sends one validation order.');
+
+        // Real purchase: the cheapest match (faster CPU at the same price), exactly once.
+        $integrationId = $this->integration(['allow_orders' => true, 'order_test_mode' => false]);
+        $service = $this->dedicated($integrationId, $limits);
+        $owner = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($service->userId);
+        self::assertNotNull($owner);
+        for ($i = 0; $i < 2; $i++) {
+            try {
+                $this->provisioner()->provision($this->reload($service->id), $owner);
+            } catch (RetryLaterException) {
+            }
+        }
+        $this->db->run("UPDATE nx_services SET remote = JSON_REMOVE(remote, '$.transaction_id') WHERE id = ?", [$service->id]);
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+        } catch (RetryLaterException) {
+        }
+        self::assertCount(2, $this->http->requests('POST', '/order/server_market/transaction'), 'Bought exactly once.');
+        self::assertCount(1, $this->robot->marketTransactions);
+        $id = (string) array_key_first($this->robot->marketTransactions);
+        self::assertSame([1006, 'nebrix-service-' . $service->id], [$this->robot->marketTransactions[$id]['product']['id'], $this->robot->marketTransactions[$id]['comment']]);
+
+        // Sold to someone else in the meantime: the next match is bought.
+        $this->robot->marketTransactions[$id]['status'] = 'cancelled';
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+        } catch (RetryLaterException $exception) {
+            self::assertStringContainsString('no longer available', $exception->getMessage());
+        }
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+        } catch (RetryLaterException) {
+        }
+        $latest = end($this->robot->marketTransactions);
+        self::assertSame(1001, $latest['product']['id'], 'The cancelled offer is skipped.');
+
+        // Delivered: installed like every other server.
+        $this->robot->addServer(900, '');
+        $this->robot->marketTransactions[$latest['id']] = ['status' => 'ready', 'server_number' => 900, 'server_ip' => '198.51.100.90'] + $latest;
+        self::assertSame('hetzner:900', $this->provisionToEnd($service)->externalId);
+
+        // No match: waits instead of buying something else; a maximum price is mandatory.
+        $none = $this->dedicated($integrationId, ['market_cpu' => 'EPYC'] + $limits);
+        try {
+            $this->provisioner()->provision($this->reload($none->id), $owner);
+            self::fail('Nothing matches.');
+        } catch (RetryLaterException $exception) {
+            self::assertStringContainsString('No server in the Hetzner auction matches', $exception->getMessage());
+        }
+        $unlimited = $this->dedicated($integrationId, ['market_max_price' => ''] + $limits);
+        $this->expectException(IntegrationException::class);
+        $this->expectExceptionMessage('maximum price');
+        $this->provisioner()->provision($this->reload($unlimited->id), $owner);
     }
 
     public function testReinstallInstallsTheChosenImageWithANewPassword(): void

@@ -22,6 +22,12 @@ final class FakeRobot
     /** @var array<int, array{active: bool, password: ?string}> */
     public array $rescue = [];
 
+    /** @var array<string, array{name: string, fingerprint: string, data: string}> SSH keys by fingerprint */
+    public array $keys = [];
+
+    /** @var array<int, list<string>> authorized keys of the last rescue activation per server */
+    public array $rescueKeys = [];
+
     /** @var array<int, array{status: string, whitelist_hos: bool, rules: array{input: list<array<string, mixed>>}}> */
     public array $firewall = [];
 
@@ -33,6 +39,12 @@ final class FakeRobot
 
     /** @var array<string, array<string, mixed>> */
     public array $transactions = [];
+
+    /** @var array<int, array<string, mixed>> server auction offers by product ID */
+    public array $market = [];
+
+    /** @var array<string, array<string, mixed>> */
+    public array $marketTransactions = [];
 
     /** @var array<int, string> */
     public array $cancelled = [];
@@ -80,9 +92,23 @@ final class FakeRobot
             })
             ->on('GET', '/boot/(?<n>\d+)/rescue', fn ($r, array $m): Response => $json(['rescue' => $this->rescue[(int) $m['n']] ?? ['active' => false, 'password' => null]]))
             ->on('POST', '/boot/(?<n>\d+)/rescue', function ($r, array $m) use ($json): Response {
-                $this->rescue[(int) $m['n']] = ['active' => true, 'password' => 'rescuePw' . (++$this->passwordCounter)];
+                $n = (int) $m['n'];
+                $keys = FakeHttp::form($r)['authorized_key'] ?? [];
+                $this->rescueKeys[$n] = is_array($keys) ? array_values($keys) : [];
+                $this->rescue[$n] = ['active' => true, 'password' => $this->rescueKeys[$n] === [] ? 'rescuePw' . (++$this->passwordCounter) : null,
+                    'authorized_key' => $this->rescueKeys[$n], 'host_key' => [['key' => ['fingerprint' => 'ab:cd', 'type' => 'ED25519', 'size' => 256, 'data' => 'ssh-ed25519 HOSTKEY' . $n . ' root@rescue']]]];
 
-                return $json(['rescue' => $this->rescue[(int) $m['n']]]);
+                return $json(['rescue' => $this->rescue[$n]]);
+            })
+            ->on('GET', '/key', fn (): Response => $this->keys === [] ? $notFound('NOT_FOUND') : $json(array_values(array_map(static fn (array $k): array => ['key' => $k], $this->keys))))
+            ->on('POST', '/key', function (RequestInterface $r) use ($json): Response {
+                $form = FakeHttp::form($r);
+                $data = (string) $form['data'];
+                $blob = base64_decode((string) (explode(' ', $data)[1] ?? ''), true);
+                $fingerprint = implode(':', str_split(md5((string) $blob), 2));
+                $this->keys[$fingerprint] = ['name' => (string) $form['name'], 'fingerprint' => $fingerprint, 'type' => 'ED25519', 'size' => 256, 'data' => $data];
+
+                return $json(['key' => $this->keys[$fingerprint]], 201);
             })
             ->on('DELETE', '/boot/(?<n>\d+)/rescue', function ($r, array $m) use ($json): Response {
                 $this->rescue[(int) $m['n']] = ['active' => false, 'password' => null];
@@ -105,6 +131,11 @@ final class FakeRobot
 
                 return $json(['firewall' => $this->firewall[(int) $m['n']]]);
             })
+            ->on('DELETE', '/firewall/(?<n>\d+)', function ($r, array $m) use ($json): Response {
+                $this->firewall[(int) $m['n']] = ['status' => 'disabled', 'whitelist_hos' => true, 'rules' => ['input' => [], 'output' => []]];
+
+                return $json(['firewall' => ['status' => 'in process'] + $this->firewall[(int) $m['n']]]);
+            })
             ->on('POST', '/rdns/(?<ip>[0-9.]+)', function (RequestInterface $r, array $m) use ($json): Response {
                 $this->rdns[$m['ip']] = FakeHttp::form($r)['ptr'];
 
@@ -115,6 +146,19 @@ final class FakeRobot
                 $this->cancelled[(int) $m['n']] = FakeHttp::form($r)['cancellation_date'];
 
                 return $json(['cancellation' => ['cancelled' => true]]);
+            })
+            ->on('GET', '/order/server_market/product', fn (): Response => $this->market === [] ? $notFound('NOT_FOUND') : $json(array_values(array_map(static fn (array $p): array => ['product' => $p], $this->market))))
+            ->on('GET', '/order/server_market/transaction', fn (): Response => $this->marketTransactions === [] ? $notFound('NOT_FOUND') : $json(array_values(array_map(static fn (array $t): array => ['transaction' => $t], $this->marketTransactions))))
+            ->on('GET', '/order/server_market/transaction/(?<id>[A-Za-z0-9-]+)', fn ($r, array $m): Response => isset($this->marketTransactions[$m['id']]) ? $json(['transaction' => $this->marketTransactions[$m['id']]]) : $notFound('TRANSACTION_NOT_FOUND'))
+            ->on('POST', '/order/server_market/transaction', function (RequestInterface $r) use ($json): Response {
+                $form = FakeHttp::form($r);
+                $id = 'M2026112' . (count($this->marketTransactions) + 1);
+                $transaction = ['id' => $id, 'status' => 'in process', 'server_number' => null, 'server_ip' => null, 'comment' => $form['comment'] ?? '', 'product' => ['id' => (int) $form['product_id']], 'test' => ($form['test'] ?? '') === 'true', 'authorized_key' => $form['authorized_key'] ?? []];
+                if (!$transaction['test']) {
+                    $this->marketTransactions[$id] = $transaction;
+                }
+
+                return $json(['transaction' => $transaction], 201);
             })
             ->on('GET', '/order/server/transaction', fn (): Response => $json(array_values(array_map(static fn (array $t): array => ['transaction' => $t], $this->transactions))))
             ->on('GET', '/order/server/transaction/(?<id>[A-Za-z0-9-]+)', fn ($r, array $m): Response => isset($this->transactions[$m['id']]) ? $json(['transaction' => $this->transactions[$m['id']]]) : $notFound('TRANSACTION_NOT_FOUND'))

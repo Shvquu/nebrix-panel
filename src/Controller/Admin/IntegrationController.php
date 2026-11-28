@@ -33,6 +33,7 @@ final class IntegrationController extends Controller
         private readonly IntegrationLogger $logs,
         private readonly UrlGuard $guard,
         private readonly Connection $db,
+        private readonly \Nebrix\Provisioning\HetznerWipeService $wipes,
     ) {
     }
 
@@ -144,7 +145,42 @@ final class IntegrationController extends Controller
             'logs' => $this->logs->paginate($id, $level, $page),
             'level' => $level,
             'page' => $page,
+            'wipes' => $integration->type === IntegrationType::HETZNER_ROBOT ? $this->wipes->forIntegration($id) : null,
+            'auto_wipe' => (bool) $integration->config('auto_wipe', false),
         ]);
+    }
+
+    /** Hetzner: queue every server of the account that waits for a wipe. */
+    public function queueWipes(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::INTEGRATIONS_MANAGE);
+        $integration = $this->find($id);
+        if ($integration->type !== IntegrationType::HETZNER_ROBOT || !(bool) $integration->config('auto_wipe', false)) {
+            throw HttpException::notFound();
+        }
+        try {
+            $count = $this->wipes->enqueueWaiting($integration);
+            $this->audit($request, 'hetzner.wipes_queued', 'integration', $id, ['count' => $count]);
+            $this->flash($request, 'success', $count > 0 ? 'The waiting servers have been queued for wiping.' : 'No server is waiting for a wipe.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
+        }
+
+        return $this->redirect('/admin/integrations/' . $id);
+    }
+
+    public function retryWipe(Request $request, int $id, int $wipe): Response
+    {
+        $this->authorize($request, Permission::INTEGRATIONS_MANAGE);
+        $this->find($id);
+        if ($this->db->fetchValue('SELECT `id` FROM `nx_hetzner_wipes` WHERE `id` = ? AND `integration_id` = ?', [$wipe, $id]) === null) {
+            throw HttpException::notFound();
+        }
+        $this->flash($request, ...($this->wipes->retry($wipe, $this->user($request)->id, $request->clientIp())
+            ? ['success', 'The wipe starts again.']
+            : ['warning', 'Only failed wipes can be retried.']));
+
+        return $this->redirect('/admin/integrations/' . $id);
     }
 
     /**
@@ -294,7 +330,7 @@ final class IntegrationController extends Controller
         $errors = [];
         foreach ($definition['secrets'] as $key => $field) {
             $value = $request->string('secret_' . $key);
-            if ($endpointChanged && $value === '' && !filter_var($request->input('secret_' . $key . '__clear'), FILTER_VALIDATE_BOOL)) {
+            if ($endpointChanged && ($field['endpoint_bound'] ?? true) && $value === '' && !filter_var($request->input('secret_' . $key . '__clear'), FILTER_VALIDATE_BOOL)) {
                 $errors['secret_' . $key] = ['The address or user has changed: please enter this credential again.'];
                 continue;
             }

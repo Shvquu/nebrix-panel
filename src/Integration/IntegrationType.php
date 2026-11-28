@@ -88,10 +88,14 @@ final class IntegrationType
                     'order_test_mode' => ['label' => 'Send orders in test mode', 'rules' => 'bool', 'default' => true, 'type' => 'bool', 'help' => 'Hetzner validates test orders without processing them.'],
                     'cancel_on_terminate' => ['label' => 'Cancel ordered servers when the service is terminated', 'rules' => 'bool', 'default' => false, 'type' => 'bool'],
                     'ssh_key_fingerprint' => ['label' => 'SSH key fingerprint for orders (optional)', 'rules' => 'nullable|regex:/^([0-9a-f]{2}:){15}[0-9a-f]{2}$/', 'help' => 'Fingerprint of a key stored in Robot; used for newly ordered servers before the customer installation.'],
+                    'auto_wipe' => ['label' => 'Wipe disks of returned servers automatically', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'Terminated servers boot the rescue system with the panel\'s own SSH key, all disks are erased, then the server returns to the pool. Without this option staff wipe servers named "nebrix-wipe-<number>" by hand.'],
+                    'wipe_method' => ['label' => 'Wipe method', 'rules' => 'required|in:full,quick', 'default' => 'full', 'type' => 'select', 'options' => ['full' => 'Full: NVMe format / discard of SSDs, overwrite of HDDs (can take hours)', 'quick' => 'Quick: remove partition tables and file system signatures only']],
                     'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
                 ],
                 'secrets' => [
                     'password' => ['label' => 'Webservice password', 'rules' => 'string|max:255', 'required' => true],
+                    // Used only for SSH to the panel's own rescue systems, never sent to the Robot API.
+                    'wipe_ssh_key' => ['label' => 'Private SSH key for disk wiping (optional)', 'rules' => 'string|max:5000', 'endpoint_bound' => false, 'help' => 'Leave empty: the panel creates a key and stores its public part in Robot when the first server is wiped.'],
                 ],
             ],
             self::PLESK => [

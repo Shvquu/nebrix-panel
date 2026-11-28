@@ -346,6 +346,8 @@ return static function (Router $r): void {
             $r->post('/integrations/{id:\d+}/test', [Admin\IntegrationController::class, 'test']);
             $r->post('/integrations/{id:\d+}/delete', [Admin\IntegrationController::class, 'delete']);
             $r->get('/integrations/{id:\d+}/resources', [Admin\IntegrationController::class, 'resources']);
+            $r->post('/integrations/{id:\d+}/wipes', [Admin\IntegrationController::class, 'queueWipes']);
+            $r->post('/integrations/{id:\d+}/wipes/{wipe:\d+}/retry', [Admin\IntegrationController::class, 'retryWipe']);
             $r->get('/ip-pools', [Admin\IpPoolController::class, 'index']);
             $r->get('/ip-pools/create', [Admin\IpPoolController::class, 'create']);
             $r->post('/ip-pools', [Admin\IpPoolController::class, 'store']);

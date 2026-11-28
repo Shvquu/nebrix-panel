@@ -65,6 +65,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 
+### Added (Hetzner: disk wiping and server auction)
+- **Automatic disk wiping** of returned Hetzner servers (opt-in per integration): rescue system with a panel-generated Ed25519 key only, pinned rescue host key, wipe script over SSH (*full*: NVMe format / SSD discard / HDD overwrite; *quick*: signatures and disk edges), progress log, 3 boot attempts, return to the pool only after a successful wipe; queue with retry on the integration page, scheduler task `hetzner.wipe`, migration `2026_11_29_000017`, new dependency `phpseclib/phpseclib` (SSH).
+- **Server auction** (*market* mode): buys the cheapest auction server within the product's maximum price, minimum memory/disk, CPU text and location; idempotent by order comment, next offer after a cancelled order (at most three), waits while nothing matches.
+- Hetzner firewall left by a suspension is cleared before a wipe and when a pool server is assigned (previously a terminated suspended server kept dropping all traffic for its next customer).
+
 ### Added (upgrades and downgrades)
 - **Package changes** between products of the same upgrade group: upgrades are invoiced prorated for the rest of the paid period and applied through the queue after payment, downgrades take effect at the end of the paid period with the next renewal at the new price; withdraw, expiry of unpaid upgrade invoices, follow-up invoice when a renewal was paid in between, stock reservation, coupon and customer-group discounts kept.
 - Remote changes for Proxmox (CPU, memory, swap, network rate, disk growth), Pterodactyl (build limits), TeamSpeak (slots), Nextcloud (quota) and Plesk (service plan switch).
@@ -101,4 +106,4 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - XRechnung files are validated against the CII XSD in the tests; the official EN 16931/XRechnung Schematron rules (KoSIT validator) have not been run yet.
 - Built-in EU VAT rates reflect the state of November 2026 and must be kept current (`tax.rate_overrides`). Tax and legal texts are technical defaults, not legal advice.
 - LXC root passwords can only be changed by reinstalling (no Proxmox API for it); IPv6 is assigned by SLAAC only.
-- Hetzner: disks of terminated pool servers are not wiped automatically; server market (auction) orders are not supported.
+- Hetzner: automatic disk wiping and server auction orders were tested against a simulated Robot API and a local SSH server, not on Hetzner hardware.

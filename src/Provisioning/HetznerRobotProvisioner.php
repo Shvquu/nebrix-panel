@@ -24,6 +24,9 @@ use Nebrix\Service\ServiceRepository;
  * - order: a new server is ordered (only if the integration allows orders;
  *          test mode by default). The order carries the comment
  *          "nebrix-service-<id>" so a retry finds it instead of ordering twice.
+ * - market: the cheapest server of the Hetzner server auction that matches
+ *          the product's limits (maximum price, memory, disk, CPU, location)
+ *          is bought – same safeguards as "order".
  *
  * Then the Linux installation is activated (Hetzner generates the root
  * password), the server is reset and the installation is awaited. Every step
@@ -32,8 +35,9 @@ use Nebrix\Service\ServiceRepository;
  * Suspension enables the Robot firewall without rules (incoming traffic is
  * dropped) and restores the previous firewall afterwards. Termination never
  * deletes data on its own: the server boots the rescue system and is renamed
- * to "nebrix-wipe-<number>" for staff to wipe it before returning it to the
- * pool; ordered servers can optionally be cancelled.
+ * to "nebrix-wipe-<number>"; with "auto_wipe" the HetznerWipeService erases
+ * its disks and returns it to the pool, otherwise staff wipe it by hand.
+ * Ordered servers can optionally be cancelled.
  */
 final class HetznerRobotProvisioner implements Provisioner
 {
@@ -46,6 +50,7 @@ final class HetznerRobotProvisioner implements Provisioner
         private readonly ServiceRepository $services,
         private readonly Connection $db,
         private readonly Clock $clock,
+        private readonly HetznerWipeService $wipes,
     ) {
     }
 
@@ -61,7 +66,9 @@ final class HetznerRobotProvisioner implements Provisioner
         $mode = (string) $service->config('mode', 'pool');
 
         if (!isset($remote['server_number'])) {
-            if ($mode === 'order') {
+            if ($mode === 'market') {
+                $remote = $this->orderFromMarket($service, $integration, $client, $remote);
+            } elseif ($mode === 'order') {
                 $remote = $this->order($service, $integration, $client, $remote);
             } else {
                 $remote = $this->reserveFromPool($service, $integration, $client);
@@ -77,12 +84,17 @@ final class HetznerRobotProvisioner implements Provisioner
             $prefix = (string) $integration->config('pool_prefix', 'nebrix-free');
             $mayClaim = $name === self::marker($service)
                 || ($mode === 'pool' && $prefix !== '' && str_starts_with($name, $prefix))
-                || ($mode === 'order' && ($remote['ordered'] ?? false) === true);
+                || (in_array($mode, ['order', 'market'], true) && ($remote['ordered'] ?? false) === true);
             if (!$mayClaim) {
                 throw new IntegrationException(sprintf('Server #%d is named "%s" and is not available for this service.', $number, $name));
             }
             if ($name !== self::marker($service)) {
                 $client->renameServer($number, self::marker($service));
+            }
+            // A pool server wiped by hand may still carry the firewall of a suspension or of
+            // its former customer.
+            if (!$client->clearFirewallIfConfigured($number)) {
+                throw new RetryLaterException('The Robot firewall is being updated.', 30);
             }
             $remote = $this->merge($service, ['step' => 'install', 'server_ip' => (string) ($server['server_ip'] ?? ''), 'server_ipv6' => (string) ($server['server_ipv6_net'] ?? '')]);
             $step = 'install';
@@ -232,9 +244,13 @@ final class HetznerRobotProvisioner implements Provisioner
             }
         }
 
-        // 3. Hand the server to staff for wiping before it returns to the pool.
+        // 3. Mark the server for wiping before it returns to the pool: automatically
+        //    (rescue system with the panel's key) or by staff.
         if ($name !== $wipeName) {
             $client->renameServer($number, $wipeName);
+        }
+        if ((bool) $integration->config('auto_wipe', false)) {
+            $this->wipes->enqueue($integration, $number, $service->id);
         }
     }
 
@@ -415,6 +431,116 @@ final class HetznerRobotProvisioner implements Provisioner
             'ordered' => true,
             'step' => 'name',
         ]);
+    }
+
+    /**
+     * Buys a server from the auction (mode "market").
+     *
+     * @param array<string, mixed> $remote
+     * @return array<string, mixed>
+     */
+    private function orderFromMarket(Service $service, Integration $integration, RobotClient $client, array $remote): array
+    {
+        if (!(bool) $integration->config('allow_orders', false)) {
+            throw new IntegrationException('Ordering new servers is disabled for this Hetzner integration.');
+        }
+        $test = (bool) $integration->config('order_test_mode', true);
+        if (($remote['order_test'] ?? false) === true) {
+            if ($test) {
+                throw new IntegrationException('Hetzner accepted the auction order in test mode (not processed). Disable test mode on the integration and retry to buy the server.');
+            }
+            $remote = $this->merge($service, ['order_test' => null, 'transaction_id' => null]);
+        }
+
+        if (!isset($remote['transaction_id'])) {
+            $image = (string) $service->config('image', '');
+            if ($image === '') {
+                throw new IntegrationException('The product needs an operating system image for buying auction servers.');
+            }
+            // A retry finds the order of an earlier attempt instead of buying a second server.
+            $transaction = null;
+            foreach ($client->marketTransactions() as $existing) {
+                if ((string) ($existing['comment'] ?? '') === self::marker($service) && ($existing['status'] ?? '') !== 'cancelled') {
+                    $transaction = $existing;
+                }
+            }
+            if ($transaction === null) {
+                $product = $this->pickMarketProduct($service, $client->marketProducts(), array_map('intval', (array) ($remote['market_skipped'] ?? [])));
+                $fingerprint = (string) $integration->config('ssh_key_fingerprint', '');
+                $transaction = $client->orderMarketServer((int) $product['id'], $image, $fingerprint !== '' ? [$fingerprint] : [], self::marker($service), $test);
+                if ($test) {
+                    $this->merge($service, ['order_test' => true, 'transaction_id' => (string) ($transaction['id'] ?? ''), 'market_product' => (int) $product['id']]);
+
+                    throw new IntegrationException('Hetzner accepted the auction order in test mode (not processed). Disable test mode on the integration and retry to buy the server.');
+                }
+                $remote = $this->merge($service, ['market_product' => (int) $product['id']]);
+            }
+            $remote = $this->merge($service, ['transaction_id' => (string) ($transaction['id'] ?? ''), 'mode' => 'market']);
+        }
+
+        $transaction = $client->marketTransaction((string) $remote['transaction_id']);
+        $status = (string) ($transaction['status'] ?? '');
+        if ($status === 'cancelled') {
+            // Usually sold to someone else in the meantime: try the next matching server (three times at most).
+            $skipped = array_values(array_unique([...array_map('intval', (array) ($remote['market_skipped'] ?? [])), (int) ($remote['market_product'] ?? 0)]));
+            if (count($skipped) >= 3) {
+                throw new IntegrationException(sprintf('Hetzner cancelled the auction order %s (three attempts failed).', (string) $remote['transaction_id']));
+            }
+            $this->merge($service, ['transaction_id' => null, 'market_product' => null, 'market_skipped' => $skipped]);
+
+            throw new RetryLaterException('The auction server was no longer available; another one is ordered.', 60);
+        }
+        if ($status !== 'ready' || (int) ($transaction['server_number'] ?? 0) < 1) {
+            throw new RetryLaterException('Waiting for Hetzner to deliver the auction server.', 600);
+        }
+
+        return $this->merge($service, [
+            'server_number' => (int) $transaction['server_number'],
+            'server_ip' => (string) ($transaction['server_ip'] ?? ''),
+            'ordered' => true,
+            'step' => 'name',
+        ]);
+    }
+
+    /**
+     * The cheapest auction server within the product's limits (ties: the
+     * faster CPU).
+     *
+     * @param list<array<string, mixed>> $products
+     * @param list<int> $skip products whose order failed before
+     * @return array<string, mixed>
+     */
+    public function pickMarketProduct(Service $service, array $products, array $skip = []): array
+    {
+        $max = trim(str_replace(',', '.', (string) $service->config('market_max_price', '')));
+        if (preg_match('/^\d{1,5}(\.\d{1,2})?$/', $max) !== 1) {
+            throw new IntegrationException('The product has no maximum price for auction servers.');
+        }
+        $maxCents = (int) round((float) $max * 100);
+        $minMemory = (int) $service->config('market_min_memory_gb', 0);
+        $minDisk = (int) $service->config('market_min_disk_gb', 0);
+        $cpu = mb_strtolower(trim((string) $service->config('market_cpu', '')));
+        $location = (string) $service->config('location', '');
+        $image = (string) $service->config('image', '');
+
+        $matching = array_values(array_filter($products, static function (array $product) use ($maxCents, $minMemory, $minDisk, $cpu, $location, $image, $skip): bool {
+            $dists = array_map('strval', (array) ($product['dist'] ?? []));
+
+            return (int) ($product['id'] ?? 0) > 0
+                && !in_array((int) $product['id'], $skip, true)
+                && (int) round((float) ($product['price'] ?? PHP_INT_MAX) * 100) <= $maxCents
+                && (int) ($product['memory_size'] ?? 0) >= $minMemory
+                && (int) ($product['hdd_size'] ?? 0) >= $minDisk
+                && ($cpu === '' || str_contains(mb_strtolower((string) ($product['cpu'] ?? '')), $cpu))
+                && ($location === '' || str_starts_with((string) ($product['datacenter'] ?? ''), $location))
+                && ($dists === [] || $image === '' || in_array($image, $dists, true));
+        }));
+        if ($matching === []) {
+            throw new RetryLaterException('No server in the Hetzner auction matches the product right now; checking again later.', 1800);
+        }
+        usort($matching, static fn (array $a, array $b): int => [(float) $a['price'], -(int) ($a['cpu_benchmark'] ?? 0)] <=> [(float) $b['price'], -(int) ($b['cpu_benchmark'] ?? 0)]);
+
+        return $matching[0];
     }
 
     /**

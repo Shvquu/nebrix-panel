@@ -25,6 +25,31 @@
         <div class="card-footer"><form method="post" action="/admin/integrations/{{ integration.id }}/delete" data-confirm="{{ 'Delete this integration? Products using it will no longer be provisioned automatically.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete integration'|t }}</button></form></div>
         {% endif %}
     </div>
+    {% if wipes is not null %}
+    {% set wipe_labels = {pending: 'Waiting', booting: 'Booting rescue system', running: 'Wiping', done: 'Wiped', failed: 'Failed'} %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Disk wiping'|t }}</h2>
+            {% if auto_wipe and can('integrations.manage') %}<form method="post" action="/admin/integrations/{{ integration.id }}/wipes" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Queue waiting servers'|t }}</button></form>{% endif %}
+        </div>
+        {% if not auto_wipe %}<div class="card-body"><p class="small muted">{{ 'Automatic wiping is off: wipe servers named "nebrix-wipe-<number>" by hand and rename them back into the pool.'|t }}</p></div>{% endif %}
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Server'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Method'|t }}</th><th>{{ 'Started'|t }}</th><th>{{ 'Finished'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for w in wipes %}
+                <tr>
+                    <td class="mono">#{{ w.server_number }}</td>
+                    <td><span class="badge badge-sentence {{ w.status == 'done' ? 'badge-success' : (w.status == 'failed' ? 'badge-danger' : 'badge-info') }}">{{ wipe_labels[w.status]|t }}</span>{% if w.error %}<div class="small muted">{{ w.error }}</div>{% endif %}
+                        {% if w.log %}<details class="small"><summary>{{ 'Log'|t }}</summary><pre class="mono small">{{ w.log }}</pre></details>{% endif %}</td>
+                    <td>{{ (w.method == 'quick' ? 'Quick' : 'Full')|t }}</td>
+                    <td class="small">{{ w.started_at ? w.started_at|dt : '–' }}</td>
+                    <td class="small">{{ w.finished_at ? w.finished_at|dt : '–' }}</td>
+                    <td class="actions">{% if w.status == 'failed' and can('integrations.manage') %}<form method="post" action="/admin/integrations/{{ integration.id }}/wipes/{{ w.id }}/retry" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Retry'|t }}</button></form>{% endif %}</td>
+                </tr>
+            {% else %}<tr><td colspan="6" class="empty">{{ 'No wipes yet.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    {% endif %}
     <div class="card">
         <div class="card-header"><h2>{{ 'Log'|t }}</h2>
             <div class="tabs mb-0">{% for l in ['', 'error', 'warning', 'info', 'debug'] %}<a href="?level={{ l }}" class="{{ level == l ? 'is-active' : '' }}">{{ l == '' ? 'all'|t : l }}</a>{% endfor %}</div>
