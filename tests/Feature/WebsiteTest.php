@@ -170,7 +170,8 @@ final class WebsiteTest extends FeatureTestCase
     {
         $this->lxc('EPYC Flex', 249, ['cores' => 1, 'memory_mb' => 1024, 'disk_gb' => 10, 'configurator' => true, 'cfg_max_cores' => 8, 'cfg_price_core' => '1.00'], ['website_line' => 'EPYC 7543', 'sort_order' => 1]);
         $this->lxc('EPYC 8G', 799, [], ['website_line' => 'EPYC 7543', 'sort_order' => 2, 'features' => "# Network\n1 IPv4 address\n# Host system\nAMD EPYC 7543"]);
-        $this->lxc('RYZEN 4G', 599, [], ['website_line' => 'RYZEN 5950X', 'stock' => 0, 'sort_order' => 3]);
+        $this->lxc('EPYC 16G', 1499, [], ['website_line' => 'EPYC 7543', 'sort_order' => 3]);
+        $this->lxc('RYZEN 4G', 599, [], ['website_line' => 'RYZEN 5950X', 'stock' => 0, 'sort_order' => 4]);
         $this->product('teamspeak', 'TS 32', 199, ['slots' => 32]);
         $this->product('vps', 'KVM S', 699, ['template_vmid' => 9000, 'storage' => 'local-lvm', 'bridge' => 'vmbr0', 'cores' => 2, 'memory_mb' => 4096, 'disk_gb' => 40]);
         $this->settings->set('website.benefits_vserver', "Fast storage | NVMe disks\nNo text\n<b>Bold</b> | <script>x</script>");

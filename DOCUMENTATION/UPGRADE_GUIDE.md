@@ -132,6 +132,10 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to global sales
+
+Run the migration `2026_11_29_000020_create_sales` (additive: table `nx_sales`, column `nx_order_items.sale_id`). Nothing changes until you create a sale under Admin → Sale campaigns.
+
 ### Updating to product lines, promotions and slot configurator
 
 Run the migration `2026_11_29_000019_add_website_catalog` (additive): it adds product line and promotion columns, the price history (filled with the current prices as starting point – promotions can show a previous price only from data recorded after the update) and columns for promotions on order items and configuration changes. Sold-out public products now appear on the website with a *Sold out* button instead of being hidden. Existing domain products keep one price; run *Import TLDs* with *Update the price of TLDs that already exist* to set separate registration and transfer prices.

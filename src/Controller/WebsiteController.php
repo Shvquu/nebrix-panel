@@ -211,6 +211,7 @@ final class WebsiteController extends Controller
         return $this->render($request, $template, $context + [
             'nav_pages' => $catalog->pages(),
             'nav_menu' => $catalog->menu(),
+            'site_sale' => $catalog->bannerSale(),
             'about_page' => trim($this->settings->string('website.about_text')) !== '',
             'small_business' => $catalog->smallBusiness(),
             'trustpilot' => $this->trustpilot(),

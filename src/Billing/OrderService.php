@@ -42,6 +42,7 @@ class OrderService
         private readonly \Nebrix\View\Translator $translator,
         private readonly \Nebrix\Billing\Coupons\CouponService $coupons,
         private readonly \Nebrix\Core\Clock $clock,
+        private readonly Sales\SaleService $sales,
     ) {
     }
 
@@ -49,26 +50,30 @@ class OrderService
      * Net price parts of one order item, before coupons.
      *
      * - list: list price (configured price for the configurator)
-     * - promo/promo_bp: running promotion (first payment and every renewal)
+     * - promo/promo_bp: running promotion or permanent sale (first payment and every renewal)
+     * - first_promo: a sale for the first billing period only (on top of promo, up to the sale's percentage)
      * - group: customer-group discount on the promoted price
      * - first_extra/first_discount: domain first year (registration/transfer) above or below the renewal price
      *
      * @param array<string, mixed> $product
      * @param array{price: int}|null $configuration
-     * @return array{list: int, promo_bp: int, promo: int, group: int, first_extra: int, first_discount: int, setup: int}
+     * @return array{list: int, promo_bp: int, promo: int, first_promo: int, first_bp: int, sale: array<string, mixed>|null, group: int, first_extra: int, first_discount: int, setup: int}
      */
     private function priceParts(array $product, ?array $configuration, int $groupDiscountBp, bool $transfer): array
     {
         $list = $configuration['price'] ?? (int) $product['price'];
-        $promoBp = ProductPricing::promotionBp($product, $this->clock->now());
-        $promo = Money::discount($list, $promoBp);
+        $discounts = ProductPricing::discounts($product, Sales\SaleService::bestFor($this->sales->running(), $product), $this->clock->now());
+        $promo = Money::discount($list, $discounts['permanent_bp']);
         $group = Money::discount($list - $promo, $groupDiscountBp);
         $renewalNet = $list - $promo - $group;
         $first = ProductPricing::domainFirstYear($product, $transfer);
         $delta = $first !== null ? $first - $renewalNet : 0;
+        // A domain's own first-year price is already the special offer: a first-period sale does not add to it.
+        $firstPromo = $first === null ? Money::discount($list, $discounts['first_bp']) - $promo : 0;
 
         return [
-            'list' => $list, 'promo_bp' => $promoBp, 'promo' => $promo, 'group' => $group,
+            'list' => $list, 'promo_bp' => $discounts['permanent_bp'], 'promo' => $promo, 'first_promo' => max(0, $firstPromo),
+            'first_bp' => $discounts['first_bp'], 'sale' => $discounts['sale'], 'group' => $group,
             'first_extra' => max(0, $delta), 'first_discount' => max(0, -$delta), 'setup' => (int) $product['setup_fee'],
         ];
     }
@@ -137,7 +142,9 @@ class OrderService
             $coupon = $couponCode !== null ? $this->coupons->lockAndEvaluate($couponCode, $product, $user, $price - $base, $setupFee) : null;
             // A domain's first year above the renewal price is charged once (like a setup fee).
             $setupFee += $parts['first_extra'];
-            $discount = $base + $parts['first_discount'] + ($coupon['first'] ?? 0);
+            // A first-period sale never makes the first payment negative (e.g. together with a coupon).
+            $firstPromo = max(0, min($parts['first_promo'], $price + $setupFee - $base - $parts['first_discount'] - ($coupon['first'] ?? 0)));
+            $discount = $base + $firstPromo + $parts['first_discount'] + ($coupon['first'] ?? 0);
             $recurringDiscount = $base + ($coupon['recurring'] ?? 0);
             $net = $price + $setupFee - $discount;
             $tax = Money::tax($net, $taxRate);
@@ -151,7 +158,8 @@ class OrderService
                 default => '',
             };
             $couponNote = $coupon !== null ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Coupon :code', ['code' => (string) $coupon['coupon']['code']]) : '';
-            $promoNote = $parts['promo_bp'] > 0 ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Promotion −:percent %', ['percent' => rtrim(rtrim(number_format($parts['promo_bp'] / 100, 2, '.', ''), '0'), '.')]) : '';
+            $promoBp = max($parts['promo_bp'], $firstPromo > 0 ? $parts['first_bp'] : 0);
+            $promoNote = $promoBp > 0 ? ' · ' . ($parts['sale'] !== null ? (string) $parts['sale']['name'] . ' ' : '') . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), 'Promotion −:percent %', ['percent' => rtrim(rtrim(number_format($promoBp / 100, 2, '.', ''), '0'), '.')]) : '';
             $domainNote = $product['category'] === ProductCategory::DOMAIN ? ' · ' . $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), $transfer ? 'Transfer' : 'Registration') : '';
             [$orderId] = $this->orders->create([
                 'number' => $this->invoices->nextNumber('order'),
@@ -175,6 +183,7 @@ class OrderService
                 'discount' => $discount,
                 'recurring_discount' => $recurringDiscount,
                 'promo_bp' => $parts['promo_bp'] > 0 ? $parts['promo_bp'] : null,
+                'sale_id' => $parts['sale'] !== null ? (int) $parts['sale']['id'] : null,
                 'tax_rate_bp' => $taxRate,
                 'billing_cycle' => (string) $product['billing_cycle'],
                 'options' => $options,
@@ -213,7 +222,7 @@ class OrderService
      * @param array<string, mixed> $product
      * @param array<string, mixed> $configuration configurator choice (e.g. cores, memory_gb, disk_gb or slots)
      * @param bool $transfer domains: price of a transfer instead of a registration
-     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int, coupon_code: string|null, coupon_discount: int, coupon_recurring: int, coupon_duration: string|null, coupon_error: string|null, configuration: array<string, int>|null, promo_bp: int, promo_discount: int, group_discount: int, first_extra: int, first_discount: int}
+     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int, coupon_code: string|null, coupon_discount: int, coupon_recurring: int, coupon_duration: string|null, coupon_error: string|null, configuration: array<string, int>|null, promo_bp: int, promo_discount: int, first_promo: int, first_bp: int, sale_name: string|null, group_discount: int, first_extra: int, first_discount: int}
      */
     public function quote(array $product, ?int $customerGroupId, ?User $user = null, ?string $couponCode = null, array $configuration = [], bool $transfer = false): array
     {
@@ -235,7 +244,8 @@ class OrderService
             }
         }
 
-        $discount = $base + $parts['first_discount'] + ($coupon['first'] ?? 0);
+        $firstPromo = max(0, min($parts['first_promo'], $price + $setupFee + $parts['first_extra'] - $base - $parts['first_discount'] - ($coupon['first'] ?? 0)));
+        $discount = $base + $firstPromo + $parts['first_discount'] + ($coupon['first'] ?? 0);
         $net = $price + $setupFee + $parts['first_extra'] - $discount;
         $rate = $user !== null ? $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']) : (int) $product['tax_rate_bp'];
         $tax = Money::tax($net, $rate);
@@ -258,6 +268,9 @@ class OrderService
             'configuration' => $choice,
             'promo_bp' => $parts['promo_bp'],
             'promo_discount' => $parts['promo'],
+            'first_promo' => $firstPromo,
+            'first_bp' => $parts['first_bp'],
+            'sale_name' => $parts['sale'] !== null ? (string) $parts['sale']['name'] : null,
             'group_discount' => $parts['group'],
             'first_extra' => $parts['first_extra'],
             'first_discount' => $parts['first_discount'],

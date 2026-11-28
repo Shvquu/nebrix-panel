@@ -29,7 +29,7 @@
             {% if can('status.manage') %}{{ m.link('/admin/status', 'Status page', 'pulse') }}{% endif %}
 
             {% if can('products.view') or can('orders.view') or can('invoices.view') or can('transactions.view') %}<div class="p-nav-section">{{ 'Sales'|t }}</div>{% endif %}
-            {% if can('products.view') %}{{ m.link('/admin/products', 'Products', 'box') }}{{ m.link('/admin/coupons', 'Coupons', 'tag') }}{% endif %}
+            {% if can('products.view') %}{{ m.link('/admin/products', 'Products', 'box') }}{{ m.link('/admin/coupons', 'Coupons', 'tag') }}{{ m.link('/admin/sales', 'Sales campaigns', 'percent') }}{% endif %}
             {% if can('orders.view') %}{{ m.link('/admin/orders', 'Orders', 'cart') }}{% endif %}
             {% if can('invoices.view') %}{{ m.link('/admin/invoices', 'Invoices', 'invoice') }}{% endif %}
             {% if can('transactions.view') %}{{ m.link('/admin/transactions', 'Transactions', 'transactions') }}{{ m.link('/admin/payments/webhooks', 'Payment events', 'bell') }}{% endif %}

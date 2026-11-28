@@ -65,7 +65,8 @@
                     <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[product.billing_cycle]|default('')|t }}</dd>
                     {% if quote.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ quote.setup_fee|money(product.currency) }}</dd>{% endif %}
                     {% if quote.first_extra > 0 %}<dt>{{ 'First year surcharge'|t }}</dt><dd>{{ quote.first_extra|money(product.currency) }}</dd>{% endif %}
-                    {% if quote.promo_discount > 0 %}<dt>{{ 'Promotion −:percent %'|t({percent: quote.promo_bp / 100}) }}</dt><dd>−{{ quote.promo_discount|money(product.currency) }} <span class="small muted">{{ 'also on renewals'|t }}</span></dd>{% endif %}
+                    {% if quote.promo_discount > 0 %}<dt>{{ quote.sale_name ? quote.sale_name ~ ' ' : '' }}{{ 'Promotion −:percent %'|t({percent: quote.promo_bp / 100}) }}</dt><dd>−{{ quote.promo_discount|money(product.currency) }} <span class="small muted">{{ 'also on renewals'|t }}</span></dd>{% endif %}
+                    {% if quote.first_promo > 0 %}<dt>{{ quote.sale_name ? quote.sale_name ~ ' ' : '' }}{{ 'Promotion −:percent %'|t({percent: quote.first_bp / 100}) }}</dt><dd>−{{ quote.first_promo|money(product.currency) }} <span class="small muted">{{ 'first billing period only'|t }}</span></dd>{% endif %}
                     {% if quote.group_discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ quote.group_discount|money(product.currency) }}</dd>{% endif %}
                     {% if quote.first_discount > 0 %}<dt>{{ 'First year discount'|t }}</dt><dd>−{{ quote.first_discount|money(product.currency) }}</dd>{% endif %}
                     {% if quote.coupon_discount > 0 %}<dt>{{ 'Coupon :code'|t({code: quote.coupon_code}) }}</dt><dd>−{{ quote.coupon_discount|money(product.currency) }} <span class="small muted">{{ 'net'|t }}</span></dd>{% endif %}

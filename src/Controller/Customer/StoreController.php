@@ -25,6 +25,7 @@ final class StoreController extends Controller
         private readonly ProductRepository $products,
         private readonly OrderService $orders,
         private readonly RateLimiter $limiter,
+        private readonly \Nebrix\Billing\Sales\SaleService $sales,
     ) {
     }
 
@@ -63,6 +64,7 @@ final class StoreController extends Controller
         return $this->render($request, 'customer/store/index.twig', [
             'grouped' => $grouped,
             'more_domains' => $moreDomains,
+            'sale' => $this->sales->banner(),
             'groups' => $groups,
             'group' => $group,
             'search' => $search,

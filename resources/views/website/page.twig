@@ -18,8 +18,12 @@
         <div class="site-promo-banner">
             <span class="site-promo-icon">{{ i.icon('percent') }}</span>
             <div>
-                <h2>{{ 'Promotion'|t }}</h2>
+                <h2>{{ promotion.name ?? 'Promotion'|t }}</h2>
+                {% if promotion.permanent %}
                 <p>{{ (tabs|length > 1 ? 'Order now and get up to :percent % off for the whole term!' : 'Order now and get :percent % off for the whole term!')|t({percent: promotion.percent}) }}</p>
+                {% else %}
+                <p>{{ (tabs|length > 1 ? 'Order now and get up to :percent % off the first billing period!' : 'Order now and get :percent % off the first billing period!')|t({percent: promotion.percent}) }}</p>
+                {% endif %}
                 <small>{{ (promotion.limited ? 'Offer valid until :date and while stocks last.' : 'Offer valid until :date.')|t({date: promotion.ends_at|dt}) }}</small>
             </div>
         </div>
@@ -58,7 +62,7 @@
             {% else %}
             <div class="site-plans">
                 {% for p in tab.products %}
-                    {% include 'website/_plan.twig' with {p: p} %}
+                    {% if loop.last %}{% include 'website/_plan_wide.twig' with {p: p} %}{% else %}{% include 'website/_plan.twig' with {p: p} %}{% endif %}
                 {% endfor %}
             </div>
             {% endif %}

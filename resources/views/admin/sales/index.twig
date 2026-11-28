@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Sales campaigns'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Sales campaigns'|t }}</h1><p class="muted">{{ 'Time-limited discounts for all products, categories or selected products, with a banner on the website.'|t }}</p></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/sales/create">{{ 'New sale'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Name'|t }}</th><th class="text-right">{{ 'Discount'|t }}</th><th>{{ 'Applies to'|t }}</th><th>{{ 'Period'|t }}</th><th>{{ 'State'|t }}</th><th class="text-right">{{ 'Orders'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for s in sales %}
+            <tr>
+                <td><strong>{{ s.name }}</strong>{% if s.show_banner %} <span class="badge badge-neutral">{{ 'banner'|t }}</span>{% endif %}</td>
+                <td class="text-right nowrap">{{ s.percent }} %<div class="small muted">{{ (s.permanent ? 'whole term' : 'first billing period')|t }}</div></td>
+                <td>{% if s.scope == 'all' %}{{ 'All products'|t }}{% elseif s.scope == 'categories' %}{% for c in s.categories %}{{ categories[c]|default(c)|t }}{{ loop.last ? '' : ', ' }}{% endfor %}{% else %}{{ ':n products'|t({n: s.product_ids|length}) }}{% endif %}</td>
+                <td class="nowrap small">{{ s.starts_at|dt }}<br>{{ s.ends_at|dt }}</td>
+                <td><span class="badge {{ s.state == 'running' ? 'badge-success' : (s.state == 'planned' ? 'badge-info' : 'badge-neutral') }}">{{ s.state|t }}</span></td>
+                <td class="text-right">{{ s.orders }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/sales/{{ s.id }}">{{ can('products.manage') ? 'Edit'|t : 'View'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No sales yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

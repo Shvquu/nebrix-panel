@@ -68,6 +68,10 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Security (sixth review)
 - Fixes from four independent reviews of the latest features (see SECURITY.md): SKRIME ownership by product ID (domain takeover via failed orders), no repeat orders or renewals after lost answers, renewals only for paid periods; Hetzner rescue boot confirmation, host key fingerprints, checked wipe steps, auction price validation, queue fixes, termination of undelivered purchases; Proxmox container time and output limits, SSH environment not passed on, IPv6 socket addresses, overlapping and special IPv6 pools refused; alert mail budgets, password reset lifts the lockout, auxiliary storage errors never abort payments, more location evidence conflicts and a filter for missing evidence.
 
+### Added (global sales, wide package card)
+- **Global sales** (Admin → Sale campaigns): percentage for all products, categories or selected products within a period, permanent or for the first billing period; never added to a product promotion (the higher one wins); stored with the order item; site-wide banner with countdown, notice in the shop, sale name and previous price (§ 11 PAngV) on the product pages; migration `2026_11_29_000020_create_sales`.
+- The last package of a tab is shown as a wide card (name and price, features in two columns, order button).
+
 ### Added (website catalogue: product lines, promotions, slots, domain prices)
 - Product menu with groups and sub-menus; product lines as tabs (*Configurator* / *Packages* per line); package cards with *Configuration* and feature sections (`# Heading` lines); configurator layout with sliders and a summary; sold-out products shown with a disabled button and *Available again soon*; advantages per page from the settings.
 - **Promotions**: percentage for orders within a period, permanent for the ordered service (renewals, later resource changes); promotion banner, saving and previous price per § 11 PAngV from the new **price history**; admin fields with time zone handling.

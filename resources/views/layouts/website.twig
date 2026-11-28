@@ -14,6 +14,16 @@
 </head>
 <body class="site-body">
 <a class="site-skip" href="#main">{{ 'Skip to content'|t }}</a>
+{% if site_sale %}
+<div class="site-salebar" data-countdown="{{ site_sale.ends_at|replace({' ': 'T'}) }}Z" data-unit-day="{{ 'd'|t }}">
+    <div class="site-container site-salebar-inner">
+        <span class="site-salebar-tag">{{ i.icon('percent') }} {{ site_sale.name }}</span>
+        <span class="site-salebar-text">{% if site_sale.banner_text %}{{ site_sale.banner_text }}{% else %}{{ (site_sale.scope == 'all' ? (site_sale.permanent ? ':percent % off all products – for the whole term' : ':percent % off all products – in the first billing period') : (site_sale.permanent ? 'Up to :percent % off selected products – for the whole term' : 'Up to :percent % off selected products – in the first billing period'))|t({percent: site_sale.percent}) }}{% endif %}</span>
+        <span class="site-salebar-time">{{ 'Ends in'|t }} <strong data-countdown-text>{{ site_sale.ends_at|dt }}</strong></span>
+        <a class="site-salebar-link" href="/products">{{ 'To the offers'|t }} {{ i.icon('arrow-right') }}</a>
+    </div>
+</div>
+{% endif %}
 <header class="site-header">
     <div class="site-container site-nav">
         <a class="site-brand" href="/">

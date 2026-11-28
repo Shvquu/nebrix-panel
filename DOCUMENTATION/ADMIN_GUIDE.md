@@ -70,12 +70,23 @@ Tick *Configurator* in the product's provisioning settings to let customers choo
 ### Product lines, feature sections and sold-out products (website)
 * **Product line** (field on the product, e.g. `AMD EPYC 7543 / 7763 / 7713`): products with the same line share a tab on the website – one tab per line and kind (*Configurator*, *Packages*), in the order of the products (sort order, then price). Without a line, all products of a page share one tab.
 * **Features**: one per line; a line starting with `#` begins a section on the website (e.g. `# Network`, `# Host system`). The website adds a *Configuration* section from the technical settings (cores, memory, storage, slots …). The shop and the API show the lines without the headings.
+* **Wide card**: the last package of each tab is shown as a full-width row (name and price, the features in two columns, order button).
 * **Sold out** (stock 0): the product stays on the website with a disabled *Sold out* button; if all products of a tab are sold out, the tab shows *Available again soon*. Ordering is impossible (the shop and the order check the stock).
 
 ### Promotions
 Product form → *Promotion (%)*, start (empty = now) and end (required): orders placed within the period get the discount **permanently** – it is stored with the order item and applies to every renewal (and to later resource changes of configured services, but not to a change to another product). The website shows the promotion banner of the page (“up to X %” when several promotions run, “while stocks last” when stock is limited), *For a short time, permanently*, the reduced price and the saving.
 
 **Previous price (§ 11 PAngV).** The crossed-out *instead of* price is the lowest list price of the 30 days before the promotion started, taken from the price history (every price change of a product is recorded since migration `000019`; the starting point is the price at the time of the update). If the promoted price is not below that lowest price, no reduction is announced – only the price is shown. For configurators the history covers the base price; step prices are not part of it, so do not raise step prices shortly before a promotion. Customer-group discounts and coupons apply on top of the promoted price.
+
+### Global sales (Admin → Sale campaigns)
+Time-limited discounts across the shop, e.g. *Black Friday* (permission `products.view` to see, `products.manage` to change):
+
+* **Discount** 1–90 %, **start** (empty = now) and **end** in the panel's time zone, **active** switch (sales are never deleted; switch them off or end them).
+* **Applies to**: *first invoice and every renewal* (permanent, like a product promotion) or *first billing period only*.
+* **Products**: all products, selected categories or selected products.
+* A product promotion and a sale **never add up**: the customer gets the higher discount. With a first-period sale above a permanent product promotion, the first period gets the sale and renewals the promotion. A domain's own first-year price is already the offer – a first-period sale does not lower it further. Customer-group discounts and coupons apply on top; the first payment never becomes negative.
+* Orders store the sale (`nx_order_items.sale_id`); the list shows how many order items each sale got. Running services keep the discount they were ordered with.
+* **Banner**: optional site-wide bar above the website header with name, text (empty = generated, e.g. “Up to 30 % off selected products – in the first billing period”) and a live countdown; the shop shows the running sale as a notice. Product pages show the sale name, the reduced price, *instead of* (previous lowest price of the 30 days before the start, § 11 PAngV) and, for first-period sales, the price afterwards.
 
 ### Domain prices for the first year
 Domain products have optional net prices for the **first year of a registration** and of a **transfer** (empty = product price); renewals always cost the product price. Cheaper first years are a one-time discount, more expensive ones a one-time surcharge on the order (shown on the order page, including the total for a transfer). The website and the shop show registration, renewal and transfer prices; a cheaper first year marks the ending as *Sale*.

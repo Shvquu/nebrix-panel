@@ -73,6 +73,8 @@
     var reference = parseInt(form.getAttribute('data-reference'), 10) || base;
     var rate = parseInt(form.getAttribute('data-rate'), 10) || 0;
     var promo = parseInt(form.getAttribute('data-promo'), 10) || 0;
+    var promoThen = parseInt(form.getAttribute('data-promo-then'), 10) || 0;
+    var then = form.querySelector('[data-then]');
     var format;
     try {
       format = new Intl.NumberFormat(form.getAttribute('data-locale') || 'en', { style: 'currency', currency: form.getAttribute('data-currency') || 'EUR' });
@@ -101,6 +103,7 @@
       var list = base + extra;
       var price = gross(list - roundShare(list, promo));
       output.textContent = money(price);
+      if (then) { then.textContent = money(gross(list - roundShare(list, promoThen))); }
       if (promo > 0) {
         var previous = gross(reference + extra);
         var show = previous > price;
@@ -191,6 +194,23 @@
       sub.parentElement.querySelectorAll('.site-sub.is-open').forEach(function (other) { other.classList.remove('is-open'); });
       sub.classList.toggle('is-open', open);
     });
+  });
+
+  // Countdown of the sale banner: <div data-countdown="2026-11-30T22:59:00Z"> … <strong data-countdown-text>
+  document.querySelectorAll('[data-countdown]').forEach(function (bar) {
+    var end = Date.parse(bar.getAttribute('data-countdown'));
+    var text = bar.querySelector('[data-countdown-text]');
+    if (!text || isNaN(end)) { return; }
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var tick = function () {
+      var left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+      var days = Math.floor(left / 86400);
+      text.textContent = (days > 0 ? days + ' ' + (bar.getAttribute('data-unit-day') || 'd') + ' ' : '')
+        + pad(Math.floor(left % 86400 / 3600)) + ':' + pad(Math.floor(left % 3600 / 60)) + ':' + pad(left % 60);
+      if (left === 0) { window.clearInterval(timer); }
+    };
+    var timer = window.setInterval(tick, 1000);
+    tick();
   });
 
   // Trustpilot TrustBox: loaded only after the visitor clicks (no data goes to Trustpilot before).

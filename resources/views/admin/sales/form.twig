@@ -1,0 +1,35 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set s = sale %}
+{% block title %}{{ s ? s.name : 'New sale'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ s ? s.name : 'New sale'|t }}</h1><p class="muted"><a href="/admin/sales">&larr; {{ 'Sales campaigns'|t }}</a>{% if s %} · <span class="badge {{ state == 'running' ? 'badge-success' : (state == 'planned' ? 'badge-info' : 'badge-neutral') }}">{{ state|t }}</span> · {{ ':n orders'|t({n: s.orders}) }}{% endif %}</p></div></div>
+<form method="post" action="{{ s ? '/admin/sales/' ~ s.id : '/admin/sales' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Sale'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', s.name|default(''), 'text', {required: true, maxlength: 100, help: 'Shown to customers, e.g. "Black Friday".'}) }}
+                {{ f.input('percent', 'Discount (%)', s ? s.percent : '', 'text', {required: true, inputmode: 'decimal', help: '1 to 90 %. A product promotion and a sale never add up: the higher discount applies.'}) }}
+                {{ f.select('permanent', 'Applies to', {'1': 'First invoice and every renewal', '0': 'First billing period only'}, s ? (s.permanent ? '1' : '0') : '1') }}
+                {{ f.input('starts_at', 'Start (empty = now)', starts_at, 'datetime-local') }}
+                {{ f.input('ends_at', 'End', ends_at, 'datetime-local', {required: true}) }}
+                {{ f.checkbox('is_active', 'Active', s ? s.is_active : true) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Products and banner'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.select('scope', 'Products', {'all': 'All products', 'categories': 'Categories below', 'products': 'Products below'}, s.scope|default('all')) }}
+                {{ f.multiselect('categories', 'Categories', categories, s.categories|default([])) }}
+                {{ f.multiselect('product_ids', 'Products', products, s ? s.product_ids|map(id => id ~ '') : []) }}
+                {{ f.checkbox('show_banner', 'Show the banner with countdown on the website', s ? s.show_banner : true) }}
+                {{ f.input('banner_text', 'Banner text (empty = generated)', s.banner_text|default(''), 'text', {maxlength: 255}) }}
+                <p class="small muted">{{ 'The website shows the previous price per § 11 PAngV (lowest price of the 30 days before the start). Orders keep the discount they were placed with.'|t }}</p>
+            </div>
+        </div>
+    </div>
+    {% if can('products.manage') %}<div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+{% endblock %}

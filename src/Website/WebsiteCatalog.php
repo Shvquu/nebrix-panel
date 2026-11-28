@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Website;
 
 use Nebrix\Billing\Money;
+use Nebrix\Billing\Sales\SaleService;
 use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Catalog\ProductConfigurator;
@@ -40,6 +41,9 @@ final class WebsiteCatalog
     /** @var list<array<string, mixed>>|null */
     private ?array $products = null;
 
+    /** @var list<array<string, mixed>>|null running sales (one request) */
+    private ?array $runningSales = null;
+
     /** @var array<string, list<array<string, mixed>>> prepared products per page (one request) */
     private array $byPage = [];
 
@@ -47,6 +51,7 @@ final class WebsiteCatalog
         private readonly ProductRepository $repository,
         private readonly SettingsRepository $settings,
         private readonly Clock $clock,
+        private readonly SaleService $sales,
     ) {
     }
 
@@ -56,7 +61,7 @@ final class WebsiteCatalog
      */
     public function forRequest(): self
     {
-        return new self($this->repository, $this->settings, $this->clock);
+        return new self($this->repository, $this->settings, $this->clock, $this->sales);
     }
 
     /**
@@ -147,7 +152,7 @@ final class WebsiteCatalog
      * Running promotions of a page: highest discount, earliest end, whether
      * stock is limited.
      *
-     * @return array{bp: int, percent: string, ends_at: string, limited: bool}|null
+     * @return array{bp: int, percent: string, ends_at: string, limited: bool, permanent: bool, name: string|null}|null
      */
     public function promotion(string $page): ?array
     {
@@ -162,6 +167,8 @@ final class WebsiteCatalog
                 'percent' => rtrim(rtrim(number_format($bp / 100, 2, '.', ''), '0'), '.'),
                 'ends_at' => min($promotion['ends_at'] ?? $product['promo']['ends_at'], $product['promo']['ends_at']),
                 'limited' => ($promotion['limited'] ?? false) || $product['stock'] !== null,
+                'permanent' => ($promotion['permanent'] ?? true) && $product['promo']['permanent'],
+                'name' => $promotion['name'] ?? $product['promo']['name'],
             ];
         }
 
@@ -213,6 +220,22 @@ final class WebsiteCatalog
         return $label !== null && preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $label) === 1 ? $label : null;
     }
 
+    /**
+     * The running sale for the site-wide banner (highest discount), or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function bannerSale(): ?array
+    {
+        foreach ($this->runningSales ??= $this->sales->running() as $sale) {
+            if ($sale['show_banner']) {
+                return $sale;
+            }
+        }
+
+        return null;
+    }
+
     /** VAT included in website prices (0 for small businesses under § 19 UStG). */
     public function taxRate(int $productRateBp): int
     {
@@ -258,17 +281,23 @@ final class WebsiteCatalog
         $gross = static fn (int $net): int => $net + Money::tax($net, $rate);
         $config = is_array($product['provisioning_config']) ? $product['provisioning_config'] : [];
         $list = (int) $product['price'];
-        $promoBp = ProductPricing::promotionBp($product, $this->clock->now());
+        // Product promotion or global sale – the higher discount (they never add up).
+        $discounts = ProductPricing::discounts($product, SaleService::bestFor($this->runningSales ??= $this->sales->running(), $product), $this->clock->now());
+        $promoBp = $discounts['first_bp'];
         $promo = null;
         if ($promoBp > 0) {
             // Previous price = lowest list price of the 30 days before the promotion started (§ 11 PAngV).
-            $start = (string) ($product['promo_starts_at'] ?? '') !== '' ? (string) $product['promo_starts_at'] : $this->clock->nowString();
-            $reference = $this->repository->lowestPriceBefore((int) $product['id'], $start) ?? $list;
+            $reference = $this->repository->lowestPriceBefore((int) $product['id'], $discounts['starts_at'] ?? $this->clock->nowString()) ?? $list;
             $promoted = $list - Money::discount($list, $promoBp);
             $promo = [
                 'bp' => $promoBp,
                 'percent' => rtrim(rtrim(number_format($promoBp / 100, 2, '.', ''), '0'), '.'),
-                'ends_at' => (string) $product['promo_ends_at'],
+                'permanent' => $discounts['first_bp'] === $discounts['permanent_bp'],
+                'permanent_bp' => $discounts['permanent_bp'],
+                // After the first billing period (first-period sales only).
+                'then_gross' => $gross($list - Money::discount($list, $discounts['permanent_bp'])),
+                'name' => $discounts['sale'] !== null ? (string) $discounts['sale']['name'] : null,
+                'ends_at' => (string) $discounts['ends_at'],
                 'reference_net' => $reference,
                 'reference_gross' => $reference > $promoted ? $gross($reference) : null,
                 'saving_gross' => $reference > $promoted ? $gross($reference) - $gross($promoted) : 0,

@@ -1,0 +1,25 @@
+{% import 'macros/icons.twig' as i %}
+{# The last package of a tab: one wide row – name and price, the features in two columns, order button. #}
+{% set items = [] %}
+{% for spec in p.specs %}{% set items = items|merge([spec.text|t(spec.params)]) %}{% endfor %}
+{% for section in p.sections %}{% set items = items|merge(section.items) %}{% endfor %}
+{% set half = (items|length / 2)|round(0, 'ceil') %}
+<article class="site-plan-wide{{ p.sold_out ? ' is-sold-out' : '' }}">
+    <div class="site-plan-wide-price">
+        <h2>{{ p.name }}</h2>
+        {% if p.promo %}<div class="site-promo-label">{{ (p.promo.permanent ? 'For a short time, permanently' : 'For a short time, first billing period')|t }}</div>{% endif %}
+        <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong>{{ p.price_gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
+        {% if p.promo and p.promo.reference_gross %}<div class="site-was">{{ 'instead of'|t }} <s>{{ p.promo.reference_gross|money(p.currency) }}</s></div><div class="site-small site-accent">{{ 'You save :amount'|t({amount: p.promo.saving_gross|money(p.currency)}) }}</div>{% endif %}
+        {% if p.promo and not p.promo.permanent %}<div class="site-small site-muted">{{ 'then :price'|t({price: p.promo.then_gross|money(p.currency)}) }}</div>{% endif %}
+        {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
+    </div>
+    <ul class="site-checks">{% for item in items|slice(0, half) %}<li>{{ i.icon('check') }}<span>{{ item }}</span></li>{% endfor %}</ul>
+    <ul class="site-checks">{% for item in items|slice(half) %}<li>{{ i.icon('check') }}<span>{{ item }}</span></li>{% endfor %}</ul>
+    <div class="site-plan-wide-action">
+        {% if p.sold_out %}
+            <span class="site-btn site-btn-disabled" aria-disabled="true">{{ i.icon('ban') }} {{ 'Sold out'|t }}</span>
+        {% else %}
+            <a class="site-btn site-btn-primary" href="/store/{{ p.slug }}">{{ i.icon('rocket') }} {{ 'Order now'|t }}</a>
+        {% endif %}
+    </div>
+</article>

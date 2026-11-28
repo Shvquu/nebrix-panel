@@ -2,7 +2,7 @@
 {% set labels = {'cores': 'CPU cores', 'memory_gb': 'Memory', 'disk_gb': 'Storage', 'slots': 'Slots'} %}
 {% set units = {'cores': '', 'memory_gb': ' GB', 'disk_gb': ' GB', 'slots': ''} %}
 {% set items = {'cores': ':n cores', 'memory_gb': ':n GB memory', 'disk_gb': ':n GB storage', 'slots': ':n slots'} %}
-<form class="site-config" method="get" action="/store/{{ p.slug }}" data-configurator data-base="{{ p.net }}" data-rate="{{ p.tax_rate_bp }}" data-promo="{{ p.promo ? p.promo.bp : 0 }}" data-reference="{{ p.promo ? p.promo.reference_net : p.net }}" data-currency="{{ p.currency }}" data-locale="{{ locale }}">
+<form class="site-config" method="get" action="/store/{{ p.slug }}" data-configurator data-base="{{ p.net }}" data-rate="{{ p.tax_rate_bp }}" data-promo="{{ p.promo ? p.promo.bp : 0 }}" data-promo-then="{{ p.promo ? p.promo.permanent_bp : 0 }}" data-reference="{{ p.promo ? p.promo.reference_net : p.net }}" data-currency="{{ p.currency }}" data-locale="{{ locale }}">
     <div class="site-config-sliders">
         {% if p.description %}<p class="site-muted">{{ p.description }}</p>{% endif %}
         {% for name, range in p.configurator %}
@@ -23,9 +23,10 @@
         <h2>{{ p.name }}</h2>
         {% if p.promo %}<div class="site-saving" data-saving-box>{{ i.icon('percent') }} <span>{{ 'You save'|t }} <span data-saving>{{ p.promo.saving_gross|money(p.currency) }}</span> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>{% endif %}
         <div class="site-plan-head">
-            {% if p.promo %}<div class="site-promo-label">{{ 'For a short time, permanently'|t }}</div>{% endif %}
+            {% if p.promo %}<div class="site-promo-label">{{ p.promo.name ? p.promo.name ~ ' · ' : '' }}{{ (p.promo.permanent ? 'For a short time, permanently' : 'For a short time, first billing period')|t }}</div>{% endif %}
             <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong data-price>{{ p.price_gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
             {% if p.promo %}<div class="site-was" data-was-box>{{ 'instead of'|t }} <s data-was>{{ (p.promo.reference_gross ?? p.price_gross)|money(p.currency) }}</s> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
+            {% if p.promo and not p.promo.permanent %}<div class="site-small site-muted">{{ 'then'|t }} <span data-then>{{ p.promo.then_gross|money(p.currency) }}</span> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
             {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
             {% if p.sold_out %}
                 <span class="site-btn site-btn-disabled" aria-disabled="true">{{ i.icon('ban') }} {{ 'Sold out'|t }}</span>

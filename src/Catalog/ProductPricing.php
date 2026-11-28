@@ -45,6 +45,31 @@ final class ProductPricing
     }
 
     /**
+     * Discounts of a product with an optional global sale: the higher one
+     * wins, they never add up. "permanent_bp" applies to every renewal,
+     * "first_bp" (≥ permanent_bp) to the first billing period.
+     *
+     * @param array<string, mixed> $product
+     * @param array<string, mixed>|null $sale a running sale for this product (SaleService::bestFor)
+     * @return array{permanent_bp: int, first_bp: int, sale: array<string, mixed>|null, starts_at: string|null, ends_at: string|null}
+     */
+    public static function discounts(array $product, ?array $sale, DateTimeImmutable $now): array
+    {
+        $productBp = self::promotionBp($product, $now);
+        $saleBp = $sale !== null ? min((int) $sale['discount_bp'], self::MAX_PROMO_BP) : 0;
+        $permanent = max($productBp, $sale !== null && (bool) $sale['permanent'] ? $saleBp : 0);
+        $useSale = $saleBp > $productBp;
+
+        return [
+            'permanent_bp' => $permanent,
+            'first_bp' => max($permanent, $saleBp),
+            'sale' => $useSale ? $sale : null,
+            'starts_at' => $useSale ? (string) $sale['starts_at'] : ($productBp > 0 && (string) ($product['promo_starts_at'] ?? '') !== '' ? (string) $product['promo_starts_at'] : null),
+            'ends_at' => $useSale ? (string) $sale['ends_at'] : ($productBp > 0 ? (string) $product['promo_ends_at'] : null),
+        ];
+    }
+
+    /**
      * Net price of the first year of a domain (registration or transfer), or
      * null when the list price applies.
      *
