@@ -171,6 +171,10 @@ class CustomerService
             // Open referrals end with the account; rewards already credited stay as booked.
             $this->db->run("UPDATE `nx_referrals` SET `status` = 'rejected', `note` = 'Account closed.' WHERE (`referred_id` = ? OR `referrer_id` = ?) AND `status` IN ('pending', 'review', 'qualified')", [$user->id, $user->id]);
             $this->db->run('UPDATE `nx_referrals` SET `signup_ip` = NULL WHERE `referred_id` = ?', [$user->id]);
+            // Marketing consents and the newsletter subscription (by account or address) end with the account.
+            $this->db->run('DELETE FROM `nx_marketing_consents` WHERE `user_id` = ?', [$user->id]);
+            $this->db->run('DELETE d FROM `nx_newsletter_deliveries` d JOIN `nx_newsletter_subscribers` s ON s.`id` = d.`subscriber_id` WHERE s.`user_id` = ? OR s.`email` = ?', [$user->id, mb_strtolower($user->email)]);
+            $this->db->run('DELETE FROM `nx_newsletter_subscribers` WHERE `user_id` = ? OR `email` = ?', [$user->id, mb_strtolower($user->email)]);
             $this->sessions->destroyForUser($user->id);
         });
 

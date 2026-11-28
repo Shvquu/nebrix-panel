@@ -58,6 +58,12 @@ final class Permission
     public const JOBS_VIEW = 'jobs.view';
     public const JOBS_MANAGE = 'jobs.manage';
 
+    public const CONTENT_VIEW = 'content.view';
+    public const CONTENT_MANAGE = 'content.manage';
+    public const NEWSLETTER_VIEW = 'newsletter.view';
+    public const NEWSLETTER_MANAGE = 'newsletter.manage';
+    public const NEWSLETTER_EXPORT = 'newsletter.export';
+
     /**
      * @return array<string, array<string, string>> group => [permission => description]
      */
@@ -121,6 +127,13 @@ final class Permission
             'System' => [
                 self::JOBS_VIEW => 'View background jobs and scheduled tasks',
                 self::JOBS_MANAGE => 'Retry and cancel background jobs',
+            ],
+            'Marketing' => [
+                self::CONTENT_VIEW => 'View landing pages and blog posts, preview drafts',
+                self::CONTENT_MANAGE => 'Create, edit, publish and delete landing pages and blog posts',
+                self::NEWSLETTER_VIEW => 'View newsletter subscribers and campaigns',
+                self::NEWSLETTER_MANAGE => 'Write and send newsletter campaigns, delete subscribers',
+                self::NEWSLETTER_EXPORT => 'Export the newsletter subscriber list (CSV)',
             ],
         ];
     }

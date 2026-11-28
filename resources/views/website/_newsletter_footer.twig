@@ -1,0 +1,13 @@
+{# Newsletter teaser in the footer: leads to /newsletter, where the visitor reads what they agree to
+   and signs up (CSRF, CAPTCHA). No form here, so ordinary pages need no session. #}
+{% import 'macros/icons.twig' as i %}
+<div class="site-container site-newsletter">
+    <div class="site-newsletter-copy">
+        <span class="site-icon-round">{{ i.icon('mail') }}</span>
+        <div>
+            <h3>{{ 'Newsletter'|t }}</h3>
+            <p class="site-muted site-small">{{ 'News, offers and maintenance tips from :brand – unsubscribe at any time.'|t({brand: brand.name}) }}</p>
+        </div>
+    </div>
+    <a class="site-btn site-btn-primary" href="/newsletter">{{ i.icon('mail') }} {{ 'Subscribe to the newsletter'|t }}</a>
+</div>

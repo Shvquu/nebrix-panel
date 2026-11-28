@@ -93,6 +93,9 @@ final class RegisterController extends Controller
             return $this->redirect('/register');
         }
 
+        // Optional consent to review invitations (§ 7 UWG), never ticked in advance.
+        $this->container->get(\Nebrix\Marketing\ReviewInvitations::class)->consentFromForm($request, $user->id, 'registration');
+
         if ($user->isActive()) {
             $this->flash($request, 'success', 'Your account has been created. You can sign in now.');
         } else {

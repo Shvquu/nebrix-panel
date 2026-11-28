@@ -1,0 +1,21 @@
+{# Preview image for social networks (Admin → Settings → Marketing). #}
+{% set og_image = setting('seo.og_image') %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Preview image for social networks'|t }}</h2></div>
+    <div class="card-body">
+        <p class="muted">{{ 'Shown when a page of the website is shared (OpenGraph and Twitter cards); blog posts use their cover image. Recommended size: 1200×630 pixels.'|t }}</p>
+        {% if og_image %}<p><img class="logo-preview" src="/media/{{ og_image }}" alt="{{ 'Preview image for social networks'|t }}"></p>{% else %}<p class="muted">{{ 'Not set – no image is shown when pages are shared.'|t }}</p>{% endif %}
+        <form method="post" action="/admin/seo/og-image" enctype="multipart/form-data">
+            {{ csrf_field() }}
+            <div class="form-row"><input type="file" name="file" accept="image/png,image/jpeg">
+                <div class="help">{{ 'PNG or JPEG, max. 2 MB and 4096×4096 pixels.'|t }}</div>
+                {% if error('og_image') %}<div class="field-error">{{ error('og_image')|t }}</div>{% endif %}
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Upload'|t }}</button></div>
+        </form>
+        {% if og_image %}
+        <form method="post" action="/admin/seo/og-image/remove" class="mt-1" data-confirm="{{ 'Remove this file?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Remove'|t }}</button></form>
+        {% endif %}
+        <p class="small muted mt-1">{{ 'Search engines find all public pages through'|t }} <a href="/sitemap.xml" target="_blank" rel="noopener">/sitemap.xml</a> {{ 'and'|t }} <a href="/robots.txt" target="_blank" rel="noopener">/robots.txt</a>.</p>
+    </div>
+</div>

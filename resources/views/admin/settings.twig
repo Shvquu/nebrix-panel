@@ -29,6 +29,8 @@
 </div>
 {% endif %}
 
+{% if page == 'marketing' %}{% include 'admin/marketing/_og_image.twig' %}{% endif %}
+
 {% if page == 'payments' %}
 <div class="alert alert-info">
     {{ 'Webhook endpoints to register with the providers'|t }}:

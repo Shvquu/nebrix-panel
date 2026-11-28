@@ -1,0 +1,31 @@
+{# Packages and configurators of a landing page – the same tabs and partials as the product pages (website/page.twig). #}
+{% import 'macros/icons.twig' as i %}
+{% if tabs|length > 1 %}
+<div class="site-line-tabs" role="tablist" data-site-tabs>
+    {% for tab in tabs %}
+    <button type="button" role="tab" class="{{ loop.first ? 'is-active' : '' }}" aria-selected="{{ loop.first ? 'true' : 'false' }}" data-site-tab="{{ tab.key }}">
+        <strong>{{ tab.line ?? (catalog_page ? catalog_page.title|t : page.hero_title) }}</strong>
+        <span>{{ (tab.kind == 'configurator' ? 'Configurator' : 'Packages')|t }}</span>
+    </button>
+    {% endfor %}
+</div>
+{% endif %}
+{% for tab in tabs %}
+<div id="{{ tab.key }}" class="site-tab-panel{{ loop.first ? '' : ' hidden' }}">
+    {% if tab.sold_out %}
+    <div class="site-soldout-notice">
+        <span class="site-promo-icon">{{ i.icon('box') }}</span>
+        <div><h2>{{ 'Available again soon'|t }}</h2><p>{{ 'These products are currently sold out. Please check back later.'|t }}</p></div>
+    </div>
+    {% endif %}
+    {% if tab.kind == 'configurator' %}
+        {% for p in tab.products %}{% include 'website/_configurator.twig' with {p: p} %}{% endfor %}
+    {% else %}
+    <div class="site-plans">
+        {% for p in tab.products %}
+            {% if loop.last %}{% include 'website/_plan_wide.twig' with {p: p} %}{% else %}{% include 'website/_plan.twig' with {p: p} %}{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}

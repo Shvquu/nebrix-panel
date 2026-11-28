@@ -1,0 +1,29 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Blog'|t }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ 'Blog'|t }}</h1><p class="muted">{{ 'News and articles on the website (/blog) with an Atom feed. A publication date in the future schedules a post.'|t }}</p></div>
+    {% if can('content.manage') %}<div class="actions"><a class="btn btn-primary" href="/admin/blog/create">{{ 'New post'|t }}</a></div>{% endif %}
+</div>
+{% if not blog_enabled %}<div class="alert alert-info">{{ 'The blog is not shown on the website yet. Switch it on in Settings → Marketing.'|t }}</div>{% endif %}
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Title'|t }}</th><th>{{ 'Author'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Publication date'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for p in posts %}
+            <tr>
+                <td><a href="/admin/blog/{{ p.id }}">{{ p.title }}</a><div class="small muted mono">/blog/{{ p.slug }}</div></td>
+                <td class="small">{{ p.author_name ?? '–' }}</td>
+                <td>{% if p.public %}<span class="badge badge-success">{{ 'published'|t }}</span>{% elseif p.status == 'published' %}<span class="badge badge-info">{{ 'scheduled'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'draft'|t }}</span>{% endif %}</td>
+                <td class="nowrap small">{{ p.published_at|dt }}</td>
+                <td class="actions">
+                    <a class="btn btn-sm btn-outline" href="/admin/blog/{{ p.id }}/preview" target="_blank" rel="noopener">{{ 'Preview'|t }}</a>
+                    {% if p.public and blog_enabled %}<a class="btn btn-sm btn-outline" href="/blog/{{ p.slug }}" target="_blank" rel="noopener">{{ 'Open'|t }}</a>{% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No posts yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% include 'partials/pagination.twig' %}
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set c = campaign %}
+{% block title %}{{ c ? c.subject : 'New campaign'|t }}{% endblock %}
+{% block content %}
+{% set states = {draft: 'draft', sending: 'sending', sent: 'sent', cancelled: 'cancelled'} %}
+{% set editable = not c or c.status == 'draft' %}
+<div class="page-header">
+    <div><h1>{{ c ? c.subject : 'New campaign'|t }}</h1>
+        <p class="muted"><a href="/admin/newsletter">&larr; {{ 'Newsletter'|t }}</a>{% if c %} · <span class="badge {{ c.status == 'sent' ? 'badge-success' : (c.status == 'sending' ? 'badge-info' : 'badge-neutral') }}">{{ states[c.status]|default(c.status)|t }}</span>{% endif %}</p>
+    </div>
+</div>
+{% if not enabled %}<div class="alert alert-info">{{ 'The newsletter sign-up is switched off. Switch it on in Settings → Marketing.'|t }}</div>{% endif %}
+
+{% if c and c.status != 'draft' %}
+<div class="grid grid-3">
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Recipients'|t }}</div><div class="stat-value">{{ c.recipients }}</div><div class="small muted">{{ ':n skipped (unsubscribed in the meantime)'|t({n: c.skipped_count}) }}</div></div></div>
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Queued'|t }}</div><div class="stat-value">{{ c.queued_count }}</div><div class="small muted">{{ ':n waiting in the queue'|t({n: mails.waiting}) }}</div></div></div>
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Delivered'|t }}</div><div class="stat-value">{{ mails.delivered }}</div><div class="small muted">{{ ':n failed'|t({n: mails.failed}) }}</div></div></div>
+</div>
+{% if c.status == 'sending' and can('newsletter.manage') %}
+<form method="post" action="/admin/newsletter/campaigns/{{ c.id }}/cancel" class="mt-1" data-confirm="{{ 'Stop sending? Recipients who have not received it yet will not get it.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Stop sending'|t }}</button></form>
+{% endif %}
+{% endif %}
+
+<form method="post" action="{{ c ? '/admin/newsletter/campaigns/' ~ c.id : '/admin/newsletter/campaigns' }}" class="card mt-2" novalidate>
+    {{ csrf_field() }}
+    <div class="card-header"><h2>{{ 'Campaign'|t }}</h2></div>
+    <div class="card-body">
+        {{ f.input('subject', 'Subject', c.subject|default(''), 'text', {required: true, maxlength: 200}) }}
+        {{ f.select('audience', 'Recipients', audiences, c.audience|default('all'), {help: 'Only subscribers who confirmed their address receive the campaign.'}) }}
+        {{ f.textarea('body', 'Text (Markdown)', c.body|default(''), {rows: 16, class: 'mono', help: 'Markdown: ## heading, **bold**, *italic*, - lists, [link text](https://…). HTML is shown as text. The unsubscribe link is added automatically.'}) }}
+    </div>
+    {% if editable and can('newsletter.manage') %}<div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+
+{% if c %}
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Preview'|t }}</h2></div>
+    <div class="card-body newsletter-preview">
+        <p class="muted small">{{ 'Subject'|t }}: <strong>{{ c.subject }}</strong></p>
+        <div class="newsletter-preview-body">{{ preview }}</div>
+    </div>
+</div>
+{% if editable and can('newsletter.manage') %}
+<div class="grid grid-2 mt-2">
+    <form method="post" action="/admin/newsletter/campaigns/{{ c.id }}/test" class="card">
+        {{ csrf_field() }}
+        <div class="card-header"><h2>{{ 'Test e-mail'|t }}</h2></div>
+        <div class="card-body"><p class="muted">{{ 'Sends the saved campaign once to your own address (:email).'|t({email: auth_user.email}) }}</p></div>
+        <div class="card-footer"><button class="btn btn-outline" type="submit">{{ 'Send test e-mail'|t }}</button></div>
+    </form>
+    <form method="post" action="/admin/newsletter/campaigns/{{ c.id }}/send" class="card" novalidate>
+        {{ csrf_field() }}
+        <div class="card-header"><h2>{{ 'Send campaign'|t }}</h2></div>
+        <div class="card-body">
+            <p>{{ 'The campaign goes to :n confirmed subscribers, in batches through the job queue.'|t({n: audience_size}) }}</p>
+            {{ f.input('confirm', 'Type SEND to confirm', '', 'text', {autocomplete: 'off'}) }}
+        </div>
+        <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send now'|t }}</button></div>
+    </form>
+</div>
+<form method="post" action="/admin/newsletter/campaigns/{{ c.id }}/delete" class="mt-2" data-confirm="{{ 'Delete this campaign?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Delete campaign'|t }}</button></form>
+{% endif %}
+{% endif %}
+{% endblock %}

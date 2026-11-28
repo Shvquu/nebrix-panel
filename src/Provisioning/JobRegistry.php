@@ -27,6 +27,7 @@ final class JobRegistry
             \Nebrix\Notification\StaffNotifier::JOB => \Nebrix\Notification\StaffWebhookJob::class,
             \Nebrix\Server\Snapshots\SnapshotService::JOB_TYPE => \Nebrix\Server\Snapshots\SnapshotJob::class,
             \Nebrix\Server\AdditionalIpv4Job::JOB_TYPE => \Nebrix\Server\AdditionalIpv4Job::class,
+            \Nebrix\Marketing\NewsletterCampaigns::JOB_BATCH => \Nebrix\Marketing\NewsletterBatchJob::class,
         ];
     }
 }

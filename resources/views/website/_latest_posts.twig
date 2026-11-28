@@ -1,0 +1,12 @@
+<section class="site-section">
+    <div class="site-container">
+        <div class="site-heading">
+            <h2>{{ 'Latest'|t }} <span class="site-underline">{{ 'news'|t }}</span></h2>
+            <p>{{ 'News, tips and updates from :brand.'|t({brand: brand.name}) }}</p>
+        </div>
+        <div class="site-post-grid">
+            {% for post in posts %}{% include 'website/_post_card.twig' with {post: post} %}{% endfor %}
+        </div>
+        <div class="site-actions site-actions-center"><a class="site-btn site-btn-ghost" href="/blog">{{ 'All posts'|t }}</a></div>
+    </div>
+</section>

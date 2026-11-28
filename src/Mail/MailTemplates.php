@@ -104,9 +104,12 @@ class MailTemplates
 
     /**
      * @param array<string, scalar|null> $variables
+     * @param array<string, string> $html placeholders of the body replaced by HTML that the calling code
+     *                                    produced safely (e.g. the Markdown renderer of newsletters) – never
+     *                                    user input; in the subject they are replaced by their plain text
      * @return array{subject: string, html: string, text: string}
      */
-    public function render(string $key, array $variables, ?string $locale = null): array
+    public function render(string $key, array $variables, ?string $locale = null, array $html = []): array
     {
         $template = $this->get($key, $locale);
         $variables += [
@@ -115,8 +118,8 @@ class MailTemplates
             'app_url' => $this->config->string('app.url'),
         ];
 
-        $subject = $this->replace($template['subject'], $variables, false);
-        $body = $this->replace($template['html'], $variables, true);
+        $subject = $this->replace($template['subject'], $variables + array_map(static fn (string $fragment): string => trim(html_entity_decode(strip_tags($fragment), ENT_QUOTES | ENT_HTML5, 'UTF-8')), $html), false);
+        $body = $this->replace($template['html'], $variables, true, $html);
 
         return [
             'subject' => preg_replace('/[\r\n]+/', ' ', $subject) ?? $subject,
@@ -127,12 +130,16 @@ class MailTemplates
 
     /**
      * @param array<string, scalar|null> $variables
+     * @param array<string, string> $html safe HTML fragments (inserted as they are)
      */
-    private function replace(string $template, array $variables, bool $escapeHtml): string
+    private function replace(string $template, array $variables, bool $escapeHtml, array $html = []): string
     {
         return (string) preg_replace_callback(
             '/\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/i',
-            static function (array $match) use ($variables, $escapeHtml): string {
+            static function (array $match) use ($variables, $escapeHtml, $html): string {
+                if (array_key_exists($match[1], $html)) {
+                    return $html[$match[1]];
+                }
                 $value = (string) ($variables[$match[1]] ?? '');
 
                 return $escapeHtml ? htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : $value;

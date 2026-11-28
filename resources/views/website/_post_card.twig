@@ -1,0 +1,8 @@
+{% import 'macros/icons.twig' as i %}
+<article class="site-card site-post-card">
+    {% if post.cover_image %}<a class="site-post-cover" href="/blog/{{ post.slug }}" tabindex="-1" aria-hidden="true"><img src="/media/{{ post.cover_image }}" alt="" loading="lazy" decoding="async"></a>{% endif %}
+    <div class="site-post-meta"><time datetime="{{ post.published_at|replace({' ': 'T'}) }}Z">{{ post.published_at|d }}</time>{% if post.author_name %} · {{ post.author_name }}{% endif %}</div>
+    <h3><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h3>
+    {% if post.teaser %}<p>{{ post.teaser }}</p>{% endif %}
+    <a class="site-more" href="/blog/{{ post.slug }}">{{ 'Read more'|t }} {{ i.icon('arrow-right') }}</a>
+</article>

@@ -1,0 +1,72 @@
+/* Nebrix – marketing parts of the public website (landing pages, blog, newsletter). Uses the tokens of website.css. */
+
+/* ------------------------------------------------------------------ Markdown content */
+.site-markdown { color: #d4d4d8; font-size: 1.05rem; line-height: 1.75; }
+.site-markdown h2, .site-markdown h3, .site-markdown h4 { color: var(--s-text); margin: 2rem 0 .75rem; }
+.site-markdown h2 { font-size: 1.6rem; }
+.site-markdown h3 { font-size: 1.3rem; }
+.site-markdown h4 { font-size: 1.1rem; }
+.site-markdown > :first-child { margin-top: 0; }
+.site-markdown a { color: var(--s-accent); text-underline-offset: 3px; }
+.site-markdown ul, .site-markdown ol { padding-left: 1.4rem; margin: 0 0 1.1em; }
+.site-markdown li { margin: .25rem 0; }
+.site-markdown blockquote { margin: 1.5rem 0; padding: .75rem 1.25rem; border-left: 3px solid var(--s-accent); background: var(--s-surface); border-radius: 0 10px 10px 0; color: var(--s-text); }
+.site-markdown blockquote p:last-child { margin-bottom: 0; }
+.site-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; padding: .1rem .35rem; border-radius: 6px; background: var(--s-surface-2); }
+.site-markdown pre { overflow-x: auto; padding: 1rem 1.25rem; border-radius: 10px; background: var(--s-surface); border: 1px solid var(--s-border); }
+.site-markdown pre code { padding: 0; background: none; }
+.site-markdown hr { border: 0; border-top: 1px solid var(--s-border); margin: 2rem 0; }
+
+/* ------------------------------------------------------------------ landing pages */
+.site-landing-hero h1 { max-width: 46rem; margin-left: auto; margin-right: auto; }
+.site-faq { display: grid; gap: .75rem; }
+.site-faq-item { background: var(--s-surface); border: 1px solid var(--s-border); border-radius: 12px; }
+.site-faq-item summary { cursor: pointer; padding: 1rem 1.25rem; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+.site-faq-item summary::-webkit-details-marker { display: none; }
+.site-faq-item summary::after { content: "+"; color: var(--s-accent); font-weight: 800; }
+.site-faq-item[open] summary::after { content: "–"; }
+.site-faq-item summary:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 2px; border-radius: 12px; }
+.site-faq-answer { padding: 0 1.25rem 1rem; color: var(--s-muted); }
+.site-faq-answer p { margin: 0; }
+.site-preview-bar { position: sticky; top: 72px; z-index: 40; display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .55rem 1rem; background: #854d0e; color: #fff; font-weight: 700; font-size: .9rem; text-align: center; }
+
+/* ------------------------------------------------------------------ blog */
+.site-post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
+.site-post-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.site-post-card > :not(.site-post-cover) { margin-left: 1.5rem; margin-right: 1.5rem; }
+.site-post-card > .site-post-meta { margin-top: 1.4rem; }
+.site-post-card > .site-more { margin-bottom: 1.5rem; text-decoration: none; }
+.site-post-card h3 { margin-top: .4rem; font-size: 1.15rem; }
+.site-post-card h3 a { text-decoration: none; }
+.site-post-card h3 a:hover { color: var(--s-accent); }
+.site-post-cover img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; background: var(--s-surface-2); }
+.site-post-meta { color: var(--s-muted); font-size: .85rem; }
+.site-post-header { text-align: left; }
+.site-post-header h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); }
+.site-post-header .site-lead { margin: 0; }
+.site-post-image { display: block; width: 100%; height: auto; margin: 0 0 2rem; border-radius: var(--s-radius); border: 1px solid var(--s-border); }
+.site-blog-pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 2.5rem; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------------ newsletter */
+.site-newsletter { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 2.5rem; padding-top: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--s-border); }
+.site-newsletter-copy { display: flex; align-items: center; gap: 1rem; }
+.site-newsletter-copy h3 { margin: 0 0 .2rem; }
+.site-newsletter-copy p { margin: 0; }
+.site-newsletter-signup label { display: block; font-weight: 700; margin-bottom: .5rem; }
+.site-newsletter-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.site-newsletter-row input { flex: 1 1 240px; min-width: 0; padding: .75rem 1rem; border-radius: 8px; border: 1px solid var(--s-border); background: var(--s-bg); color: var(--s-text); font: inherit; }
+.site-newsletter-row input:focus { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.site-field-error { color: #fca5a5; font-size: .9rem; margin: -.5rem 0 1rem; }
+.site-flash { margin-bottom: 1.25rem; padding: .9rem 1.15rem; border-radius: 10px; border: 1px solid var(--s-border); background: var(--s-surface); }
+.site-flash-success { border-color: rgba(22, 163, 74, .6); }
+.site-flash-error { border-color: rgba(220, 38, 38, .7); }
+.site-flash-warning, .site-flash-info { border-color: var(--s-accent); }
+.site-notice { text-align: center; padding: 2.5rem 2rem; }
+.site-notice .site-icon-round { margin-bottom: 1rem; }
+.site-notice h1 { font-size: 1.6rem; }
+.site-notice form { margin: 1.5rem 0; }
+
+@media (max-width: 620px) {
+  .site-newsletter .site-btn { width: 100%; }
+  .site-preview-bar { top: 72px; font-size: .82rem; }
+}

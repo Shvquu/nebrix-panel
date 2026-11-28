@@ -1,0 +1,31 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Newsletter'|t }}{% endblock %}
+{% block content %}
+<section class="site-banner">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        <span class="site-icon-tile site-icon-lg">{{ i.icon('mail') }}</span>
+        <h1>{{ 'Newsletter'|t }}</h1>
+        <p class="site-lead">{{ 'News, offers and maintenance tips from :brand – unsubscribe at any time.'|t({brand: brand.name}) }}</p>
+    </div>
+</section>
+<section class="site-section">
+    <div class="site-container site-narrow">
+        {% for flash in flashes %}<div class="site-flash site-flash-{{ flash.type }}" role="{{ flash.type == 'error' ? 'alert' : 'status' }}">{{ flash.message|t }}</div>{% endfor %}
+        <form class="site-card site-newsletter-signup" method="post" action="/newsletter" novalidate>
+            {{ csrf_field() }}
+            <label for="newsletter-email">{{ 'Your e-mail address'|t }}</label>
+            <div class="site-newsletter-row">
+                <input id="newsletter-email" type="email" name="email" maxlength="254" autocomplete="email" required value="{{ old('email') }}">
+                <button class="site-btn site-btn-primary" type="submit">{{ 'Subscribe'|t }}</button>
+            </div>
+            {% if error('email') %}<p class="site-field-error">{{ error('email')|t }}</p>{% endif %}
+            <p class="site-small site-muted">{{ consent_text }}</p>
+            <p class="site-small site-muted">{{ 'After signing up you receive an e-mail with a confirmation link (double opt-in). We store the time and a shortened IP address of the sign-up and of the confirmation as proof of your consent.'|t }}{% if brand.privacy_url %} <a class="site-accent" href="{{ brand.privacy_url }}">{{ 'Privacy policy'|t }}</a>{% endif %}</p>
+            {% include 'partials/captcha.twig' %}
+            {% if auth_user %}<p class="site-small"><a class="site-accent" href="/account/communication">{{ 'Customers can also manage the newsletter in their account.'|t }}</a></p>{% endif %}
+        </form>
+    </div>
+</section>
+{% endblock %}

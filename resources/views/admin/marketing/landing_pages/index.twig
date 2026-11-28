@@ -1,0 +1,29 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Landing pages'|t }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ 'Landing pages'|t }}</h1><p class="muted">{{ 'Pages for search engines and campaigns, e.g. /minecraft-server-mieten, with your packages, advantages and frequently asked questions.'|t }}</p></div>
+    {% if can('content.manage') %}<div class="actions"><a class="btn btn-primary" href="/admin/landing-pages/create">{{ 'New landing page'|t }}</a></div>{% endif %}
+</div>
+{% if not setting('website.enabled') %}<div class="alert alert-warning">{{ 'The public website is switched off (Settings → Branding): landing pages are not reachable.'|t }}</div>{% endif %}
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Address'|t }}</th><th>{{ 'Headline'|t }}</th><th>{{ 'Products'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Updated'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for p in pages %}
+            <tr>
+                <td class="mono"><a href="/admin/landing-pages/{{ p.id }}">/{{ p.slug }}</a>{% if p.shadowed %} <span class="badge badge-danger">{{ 'address in use'|t }}</span>{% endif %}</td>
+                <td>{{ p.hero_title }}</td>
+                <td class="small">{{ p.website_page ? (catalog_pages[p.website_page]|default(p.website_page))|t : '–' }}{% if p.product_line %} · {{ p.product_line }}{% endif %}</td>
+                <td><span class="badge {{ p.status == 'published' ? 'badge-success' : 'badge-neutral' }}">{{ (p.status == 'published' ? 'published' : 'draft')|t }}</span></td>
+                <td class="nowrap small">{{ p.updated_at|dt }}</td>
+                <td class="actions">
+                    <a class="btn btn-sm btn-outline" href="/admin/landing-pages/{{ p.id }}/preview" target="_blank" rel="noopener">{{ 'Preview'|t }}</a>
+                    {% if p.status == 'published' %}<a class="btn btn-sm btn-outline" href="/{{ p.slug }}" target="_blank" rel="noopener">{{ 'Open'|t }}</a>{% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No landing pages yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

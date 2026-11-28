@@ -1,0 +1,53 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+{% if preview %}<div class="site-preview-bar" role="status">{{ i.icon('info') }} {{ 'Preview: this is how the page looks. It is only public while it is published.'|t }}</div>{% endif %}
+<section class="site-banner site-landing-hero">
+    <div class="site-particles" aria-hidden="true">{% for n in 1..8 %}<span class="pt pt-{{ n }}"></span>{% endfor %}</div>
+    <div class="site-container">
+        {% if catalog_page %}<span class="site-icon-tile site-icon-lg">{{ i.icon(catalog_page.icon) }}</span>{% endif %}
+        <h1>{% for part in page.hero_title|split('*') %}{% if loop.index is even %}<span class="site-accent">{{ part }}</span>{% else %}{{ part }}{% endif %}{% endfor %}</h1>
+        {% if page.hero_teaser %}<p class="site-lead">{{ page.hero_teaser }}</p>{% endif %}
+        {% if tabs is not empty %}<div class="site-actions site-actions-center"><a class="site-btn site-btn-primary" href="#offers">{{ i.icon('arrow-right') }} {{ 'View offers'|t }}</a>{% if faq is not empty %}<a class="site-btn site-btn-ghost" href="#faq">{{ 'Frequently asked questions'|t }}</a>{% endif %}</div>{% endif %}
+    </div>
+</section>
+
+{% if intro %}
+<section class="site-section site-section-tight">
+    <div class="site-container site-narrow site-markdown">{{ intro }}</div>
+</section>
+{% endif %}
+
+{% if features is not empty %}
+<section class="site-section site-section-alt site-benefits">
+    <div class="site-container">
+        <div class="site-benefit-grid">
+            {% for feature in features %}<div class="site-benefit"><h3>{{ feature.title }}</h3>{% if feature.text %}<p>{{ feature.text }}</p>{% endif %}</div>{% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if tabs is not empty %}
+<section class="site-section site-section-products" id="offers">
+    <div class="site-container">{% include 'website/_landing_tabs.twig' %}</div>
+</section>
+{% endif %}
+
+{% if faq is not empty %}
+<section class="site-section site-section-alt" id="faq">
+    <div class="site-container site-narrow">
+        <div class="site-heading"><h2>{{ 'Frequently asked questions'|t }}</h2></div>
+        <div class="site-faq">
+            {% for entry in faq %}
+            <details class="site-faq-item"{% if loop.first %} open{% endif %}>
+                <summary>{{ entry.question }}</summary>
+                <div class="site-faq-answer"><p>{{ entry.answer|nl2br }}</p></div>
+            </details>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

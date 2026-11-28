@@ -1,0 +1,37 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Newsletter'|t }}{% endblock %}
+{% block content %}
+{% set states = {draft: 'draft', sending: 'sending', sent: 'sent', cancelled: 'cancelled'} %}
+<div class="page-header">
+    <div><h1>{{ 'Newsletter'|t }}</h1><p class="muted">{{ 'Campaigns go to confirmed subscribers only (double opt-in). Every newsletter contains an unsubscribe link and one-click unsubscribe headers.'|t }}</p></div>
+    <div class="actions">
+        <a class="btn btn-outline" href="/admin/newsletter/subscribers">{{ 'Subscribers'|t }}</a>
+        {% if can('newsletter.manage') %}<a class="btn btn-primary" href="/admin/newsletter/campaigns/create">{{ 'New campaign'|t }}</a>{% endif %}
+    </div>
+</div>
+{% if not enabled %}<div class="alert alert-info">{{ 'The newsletter sign-up is switched off. Switch it on in Settings → Marketing.'|t }}</div>{% endif %}
+<div class="grid grid-3">
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Confirmed'|t }}</div><div class="stat-value">{{ counts.confirmed }}</div></div></div>
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Waiting for confirmation'|t }}</div><div class="stat-value">{{ counts.pending }}</div></div></div>
+    <div class="card"><div class="card-body"><div class="muted small">{{ 'Unsubscribed'|t }}</div><div class="stat-value">{{ counts.unsubscribed }}</div></div></div>
+</div>
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Campaigns'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Subject'|t }}</th><th>{{ 'Status'|t }}</th><th class="text-right">{{ 'Recipients'|t }}</th><th class="text-right">{{ 'Queued'|t }}</th><th class="text-right">{{ 'Delivered'|t }}</th><th class="text-right">{{ 'Failed'|t }}</th><th>{{ 'Started'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in campaigns %}
+            <tr>
+                <td><a href="/admin/newsletter/campaigns/{{ c.id }}">{{ c.subject }}</a></td>
+                <td><span class="badge {{ c.status == 'sent' ? 'badge-success' : (c.status == 'sending' ? 'badge-info' : (c.status == 'cancelled' ? 'badge-warning' : 'badge-neutral')) }}">{{ states[c.status]|default(c.status)|t }}</span></td>
+                <td class="text-right">{{ c.status == 'draft' ? '–' : c.recipients }}</td>
+                <td class="text-right">{{ c.status == 'draft' ? '–' : c.queued_count }}</td>
+                <td class="text-right">{{ c.mails ? c.mails.delivered : '–' }}</td>
+                <td class="text-right">{{ c.mails ? c.mails.failed : '–' }}</td>
+                <td class="nowrap small">{{ c.started_at|dt }}</td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No campaigns yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

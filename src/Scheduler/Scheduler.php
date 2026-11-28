@@ -65,6 +65,8 @@ class Scheduler
         private readonly \Nebrix\Provisioning\DomainRenewals $domainRenewals,
         private readonly \Nebrix\Notification\StaffNotifier $staffNotifier,
         private readonly \Nebrix\Status\StatusSubscriptions $statusSubscriptions,
+        private readonly \Nebrix\Marketing\ReviewInvitations $reviewInvitations,
+        private readonly \Nebrix\Marketing\Newsletter $newsletter,
     ) {
     }
 
@@ -118,6 +120,9 @@ class Scheduler
             'tax.recheck_vat_ids' => [60, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
             'notifications.staff_discord' => [1, fn (): string => sprintf('%d staff notification(s) queued', $this->staffNotifier->collect())],
             'status.subscriptions_cleanup' => [60, fn (): string => sprintf('%d expired status subscription(s) removed', $this->statusSubscriptions->purgeExpired())],
+            // Only customers who agreed (§ 7 UWG); off unless enabled in Settings → Marketing.
+            'reviews.invitations' => [60, fn (): string => sprintf('%d review invitation(s) sent', $this->reviewInvitations->sendDue())],
+            'newsletter.prune_unconfirmed' => [1440, fn (): string => sprintf('%d unconfirmed newsletter sign-up(s) removed', $this->newsletter->pruneUnconfirmed())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

@@ -1,0 +1,34 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Newsletter subscribers'|t }}{% endblock %}
+{% block content %}
+{% set states = {pending: 'Waiting for confirmation', confirmed: 'Confirmed', unsubscribed: 'Unsubscribed'} %}
+<div class="page-header">
+    <div><h1>{{ 'Newsletter subscribers'|t }}</h1><p class="muted"><a href="/admin/newsletter">&larr; {{ 'Newsletter'|t }}</a> · {{ 'Proof of consent: time and shortened IP address of the sign-up and of the confirmation.'|t }}</p></div>
+    {% if can('newsletter.export') %}<div class="actions"><a class="btn btn-outline" href="/admin/newsletter/subscribers/export{{ query({page: null}) }}">{{ 'Export CSV'|t }}</a></div>{% endif %}
+</div>
+<form method="get" action="/admin/newsletter/subscribers" class="filters card card-body">
+    {{ f.input('search', 'E-mail address', search, 'search', {maxlength: 100}) }}
+    {{ f.select('status', 'Status', states, status, {placeholder: 'All'}) }}
+    <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+</form>
+<div class="card mt-2">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'E-mail address'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Source'|t }}</th><th>{{ 'Signed up'|t }}</th><th>{{ 'Confirmed'|t }}</th><th>{{ 'Unsubscribed'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for s in subscribers %}
+            <tr>
+                <td>{{ s.email }}{% if s.user_id and can('customers.view') %} <a class="small" href="/admin/customers/{{ s.user_id }}">{{ 'customer'|t }}</a>{% endif %}</td>
+                <td><span class="badge {{ s.status == 'confirmed' ? 'badge-success' : (s.status == 'pending' ? 'badge-warning' : 'badge-neutral') }}">{{ states[s.status]|default(s.status)|t }}</span></td>
+                <td class="small">{{ (s.source == 'account' ? 'Customer account' : 'Website')|t }} · {{ s.locale|upper }}</td>
+                <td class="small nowrap">{{ s.requested_at|dt }}{% if s.requested_ip %}<div class="muted mono">{{ s.requested_ip }}</div>{% endif %}</td>
+                <td class="small nowrap">{{ s.confirmed_at|dt }}{% if s.confirmed_ip %}<div class="muted mono">{{ s.confirmed_ip }}</div>{% endif %}</td>
+                <td class="small nowrap">{{ s.unsubscribed_at|dt }}</td>
+                <td class="actions">{% if can('newsletter.manage') %}<form method="post" action="/admin/newsletter/subscribers/{{ s.id }}/delete" data-confirm="{{ 'Delete this address and its proof of consent permanently?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline text-danger" type="submit">{{ 'Delete'|t }}</button></form>{% endif %}</td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No subscribers found.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% include 'partials/pagination.twig' %}
+{% endblock %}

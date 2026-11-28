@@ -1,13 +1,17 @@
 {% import 'macros/icons.twig' as i %}
+{% set seo = seo|default({}) %}
 <!doctype html>
 <html lang="{{ locale }}" class="site">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="{% block robots %}{{ seo.noindex|default(false) ? 'noindex, nofollow' : 'index, follow' }}{% endblock %}">
     <title>{% block title %}{{ brand.name }}{% endblock %} · {{ brand.name }}</title>
-    <meta name="description" content="{% block description %}{{ 'Servers, game servers, TeamSpeak, webhosting and domains – set up automatically.'|t }}{% endblock %}">
+    <meta name="description" content="{% block description %}{{ seo.description|default('') ?: 'Servers, game servers, TeamSpeak, webhosting and domains – set up automatically.'|t }}{% endblock %}">
+    {% set seo_title %}{{ block('title') }}{% endset %}{% set seo_description %}{{ block('description') }}{% endset %}
+    {% include 'website/_seo_head.twig' with {seo_title: seo_title, seo_description: seo_description} %}
     <link rel="stylesheet" href="{{ asset('css/website.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/marketing.css') }}">
     <link rel="stylesheet" href="/branding.css">
     {% if brand.favicon %}<link rel="icon" href="{{ brand.favicon }}">{% endif %}
     <script src="{{ asset('js/website.js') }}" defer></script>
@@ -55,6 +59,7 @@
                 </div>
             </div>
             {% endif %}
+            {% if setting('blog.enabled') %}<a class="site-link{{ current_path starts with '/blog' ? ' is-active' : '' }}" href="/blog">{{ i.icon('file') }}<span>{{ 'Blog'|t }}</span></a>{% endif %}
             <div class="site-dropdown">
                 <button class="site-link{{ current_path == '/about' ? ' is-active' : '' }}" type="button" aria-haspopup="true">{{ i.icon('users') }}<span>{{ 'About us'|t }}</span>{{ i.icon('chevron', 'site-caret') }}</button>
                 <div class="site-dropdown-menu">
@@ -76,6 +81,7 @@
 {% block content %}{% endblock %}
 </main>
 <footer class="site-footer">
+    {% if setting('newsletter.enabled') and current_path != '/newsletter' %}{% include 'website/_newsletter_footer.twig' %}{% endif %}
     <div class="site-container site-footer-grid">
         <div>
             <a class="site-brand" href="/">{% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="site-brand-mark">{{ brand.name|first|upper }}</span><span>{{ brand.name }}</span>{% endif %}</a>
@@ -91,6 +97,8 @@
             <h3>{{ brand.name }}</h3>
             <ul>
                 {% if about_page %}<li><a href="/about">{{ 'About us'|t }}</a></li>{% endif %}
+                {% if setting('blog.enabled') %}<li><a href="/blog">{{ 'Blog'|t }}</a></li>{% endif %}
+                {% if setting('newsletter.enabled') %}<li><a href="/newsletter">{{ 'Newsletter'|t }}</a></li>{% endif %}
                 <li><a href="/status">{{ 'Service status'|t }}</a></li>
                 {% if setting('support.help_center_enabled') %}<li><a href="/help">{{ 'Help center'|t }}</a></li>{% endif %}
                 <li><a href="{{ auth_user ? '/dashboard' : '/login' }}">{{ 'Customer area'|t }}</a></li>
