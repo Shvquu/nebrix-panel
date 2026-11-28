@@ -161,6 +161,28 @@ final class LexofficeSyncTest extends FeatureTestCase
         self::assertStringNotContainsString('test-key-123', $error);
     }
 
+    public function testFinanceSettingsPageStoresTheApiKeyEncrypted(): void
+    {
+        $this->actingAs($this->createUser(Role::FINANCE));
+        self::assertSame(403, $this->get('/admin/settings/finance')->status(), 'finance.settings is not part of the finance role.');
+
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $page = $this->get('/admin/settings/finance')->body();
+        foreach (['DATEV consultant number', 'lexoffice API key', 'Book clear matches automatically', 'Customers can redeem gift cards', 'Enable the partner program', 'Assign customer groups automatically'] as $label) {
+            self::assertStringContainsString($label, $page);
+        }
+        self::assertStringNotContainsString('test-key-123', $page, 'Secrets are never sent back.');
+        $this->post('/admin/settings/finance', ['group' => 'lexoffice', 'lexoffice__enabled' => '1', 'lexoffice__api_key' => 'new-secret-key', 'lexoffice__category_standard' => '8f8664a8-fd86-11e1-a21f-0800200c9a66']);
+        $stored = (string) $this->db->fetchValue("SELECT `value` FROM `nx_settings` WHERE `key` = 'lexoffice.api_key'");
+        self::assertNotSame('', $stored);
+        self::assertStringNotContainsString('new-secret-key', $stored);
+        $this->settings->flush();
+        self::assertSame('new-secret-key', $this->settings->get('lexoffice.api_key'));
+        $audit = (string) $this->db->fetchValue("SELECT `details` FROM `nx_audit_log` WHERE `action` = 'settings.updated' ORDER BY `id` DESC LIMIT 1");
+        self::assertStringContainsString('lexoffice.api_key', $audit);
+        self::assertStringNotContainsString('new-secret-key', $audit);
+    }
+
     public function testFailedTransfersStopAfterTenAttemptsUnlessSyncedManually(): void
     {
         $invoice = $this->order($this->customer('DE'));

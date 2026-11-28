@@ -126,8 +126,9 @@ class PaymentService
         }
         $category = (string) ($invoice['tax_category'] ?? '');
         $home = strtoupper($this->settings->string('tax.home_country') ?: 'DE');
-        // Reverse charge (VAT ID) and small-business invoices do not depend on the consumer's location.
-        $consumer = !in_array($category, ['AE', 'E'], true);
+        // Reverse charge (VAT ID) and small-business invoices do not depend on the consumer's location,
+        // nor does the sale of a gift card (not a taxable supply; VAT follows when the credit is used).
+        $consumer = !in_array($category, ['AE', 'E'], true) && $invoice['type'] !== InvoiceRepository::TYPE_GIFT_CARD;
         $conflict = $consumer && ($billing !== '' ? $billing !== $country : $country !== $home);
         try {
             $this->db->update('nx_invoices', ['payment_country' => $country, 'location_conflict' => $conflict ? 1 : 0], ['id' => (int) $invoice['id']]);
