@@ -81,6 +81,7 @@
 {% block content %}{% endblock %}
 </main>
 <footer class="site-footer">
+    {% if setting('newsletter.enabled') and current_path != '/newsletter' %}{% include 'website/_newsletter_footer.twig' %}{% endif %}
     <div class="site-container site-footer-grid">
         <div>
             <a class="site-brand" href="/">{% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="site-brand-mark">{{ brand.name|first|upper }}</span><span>{{ brand.name }}</span>{% endif %}</a>
@@ -97,6 +98,7 @@
             <ul>
                 {% if about_page %}<li><a href="/about">{{ 'About us'|t }}</a></li>{% endif %}
                 {% if setting('blog.enabled') %}<li><a href="/blog">{{ 'Blog'|t }}</a></li>{% endif %}
+                {% if setting('newsletter.enabled') %}<li><a href="/newsletter">{{ 'Newsletter'|t }}</a></li>{% endif %}
                 <li><a href="/status">{{ 'Service status'|t }}</a></li>
                 <li><a href="{{ auth_user ? '/dashboard' : '/login' }}">{{ 'Customer area'|t }}</a></li>
                 {% if brand.support_email %}<li><a href="mailto:{{ brand.support_email }}">{{ brand.support_email }}</a></li>{% endif %}

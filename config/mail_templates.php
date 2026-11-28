@@ -160,4 +160,22 @@ return [
         'subject' => 'Test e-mail from {{ company_name }}',
         'html' => '<p>This is a test message. Your SMTP settings work.</p>',
     ],
+    'review_invitation' => [
+        'name' => 'Review invitation (only with consent)',
+        'variables' => ['name', 'review_url', 'optout_url'],
+        'subject' => 'How do you like {{ company_name }}?',
+        'html' => '<p>Hello {{ name }},</p><p>you have been using our services for a while now. We would be grateful if you shared your experience – it only takes a minute:</p><p><a class="button" href="{{ review_url }}">Write a review on Trustpilot</a></p><p>Your honest opinion helps other customers and helps us improve. Thank you!</p><p><small>You receive this one-time e-mail because you agreed to review invitations. You can withdraw your consent at any time: <a href="{{ optout_url }}">no more review invitations</a>.</small></p>',
+    ],
+    'newsletter_confirm' => [
+        'name' => 'Newsletter: confirm subscription (double opt-in)',
+        'variables' => ['confirm_url', 'expires_hours'],
+        'subject' => 'Please confirm your newsletter subscription',
+        'html' => '<p>Hello,</p><p>please confirm that you want to receive the newsletter of {{ company_name }} at this e-mail address:</p><p><a class="button" href="{{ confirm_url }}">Confirm subscription</a></p><p>The link is valid for {{ expires_hours }} hours. If you did not request the newsletter, simply ignore this e-mail – you will not receive any newsletter.</p>',
+    ],
+    'newsletter' => [
+        'name' => 'Newsletter (frame of every campaign)',
+        'variables' => ['subject', 'content', 'unsubscribe_url'],
+        'subject' => '{{ subject }}',
+        'html' => '{{ content }}<hr><p><small>You receive this newsletter because you subscribed to it at {{ company_name }}. <a href="{{ unsubscribe_url }}">Unsubscribe</a></small></p>',
+    ],
 ];

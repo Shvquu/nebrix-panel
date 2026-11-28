@@ -1,0 +1,34 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'E-mail preferences'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'E-mail preferences'|t }}</h1><p class="muted">{{ 'Decide which optional e-mails you would like to receive. E-mails about your contracts, invoices and security are always sent.'|t }}</p></div></div>
+<form method="post" action="/account/communication" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="card-body">
+            {% if not newsletter_available and not reviews_available %}<p class="muted">{{ 'There are no optional e-mails at the moment.'|t }}</p>{% endif %}
+            {% if newsletter_available %}
+            <input type="hidden" name="newsletter_shown" value="1">
+            <div class="form-row">
+                <label class="checkbox">
+                    <input type="checkbox" name="newsletter" value="1"{% if subscription and subscription.status == 'confirmed' %} checked{% endif %}>
+                    <span><strong>{{ 'Newsletter'|t }}</strong><span class="help d-block">{{ newsletter_text }}</span>
+                    {% if subscription and subscription.status == 'confirmed' %}<span class="help d-block">{{ 'Subscribed since :date.'|t({date: subscription.confirmed_at|dt}) }}</span>{% elseif subscription and subscription.status == 'pending' %}<span class="help d-block">{{ 'Waiting for your confirmation – please use the link in the e-mail we sent you.'|t }}</span>{% endif %}</span>
+                </label>
+            </div>
+            {% endif %}
+            {% if reviews_available %}
+            <input type="hidden" name="reviews_shown" value="1">
+            <div class="form-row">
+                <label class="checkbox">
+                    <input type="checkbox" name="review_invitations" value="1"{% if consent %} checked{% endif %}>
+                    <span><strong>{{ 'Review invitations'|t }}</strong><span class="help d-block">{{ review_text }}</span>
+                    {% if consent %}<span class="help d-block">{{ 'Agreed on :date.'|t({date: consent.granted_at|dt}) }}</span>{% endif %}</span>
+                </label>
+            </div>
+            {% endif %}
+        </div>
+        {% if newsletter_available or reviews_available %}<div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+    </div>
+</form>
+{% endblock %}

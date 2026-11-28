@@ -151,6 +151,7 @@ final class StoreController extends Controller
         }
 
         $this->audit($request, 'order.placed', 'order', $result['order_id'], ['product' => (int) $product['id'], 'coupon' => $coupon !== '' ? CouponService::normalize($coupon) : null]);
+        $this->container->get(\Nebrix\Marketing\ReviewInvitations::class)->consentFromForm($request, $user->id, 'checkout');
         $this->flash($request, 'success', $result['paid']
             ? 'Thank you for your order! Your service is being set up.'
             : 'Thank you for your order! Please pay the invoice to start the setup.');

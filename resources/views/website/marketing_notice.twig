@@ -1,0 +1,49 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{# Confirmation pages of e-mail links: newsletter confirmation and unsubscribe, review invitation opt-out.
+   kind: newsletter_confirm | newsletter_unsubscribe | reviews; state: confirm | done | invalid #}
+{% set texts = {
+    newsletter_confirm: {
+        title: 'Confirm your newsletter subscription',
+        confirm: 'Please confirm that you want to receive our newsletter. You can unsubscribe at any time via the link in every newsletter.',
+        button: 'Confirm subscription',
+        done: 'Thank you! Your subscription is confirmed. You will receive our next newsletter.',
+        invalid: 'This confirmation link is invalid or has expired. Please subscribe again.',
+    },
+    newsletter_unsubscribe: {
+        title: 'Unsubscribe from the newsletter',
+        confirm: 'Do you no longer want to receive our newsletter? Unsubscribe with one click.',
+        button: 'Unsubscribe',
+        done: 'You have been unsubscribed and will not receive any more newsletters.',
+        invalid: 'This link is invalid. If you still receive newsletters, use the link in the latest e-mail or contact us.',
+    },
+    reviews: {
+        title: 'Review invitations',
+        confirm: 'Do you no longer want to be invited to write a review? Withdraw your consent with one click.',
+        button: 'No more review invitations',
+        done: 'Your consent has been withdrawn. We will not send you any review invitations.',
+        invalid: 'This link is invalid.',
+    },
+} %}
+{% set t = texts[kind] %}
+{% block title %}{{ t.title|t }}{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+{% block content %}
+<section class="site-section">
+    <div class="site-container site-narrow">
+        <div class="site-card site-notice">
+            <span class="site-icon-round">{{ i.icon(state == 'done' ? 'check' : (state == 'invalid' ? 'alert' : 'mail')) }}</span>
+            <h1>{{ t.title|t }}</h1>
+            <p class="site-muted">{{ t[state]|t }}</p>
+            {% if state == 'confirm' %}
+            <form method="post" action="{{ action }}">
+                {{ csrf_field() }}
+                {% if token is defined and token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
+                <button class="site-btn site-btn-primary" type="submit">{{ t.button|t }}</button>
+            </form>
+            {% endif %}
+            <p class="site-small"><a class="site-accent" href="/">{{ 'To the start page'|t }}</a></p>
+        </div>
+    </div>
+</section>
+{% endblock %}

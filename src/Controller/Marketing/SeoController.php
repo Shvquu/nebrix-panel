@@ -29,7 +29,7 @@ final class SeoController extends Controller
 {
     /** Areas that are never indexed (listed explicitly in addition to "Disallow: /"). */
     private const PRIVATE_AREAS = ['/admin', '/api/', '/account', '/dashboard', '/services', '/invoices', '/orders', '/tickets', '/store',
-        '/transactions', '/login', '/register', '/password', '/two-factor', '/email', '/logout', '/webhooks', '/r/'];
+        '/transactions', '/login', '/register', '/password', '/two-factor', '/email', '/logout', '/webhooks', '/r/', '/newsletter/confirm', '/newsletter/unsubscribe', '/reviews/'];
 
     public function __construct(
         private readonly WebsiteCatalog $catalog,
@@ -109,6 +109,9 @@ final class SeoController extends Controller
             $lines[] = 'Allow: /about';
             if ($this->settings->bool('blog.enabled')) {
                 $lines[] = 'Allow: /blog';
+            }
+            if ($this->settings->bool('newsletter.enabled')) {
+                $lines[] = 'Allow: /newsletter$';
             }
             $lines[] = 'Allow: /media/';
             foreach ($this->landingPages->published() as $page) {

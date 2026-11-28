@@ -170,17 +170,28 @@ final class MarketingSeoTest extends FeatureTestCase
             $c->get(\Nebrix\View\Translator::class),
             $config->string('paths.public') . '/assets',
         ));
-        $this->settings->set('blog.enabled', true);
+        foreach (['blog.enabled', 'newsletter.enabled', 'reviews.enabled'] as $key) {
+            $this->settings->set($key, true);
+        }
+        $this->settings->set('reviews.review_url', 'https://de.trustpilot.com/evaluate/nebrix.test');
         $this->teamspeak();
         $landing = $this->db->insert('nx_landing_pages', ['slug' => 'teamspeak-server-mieten', 'status' => 'published', 'hero_title' => 'TeamSpeak', 'website_page' => 'teamspeak', 'faq' => "Frage?\nAntwort.", 'created_at' => '2026-11-01 00:00:00', 'updated_at' => '2026-11-01 00:00:00']);
         $post = $this->db->insert('nx_blog_posts', ['slug' => 'hallo', 'title' => 'Hallo', 'body' => 'Text', 'status' => 'published', 'published_at' => '2026-11-01 00:00:00', 'created_at' => '2026-11-01 00:00:00', 'updated_at' => '2026-11-01 00:00:00']);
+        $subscriber = $this->db->insert('nx_newsletter_subscribers', ['email' => 'a@example.test', 'locale' => 'en', 'status' => 'confirmed', 'source' => 'website', 'created_at' => '2026-11-01 00:00:00', 'updated_at' => '2026-11-01 00:00:00']);
+        $campaign = $this->db->insert('nx_newsletter_campaigns', ['subject' => 'Hi', 'body' => 'Text', 'audience' => 'all', 'status' => 'draft', 'created_at' => '2026-11-01 00:00:00', 'updated_at' => '2026-11-01 00:00:00']);
+        unset($subscriber);
 
-        foreach (['/', '/products/teamspeak', '/teamspeak-server-mieten', '/blog', '/blog/hallo'] as $path) {
-            self::assertSame(200, $this->get($path)->status(), $path . ' did not render.');
+        foreach (['/', '/products/teamspeak', '/teamspeak-server-mieten', '/blog', '/blog/hallo', '/newsletter', '/register', '/newsletter/confirm/' . str_repeat('a', 64), '/newsletter/unsubscribe/' . str_repeat('a', 64), '/reviews/opt-out/' . str_repeat('a', 64)] as $path) {
+            $status = $this->get($path)->status();
+            self::assertContains($status, [200, 404], $path);
+            self::assertTrue($status === 200 || str_contains($path, '/' . str_repeat('a', 64)), $path . ' did not render.');
         }
+        $this->actingAs($this->createUser());
+        self::assertSame(200, $this->get('/account/communication')->status());
         $this->actingAs($this->createUser(Role::SUPER_ADMIN));
         foreach (['/admin/landing-pages', '/admin/landing-pages/create', '/admin/landing-pages/' . $landing, '/admin/landing-pages/' . $landing . '/preview',
-            '/admin/blog', '/admin/blog/create', '/admin/blog/' . $post, '/admin/blog/' . $post . '/preview', '/admin/settings/marketing', '/admin'] as $path) {
+            '/admin/blog', '/admin/blog/create', '/admin/blog/' . $post, '/admin/blog/' . $post . '/preview', '/admin/newsletter', '/admin/newsletter/subscribers',
+            '/admin/newsletter/campaigns/create', '/admin/newsletter/campaigns/' . $campaign, '/admin/settings/marketing', '/admin'] as $path) {
             $response = $this->get($path);
             self::assertSame(200, $response->status(), $path . ': ' . strip_tags(substr($response->body(), 0, 300)));
         }

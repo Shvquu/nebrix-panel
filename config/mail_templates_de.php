@@ -108,4 +108,16 @@ return [
         'subject' => 'Test-E-Mail von {{ company_name }}',
         'html' => '<p>Dies ist eine Testnachricht. Ihre SMTP-Einstellungen funktionieren.</p>',
     ],
+    'review_invitation' => [
+        'subject' => 'Wie zufrieden sind Sie mit {{ company_name }}?',
+        'html' => '<p>Hallo {{ name }},</p><p>Sie nutzen unsere Dienste nun schon eine Weile. Wir würden uns freuen, wenn Sie Ihre Erfahrungen teilen – es dauert nur eine Minute:</p><p><a class="button" href="{{ review_url }}">Bewertung auf Trustpilot schreiben</a></p><p>Ihre ehrliche Meinung hilft anderen Kunden und hilft uns, besser zu werden. Vielen Dank!</p><p><small>Sie erhalten diese einmalige E-Mail, weil Sie Bewertungseinladungen zugestimmt haben. Sie können Ihre Einwilligung jederzeit widerrufen: <a href="{{ optout_url }}">keine Bewertungseinladungen mehr</a>.</small></p>',
+    ],
+    'newsletter_confirm' => [
+        'subject' => 'Bitte bestätigen Sie Ihre Newsletter-Anmeldung',
+        'html' => '<p>Hallo,</p><p>bitte bestätigen Sie, dass Sie den Newsletter von {{ company_name }} an diese E-Mail-Adresse erhalten möchten:</p><p><a class="button" href="{{ confirm_url }}">Anmeldung bestätigen</a></p><p>Der Link ist {{ expires_hours }} Stunden gültig. Falls Sie den Newsletter nicht angefordert haben, ignorieren Sie diese E-Mail einfach – Sie erhalten dann keinen Newsletter.</p>',
+    ],
+    'newsletter' => [
+        'subject' => '{{ subject }}',
+        'html' => '{{ content }}<hr><p><small>Sie erhalten diesen Newsletter, weil Sie ihn bei {{ company_name }} abonniert haben. <a href="{{ unsubscribe_url }}">Abmelden</a></small></p>',
+    ],
 ];

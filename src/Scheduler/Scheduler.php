@@ -62,6 +62,8 @@ class Scheduler
         private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
         private readonly \Nebrix\Cache\SecureCache $cache,
         private readonly \Nebrix\Provisioning\DomainRenewals $domainRenewals,
+        private readonly \Nebrix\Marketing\ReviewInvitations $reviewInvitations,
+        private readonly \Nebrix\Marketing\Newsletter $newsletter,
     ) {
     }
 
@@ -108,6 +110,9 @@ class Scheduler
                 return sprintf('%d referral(s) qualified, %d rewarded, %d reset after a refund, %d reward(s) reversed', $result['qualified'], $result['rewarded'], $result['reset'], $result['reversed']);
             }],
             'tax.recheck_vat_ids' => [60, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
+            // Only customers who agreed (§ 7 UWG); off unless enabled in Settings → Marketing.
+            'reviews.invitations' => [60, fn (): string => sprintf('%d review invitation(s) sent', $this->reviewInvitations->sendDue())],
+            'newsletter.prune_unconfirmed' => [1440, fn (): string => sprintf('%d unconfirmed newsletter sign-up(s) removed', $this->newsletter->pruneUnconfirmed())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

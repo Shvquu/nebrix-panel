@@ -34,8 +34,9 @@
             {% if can('invoices.view') %}{{ m.link('/admin/invoices', 'Invoices', 'invoice') }}{% endif %}
             {% if can('transactions.view') %}{{ m.link('/admin/transactions', 'Transactions', 'transactions') }}{{ m.link('/admin/payments/webhooks', 'Payment events', 'bell') }}{% endif %}
 
-            {% if can('content.view') %}<div class="p-nav-section">{{ 'Marketing'|t }}</div>{% endif %}
+            {% if can('content.view') or can('newsletter.view') %}<div class="p-nav-section">{{ 'Marketing'|t }}</div>{% endif %}
             {% if can('content.view') %}{{ m.link('/admin/landing-pages', 'Landing pages', 'layers') }}{{ m.link('/admin/blog', 'Blog', 'file') }}{% endif %}
+            {% if can('newsletter.view') %}{{ m.link('/admin/newsletter', 'Newsletter', 'mail') }}{% endif %}
 
             {% if can('integrations.view') or can('jobs.view') %}<div class="p-nav-section">{{ 'Infrastructure'|t }}</div>{% endif %}
             {% if can('integrations.view') %}{{ m.link('/admin/integrations', 'Integrations', 'plug') }}{{ m.link('/admin/ip-pools', 'IP pools', 'network') }}{% endif %}

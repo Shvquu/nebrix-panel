@@ -1,0 +1,9 @@
+{# Optional consent to review invitations by e-mail (§ 7 UWG) at registration and order: never ticked in advance.
+   Shown while review invitations are switched on (Settings → Marketing). #}
+{% if setting('reviews.enabled') and setting('reviews.review_url') %}
+<div class="form-row">
+    <label class="checkbox"><input type="checkbox" name="review_consent" value="1">
+        <span>{{ 'Yes, :brand may invite me once by e-mail to review my experience (e.g. on Trustpilot). I can withdraw this consent at any time.'|t({brand: brand.name}) }} <span class="muted small">({{ 'optional'|t }})</span></span>
+    </label>
+</div>
+{% endif %}

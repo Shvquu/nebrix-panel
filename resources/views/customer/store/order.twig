@@ -79,6 +79,7 @@
                     <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"> <span>{{ 'I accept the'|t }} {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}.</span></label>
                     {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
                 </div>
+                {% include 'marketing/_review_consent.twig' %}
             </div>
             <div class="card-footer"><button class="btn btn-primary btn-block" type="submit">{{ 'Order with obligation to pay'|t }}</button></div>
         </div>
