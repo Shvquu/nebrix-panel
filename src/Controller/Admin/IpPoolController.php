@@ -97,7 +97,7 @@ final class IpPoolController extends Controller
     {
         $this->authorize($request, Permission::INTEGRATIONS_MANAGE);
         $this->pools->find($id) ?? throw HttpException::notFound();
-        if ((int) $this->db->fetchValue("SELECT COUNT(*) FROM `nx_products` WHERE JSON_EXTRACT(`provisioning_config`, '$.ip_pool_id') = ?", [$id]) > 0) {
+        if ((int) $this->db->fetchValue("SELECT COUNT(*) FROM `nx_products` WHERE (JSON_EXTRACT(`provisioning_config`, '$.ip_pool_id') = ? OR JSON_EXTRACT(`provisioning_config`, '$.ip6_pool_id') = ?)", [$id, $id]) > 0) {
             $this->flash($request, 'error', 'The pool is still used by a product.');
 
             return $this->redirect('/admin/ip-pools/' . $id);

@@ -69,9 +69,14 @@
     {% set err = error(name) %}
     <div class="form-row">
         <label for="f-{{ name }}">{{ label|t }}</label>
+        {% if attrs.multiline|default(false) %}
+        <textarea id="f-{{ name }}" name="{{ name }}" rows="4" autocomplete="off" spellcheck="false" class="mono {{ err ? 'is-invalid' : '' }}"
+               placeholder="{{ is_set ? '•••••••• (' ~ ('stored – leave empty to keep'|t) ~ ')' : ('not set'|t) }}"></textarea>
+        {% else %}
         <input id="f-{{ name }}" type="password" name="{{ name }}" autocomplete="new-password" value=""
                placeholder="{{ is_set ? '•••••••• (' ~ ('stored – leave empty to keep'|t) ~ ')' : ('not set'|t) }}"
                class="{{ err ? 'is-invalid' : '' }}">
+        {% endif %}
         {% if is_set %}
             <label class="checkbox secret-state"><input type="checkbox" name="{{ name }}__clear" value="1"> {{ 'Remove stored value'|t }}</label>
         {% endif %}

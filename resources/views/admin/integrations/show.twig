@@ -25,6 +25,21 @@
         <div class="card-footer"><form method="post" action="/admin/integrations/{{ integration.id }}/delete" data-confirm="{{ 'Delete this integration? Products using it will no longer be provisioned automatically.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete integration'|t }}</button></form></div>
         {% endif %}
     </div>
+    {% if lxc_ssh is not null %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'LXC root passwords'|t }}</h2></div>
+        <div class="card-body">
+            {% if not lxc_ssh.enabled %}
+                <p class="small muted">{{ 'Off: containers get a new root password only with a reinstall. Enter SSH access to the nodes under Edit to let customers reset it directly.'|t }}</p>
+            {% elseif lxc_ssh.authorized_keys %}
+                <p class="small">{{ 'On every node: install the script resources/proxmox/nebrix-lxc-passwd as %s (owner root, mode 0755) and add this line to /root/.ssh/authorized_keys. The key can only run that script.'|t|format(lxc_ssh.command) }}</p>
+                <pre class="mono small wrap">{{ lxc_ssh.authorized_keys }}</pre>
+            {% else %}
+                <p class="small muted">{{ 'The SSH key is created when the integration is saved.'|t }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
     {% if wipes is not null %}
     {% set wipe_labels = {pending: 'Waiting', booting: 'Booting rescue system', running: 'Wiping', done: 'Wiped', failed: 'Failed'} %}
     <div class="card">

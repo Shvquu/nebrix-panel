@@ -34,6 +34,7 @@ final class IntegrationController extends Controller
         private readonly UrlGuard $guard,
         private readonly Connection $db,
         private readonly \Nebrix\Provisioning\HetznerWipeService $wipes,
+        private readonly \Nebrix\Integration\Proxmox\NodeShell $nodeShell,
     ) {
     }
 
@@ -67,6 +68,7 @@ final class IntegrationController extends Controller
         [$name, $enabled, $config, $secrets] = $this->validated($request, $type, null);
         $id = $this->integrations->create($type, $name, $enabled, $config, array_filter($secrets, static fn ($v): bool => $v !== null));
         $this->audit($request, 'integration.created', 'integration', $id, ['type' => $type, 'name' => $name]);
+        $this->createGeneratedKeys($id);
 
         $result = $this->manager->testConnection($this->manager->get($id));
         $this->flash($request, $result->isHealthy() ? 'success' : 'warning', sprintf('Integration saved. Connection test: %s – %s', $result->status, $result->message));
@@ -93,6 +95,7 @@ final class IntegrationController extends Controller
             'enabled' => $enabled,
             'secrets_changed' => array_keys($secrets),
         ]);
+        $this->createGeneratedKeys($id);
         $this->flash($request, 'success', 'Integration saved.');
 
         return $this->redirect('/admin/integrations/' . $id);
@@ -147,7 +150,30 @@ final class IntegrationController extends Controller
             'page' => $page,
             'wipes' => $integration->type === IntegrationType::HETZNER_ROBOT ? $this->wipes->forIntegration($id) : null,
             'auto_wipe' => (bool) $integration->config('auto_wipe', false),
+            'lxc_ssh' => $integration->type === IntegrationType::PROXMOX ? [
+                'enabled' => trim((string) $integration->config('lxc_ssh_nodes', '')) !== '',
+                'authorized_keys' => $this->nodeShell->authorizedKeysLine($integration),
+                'command' => \Nebrix\Integration\Proxmox\NodeShell::COMMAND_PATH,
+            ] : null,
         ]);
+    }
+
+    private static function isPrivateKey(#[\SensitiveParameter] string $value): bool
+    {
+        try {
+            return \phpseclib3\Crypt\PublicKeyLoader::load($value) instanceof \phpseclib3\Crypt\Common\PrivateKey;
+        } catch (\Throwable) {
+            return false; // also encrypted keys (no passphrase is ever stored)
+        }
+    }
+
+    /** Keys the panel creates itself (Proxmox node access). */
+    private function createGeneratedKeys(int $id): void
+    {
+        $integration = $this->integrations->find($id);
+        if ($integration !== null && $integration->type === IntegrationType::PROXMOX) {
+            $this->nodeShell->ensureKey($integration);
+        }
     }
 
     /** Hetzner: queue every server of the account that waits for a wipe. */
@@ -309,6 +335,28 @@ final class IntegrationController extends Controller
         if ($type === IntegrationType::HETZNER_ROBOT && !\Nebrix\Provisioning\HetznerRobotProvisioner::isSafePoolPrefix((string) $config['pool_prefix'])) {
             throw ValidationException::withMessages(['config_pool_prefix' => 'The prefix must not match "nebrix-service-" or "nebrix-wipe-" (names of assigned and returned servers).']);
         }
+        if ($type === IntegrationType::PROXMOX) {
+            try {
+                $nodes = \Nebrix\Integration\Proxmox\NodeShell::parseNodes((string) ($config['lxc_ssh_nodes'] ?? ''));
+            } catch (\InvalidArgumentException $exception) {
+                throw ValidationException::withMessages(['config_lxc_ssh_nodes' => $exception->getMessage()]);
+            }
+            try {
+                $hostKeys = \Nebrix\Integration\Proxmox\NodeShell::parseHostKeys((string) ($config['lxc_ssh_host_keys'] ?? ''));
+            } catch (\InvalidArgumentException $exception) {
+                throw ValidationException::withMessages(['config_lxc_ssh_host_keys' => $exception->getMessage()]);
+            }
+            if ($nodes !== [] && $hostKeys === []) {
+                throw ValidationException::withMessages(['config_lxc_ssh_host_keys' => 'Enter the SSH host keys of the nodes (ssh-keyscan output).']);
+            }
+            foreach ($nodes as $node => $target) {
+                try {
+                    $this->guard->validateHost($target['host']);
+                } catch (UnsafeUrlException $exception) {
+                    throw ValidationException::withMessages(['config_lxc_ssh_nodes' => sprintf('%s: %s', $node, $exception->getMessage())]);
+                }
+            }
+        }
         if ($type === IntegrationType::TEAMSPEAK && (int) $config['port_min'] > (int) $config['port_max']) {
             throw ValidationException::withMessages(['config_port_max' => 'The last port must be greater than the first port.']);
         }
@@ -348,6 +396,10 @@ final class IntegrationController extends Controller
                 Validator::validate(['v' => $value], ['v' => $field['rules']], ['v' => $field['label']]);
             } catch (ValidationException $exception) {
                 $errors['secret_' . $key] = [$exception->first()];
+                continue;
+            }
+            if (($field['format'] ?? '') === 'ssh_private_key' && !self::isPrivateKey($value)) {
+                $errors['secret_' . $key] = ['Paste an unencrypted private SSH key (OpenSSH or PEM format).'];
                 continue;
             }
             $secrets[$key] = $value;

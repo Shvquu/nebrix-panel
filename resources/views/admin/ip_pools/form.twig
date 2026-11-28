@@ -9,7 +9,7 @@
         <div class="form-grid">
             {{ f.input('name', 'Name', '', 'text', {required: true}) }}
             {{ f.select('integration_id', 'Proxmox integration (optional)', integrations, '', {placeholder: '– any –'}) }}
-            {{ f.input('network', 'Network (CIDR)', '', 'text', {required: true, placeholder: '203.0.113.0/24', help: 'IPv4, /16 to /32. Network, broadcast and gateway addresses are never assigned.'}) }}
+            {{ f.input('network', 'Network (CIDR)', '', 'text', {required: true, placeholder: '203.0.113.0/24', help: 'IPv4 (/16 to /32; network, broadcast and gateway addresses are never assigned) or IPv6 (/48 to /128, e.g. 2001:db8:1::/64; single addresses, at most 4096 per pool, the gateway may be link-local such as fe80::1).'}) }}
             {{ f.input('gateway', 'Gateway', '', 'text', {required: true}) }}
             {{ f.input('first', 'First assignable address (optional)') }}
             {{ f.input('last', 'Last assignable address (optional)') }}

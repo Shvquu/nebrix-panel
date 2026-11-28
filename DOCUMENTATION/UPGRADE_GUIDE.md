@@ -132,6 +132,10 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to IPv6 pools and LXC root passwords
+
+No migration. IPv6 pools are created under Admin → IP pools and selected on VPS/LXC products (*IP pool for static IPv6 addresses*); existing products keep SLAAC. LXC root password resets stay off until you configure SSH access to the nodes on the Proxmox integration and install the forced command on every node ([INTEGRATIONS.md](INTEGRATIONS.md#lxc-root-passwords)).
+
 ### Updating to Hetzner disk wiping and the server auction
 
 This update adds the Composer dependency `phpseclib/phpseclib` (SSH to rescue systems) and migration `2026_11_29_000017_create_hetzner_wipes` (table `nx_hetzner_wipes`, additive). After pulling:

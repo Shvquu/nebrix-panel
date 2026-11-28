@@ -1,0 +1,57 @@
+#!/bin/sh
+# Nebrix panel – forced command for the panel's SSH key on a Proxmox VE node.
+#
+# Install as /usr/local/sbin/nebrix-lxc-passwd (root:root, mode 0755) and add the
+# line shown on the integration page to /root/.ssh/authorized_keys:
+#   restrict,command="/usr/local/sbin/nebrix-lxc-passwd" ssh-ed25519 AAAA... nebrix-lxc
+#
+# The key can then do exactly one thing: set the root password of a running
+# container on this node whose notes carry the line "nebrix-service-<id>" of the
+# requesting service. The password is read from standard input, never from the
+# command line.
+set -u
+set -f # no pathname expansion of the requested command
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+CONF_DIR=/etc/pve/lxc
+
+# shellcheck disable=SC2086 # word splitting of the requested command is intended
+set -- ${SSH_ORIGINAL_COMMAND:-}
+if [ "$#" -ne 3 ] || [ "$1" != "passwd" ]; then
+    echo "nebrix: command not allowed" >&2
+    exit 2
+fi
+VMID=$2
+SERVICE=$3
+case "$VMID" in ''|*[!0-9]*) echo "nebrix: invalid container ID" >&2; exit 2 ;; esac
+case "$SERVICE" in ''|*[!0-9]*) echo "nebrix: invalid service ID" >&2; exit 2 ;; esac
+
+CONF="$CONF_DIR/$VMID.conf"
+if [ ! -f "$CONF" ]; then
+    echo "nebrix: container $VMID is not on this node" >&2
+    exit 3
+fi
+# The notes are stored as comment lines at the top of the configuration (before snapshots).
+if ! awk '/^\[/ { exit } /^#/ { print substr($0, 2) }' "$CONF" | grep -Fqx "nebrix-service-$SERVICE"; then
+    echo "nebrix: container $VMID does not belong to service $SERVICE" >&2
+    exit 3
+fi
+if ! pct status "$VMID" | grep -q '^status: running$'; then
+    echo "nebrix: container $VMID is not running" >&2
+    exit 5
+fi
+
+IFS= read -r PASSWORD || true
+case "$PASSWORD" in
+    ''|*[!A-Za-z0-9]*) echo "nebrix: invalid password" >&2; exit 4 ;;
+esac
+if [ "${#PASSWORD}" -lt 12 ] || [ "${#PASSWORD}" -gt 128 ]; then
+    echo "nebrix: invalid password" >&2
+    exit 4
+fi
+
+if printf 'root:%s\n' "$PASSWORD" | pct exec "$VMID" -- chpasswd; then
+    echo "ok"
+    exit 0
+fi
+echo "nebrix: chpasswd failed in container $VMID" >&2
+exit 6

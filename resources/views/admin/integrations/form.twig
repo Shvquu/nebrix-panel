@@ -30,7 +30,7 @@
             <div class="card-body">
                 <div class="alert alert-info">{{ 'Credentials are encrypted and are never displayed again after saving. Leave a field empty to keep the stored value.'|t }}</div>
                 {% for key, field in definition.secrets %}
-                    {{ f.secret('secret_' ~ key, field.label, secrets_set[key], field.help is defined ? {help: field.help} : {}) }}
+                    {{ f.secret('secret_' ~ key, field.label, secrets_set[key], (field.help is defined ? {help: field.help} : {})|merge({multiline: field.format|default('') == 'ssh_private_key'})) }}
                 {% endfor %}
             </div>
         </div>

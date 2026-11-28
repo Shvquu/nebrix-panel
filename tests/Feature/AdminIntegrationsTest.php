@@ -147,6 +147,43 @@ final class AdminIntegrationsTest extends FeatureTestCase
         self::assertSame(404, $this->post('/admin/integrations/' . $other . '/wipes/' . $wipeId . '/retry')->status());
     }
 
+    public function testProxmoxNodeAccessNeedsHostKeysAndGetsAPanelKey(): void
+    {
+        $integrations = $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class);
+        $id = $integrations->create('proxmox', 'Cluster', true, ['base_url' => 'https://203.0.113.10:8006', 'token_id' => 'nebrix@pve!panel', 'verify_tls' => true], ['token_secret' => '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0']);
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $form = ['name' => 'Cluster', 'is_enabled' => '1', 'config_base_url' => 'https://203.0.113.10:8006', 'config_token_id' => 'nebrix@pve!panel', 'config_verify_tls' => '1', 'config_lxc_ssh_user' => 'root'];
+        $hostKey = '203.0.113.11 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBxKkqsQwyM4Ln1Fxocek342noZ8nQglRlAwXVIL1+qP';
+
+        self::assertStringContainsString('Off: containers get a new root password only with a reinstall', $this->get('/admin/integrations/' . $id)->body());
+        foreach ([
+            [['config_lxc_ssh_nodes' => 'pve1=203.0.113.11'], 'Enter the SSH host keys'],
+            [['config_lxc_ssh_nodes' => 'pve1 203.0.113.11', 'config_lxc_ssh_host_keys' => $hostKey], 'node=address'],
+            [['config_lxc_ssh_nodes' => 'pve1=169.254.169.254', 'config_lxc_ssh_host_keys' => $hostKey], 'blocked network range'],
+            [['config_lxc_ssh_nodes' => 'pve1=203.0.113.11', 'config_lxc_ssh_host_keys' => 'garbage'], 'not an SSH host key'],
+            [['config_lxc_ssh_nodes' => 'pve1=203.0.113.11', 'config_lxc_ssh_host_keys' => $hostKey, 'secret_lxc_ssh_key' => '-----BEGIN OPENSSH PRIVATE KEY-----broken'], 'unencrypted private SSH key'],
+        ] as [$input, $message]) {
+            $page = $this->followRedirect($this->post('/admin/integrations/' . $id, $input + $form))->body();
+            self::assertStringContainsString($message, html_entity_decode($page), $message);
+        }
+        self::assertSame('', (string) $integrations->find($id)?->config('lxc_ssh_nodes', ''));
+
+        $this->post('/admin/integrations/' . $id, ['config_lxc_ssh_nodes' => 'pve1=203.0.113.11', 'config_lxc_ssh_host_keys' => $hostKey] + $form);
+        $integration = $integrations->find($id);
+        self::assertNotNull($integration);
+        self::assertStringContainsString('OPENSSH PRIVATE KEY', $integration->secret('lxc_ssh_key'), 'The panel created its key.');
+        self::assertSame('0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0', $integration->secret('token_secret'), 'The API secret is kept.');
+        $page = html_entity_decode($this->get('/admin/integrations/' . $id)->body());
+        self::assertStringContainsString('restrict,command="/usr/local/sbin/nebrix-lxc-passwd" ssh-ed25519 ', $page);
+        self::assertStringNotContainsString('PRIVATE KEY', $page);
+        self::assertStringContainsString('<textarea id="f-secret_lxc_ssh_key"', $this->get('/admin/integrations/' . $id . '/edit')->body());
+
+        // A pasted key replaces the generated one.
+        $own = \Nebrix\Integration\Ssh\SecureShell::generateKey('own');
+        $this->post('/admin/integrations/' . $id, ['config_lxc_ssh_nodes' => 'pve1=203.0.113.11', 'config_lxc_ssh_host_keys' => $hostKey, 'secret_lxc_ssh_key' => $own['private']] + $form);
+        self::assertSame(trim($own['private']), trim((string) $integrations->find($id)?->secret('lxc_ssh_key')));
+    }
+
     public function testPagesRender(): void
     {
         $this->actingAs($this->createUser(Role::SUPER_ADMIN));

@@ -65,6 +65,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 
+### Added (Proxmox: IPv6 pools and LXC root passwords)
+- **Static IPv6** from IPv6 pools (single addresses of an on-link prefix, link-local gateways, up to 4096 per pool) for VPS and LXC, alongside IPv4 pools; SLAAC stays the default.
+- **LXC root password reset** without reinstalling (optional): SSH to the node with a panel-generated key restricted to the forced command `resources/proxmox/nebrix-lxc-passwd` (ownership marker checked on the node, password on stdin, pinned host keys).
+- Integration forms accept multi-line private SSH keys and check their format; customer-facing action messages are translated into German.
+
 ### Added (Hetzner: disk wiping and server auction)
 - **Automatic disk wiping** of returned Hetzner servers (opt-in per integration): rescue system with a panel-generated Ed25519 key only, pinned rescue host key, wipe script over SSH (*full*: NVMe format / SSD discard / HDD overwrite; *quick*: signatures and disk edges), progress log, 3 boot attempts, return to the pool only after a successful wipe; queue with retry on the integration page, scheduler task `hetzner.wipe`, migration `2026_11_29_000017`, new dependency `phpseclib/phpseclib` (SSH).
 - **Server auction** (*market* mode): buys the cheapest auction server within the product's maximum price, minimum memory/disk, CPU text and location; idempotent by order comment, next offer after a cancelled order (at most three), waits while nothing matches.
@@ -105,5 +110,5 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending. This includes Proxmox/Pterodactyl backups and the EU VIES service.
 - XRechnung files are validated against the CII XSD in the tests; the official EN 16931/XRechnung Schematron rules (KoSIT validator) have not been run yet.
 - Built-in EU VAT rates reflect the state of November 2026 and must be kept current (`tax.rate_overrides`). Tax and legal texts are technical defaults, not legal advice.
-- LXC root passwords can only be changed by reinstalling (no Proxmox API for it); IPv6 is assigned by SLAAC only.
+- The LXC password forced command was tested with a simulated `pct` and a local SSH server, not on a Proxmox node.
 - Hetzner: automatic disk wiping and server auction orders were tested against a simulated Robot API and a local SSH server, not on Hetzner hardware.

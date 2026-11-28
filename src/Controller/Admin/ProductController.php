@@ -245,7 +245,10 @@ final class ProductController extends Controller
     {
         foreach ($definition['config'] as $key => $field) {
             if (($field['options_source'] ?? null) === 'ip_pools') {
-                $definition['config'][$key]['options'] = $this->ipPools->options();
+                $definition['config'][$key]['options'] = $this->ipPools->options(4);
+            }
+            if (($field['options_source'] ?? null) === 'ip6_pools') {
+                $definition['config'][$key]['options'] = $this->ipPools->options(6);
             }
         }
 

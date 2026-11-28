@@ -102,12 +102,12 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
         self::fail('Provisioning did not finish.');
     }
 
-    private function container(?int $poolId, string $hostname): Service
+    private function container(?int $poolId, string $hostname, ?int $pool6Id = null): Service
     {
         return $this->createService($this->createUser(), 'lxc', $this->integrationId, [
             'ostemplate' => 'local:vztmpl/debian-12.tar.zst', 'storage' => 'local-lvm', 'cores' => 1, 'memory_mb' => 512, 'swap_mb' => 0,
             'disk_gb' => 8, 'bridge' => 'vmbr0', 'rate_mbps' => 0, 'unprivileged' => true, 'vmid_start' => 20000, 'node' => 'pve1',
-            'ip_pool_id' => $poolId, 'reinstall_templates' => "local:vztmpl/ubuntu-24.04.tar.zst|Ubuntu 24.04\ninvalid template|Nope",
+            'ip_pool_id' => $poolId, 'ip6_pool_id' => $pool6Id, 'reinstall_templates' => "local:vztmpl/ubuntu-24.04.tar.zst|Ubuntu 24.04\ninvalid template|Nope",
             '_options' => ['hostname' => $hostname],
         ]);
     }
@@ -148,6 +148,59 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
         self::assertSame('free', $this->db->fetchValue("SELECT status FROM nx_ip_addresses WHERE address = '203.0.113.2'"));
     }
 
+    public function testStaticIpv6AddressesComeFromAnIpv6Pool(): void
+    {
+        $pools = $this->app->container()->get(IpPoolService::class);
+        $v4 = $pools->createPool('Public FSN', '203.0.113.0/29', '203.0.113.1', '1.1.1.1', $this->integrationId);
+        $v6 = $pools->createPool('IPv6 FSN', '2001:db8:10:20::/64', 'fe80::1', '2606:4700:4700::1111, 1.1.1.1', $this->integrationId, '2001:db8:10:20::100', '2001:0db8:10:20::102');
+        self::assertSame(['2001:db8:10:20::100', '2001:db8:10:20::101', '2001:db8:10:20::102'], array_column($pools->addresses($v6), 'address'), 'Stored in canonical form.');
+        self::assertSame([$v4], array_keys($pools->options(4)));
+        self::assertSame([$v6], array_keys($pools->options(6)));
+
+        $service = $this->container($v4, 'dual', $v6);
+        $this->provisionToEnd($service);
+        $create = FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/lxc')[0]);
+        self::assertSame('name=eth0,bridge=vmbr0,ip=203.0.113.2/29,gw=203.0.113.1,ip6=2001:db8:10:20::100/64,gw6=fe80::1', $create['net0']);
+        self::assertSame('1.1.1.1 2606:4700:4700::1111', $create['nameserver'], 'Resolvers of both pools, without duplicates.');
+        self::assertSame(['203.0.113.2', '2001:db8:10:20::100'], $pools->addressesOf($service->id));
+        self::assertSame('2001:db8:10:20::100', $this->app->container()->get(ProxmoxProvisioner::class)->status($this->reload($service->id))['connection']['IPv6']);
+
+        // A pool of the wrong family is refused instead of being written into the wrong field.
+        $wrong = $this->container($v6, 'wrong');
+        try {
+            $this->provisionToEnd($wrong);
+            self::fail('An IPv6 pool cannot serve IPv4.');
+        } catch (PoolExhaustedException $exception) {
+            self::assertStringContainsString('not an IPv4 pool', $exception->getMessage());
+        }
+    }
+
+    public function testIpv6PoolsAreValidatedAndLimited(): void
+    {
+        $pools = $this->app->container()->get(IpPoolService::class);
+        foreach ([
+            ['2001:db8::/32', 'fe80::1', null, null, 'network'],           // prefix too short
+            ['2001:db8:1::/64', '2001:db8:2::1', null, null, 'gateway'],  // gateway outside, not link-local
+            ['2001:db8:1::/64', 'fe80::1', '2001:db8:2::5', null, 'first'],
+            ['2001:db8:1::/64', 'fe80::1', '2001:db8:1::1', '2001:db8:1::2000', 'network'], // more than 4096
+        ] as $i => [$network, $gateway, $first, $last, $field]) {
+            try {
+                $pools->createPool('v6-' . $i, $network, $gateway, null, null, $first, $last);
+                self::fail('Accepted: ' . $network);
+            } catch (\Nebrix\Security\ValidationException $exception) {
+                self::assertArrayHasKey($field, $exception->errors(), $network);
+            }
+        }
+        // Default range: from ::1 up to the maximum; an in-network gateway is skipped.
+        $id = $pools->createPool('v6-default', '2001:db8:1::/64', '2001:db8:1::1', null, null);
+        $addresses = array_column($pools->addresses($id), 'address');
+        self::assertCount(IpPoolService::MAX_POOL_SIZE - 1, $addresses);
+        self::assertSame(['2001:db8:1::2', '2001:db8:1::1000'], [$addresses[0], end($addresses)]);
+        // A /126 holds the three addresses after the anycast address.
+        $small = $pools->createPool('v6-small', '2001:db8:2::/126', 'fe80::1', null, null);
+        self::assertSame(['2001:db8:2::1', '2001:db8:2::2', '2001:db8:2::3'], array_column($pools->addresses($small), 'address'));
+    }
+
     public function testExhaustedPoolStopsProvisioning(): void
     {
         $pools = $this->app->container()->get(IpPoolService::class);
@@ -186,7 +239,7 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
 
         $templates = $runner->available($this->reload($service->id))['reinstall']->fields['template']['options'] ?? [];
         self::assertSame(['local:vztmpl/debian-12.tar.zst' => 'Default image', 'local:vztmpl/ubuntu-24.04.tar.zst' => 'Ubuntu 24.04'], $templates);
-        self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)), 'LXC passwords cannot be changed through the API.');
+        self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)), 'LXC passwords need SSH access to the node (not configured).');
 
         $runner->run($this->reload($service->id), 'reinstall', ['template' => 'local:vztmpl/ubuntu-24.04.tar.zst'], null, null);
         self::assertSame('provisioning', $this->reload($service->id)->status);
@@ -270,6 +323,101 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
         $fallback = FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/config')[0]);
         self::assertSame((string) $repository->credentials($this->reload($service->id))['password'], $fallback['cipassword']);
         self::assertNotSame($password, $fallback['cipassword']);
+    }
+
+    public function testLxcRootPasswordIsSetThroughTheForcedCommandOnTheNode(): void
+    {
+        $shell = new class extends \Nebrix\Integration\Ssh\SecureShell {
+            /** @var list<array{host: string, port: int, user: string, host_keys: list<string>, command: string, stdin: ?string}> */
+            public array $calls = [];
+            public int $exit = 0;
+
+            public function execute(string $host, int $port, string $user, string $privateKey, array $hostKeys, string $command, ?string $stdin = null): array
+            {
+                $this->calls[] = ['host' => $host, 'port' => $port, 'user' => $user, 'host_keys' => $hostKeys, 'command' => $command, 'stdin' => $stdin];
+
+                return ['output' => $this->exit === 0 ? 'ok' : 'nebrix: refused', 'exit' => $this->exit];
+            }
+        };
+        $this->app->container()->set(\Nebrix\Integration\Ssh\SecureShell::class, fn () => $shell);
+        $service = $this->createService($this->createUser(), 'lxc', $this->integrationId, ['ostemplate' => 'local:vztmpl/debian-12.tar.zst']);
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 20700, 'type' => 'lxc', 'step' => 'done']);
+        $this->guests[20700] = ['name' => 'ct20700', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id, 'type' => 'lxc'];
+        $this->db->update('nx_services', ['status' => 'active'], ['id' => $service->id]);
+        $runner = $this->app->container()->get(ServiceActionRunner::class);
+        $repository = $this->app->container()->get(ServiceRepository::class);
+
+        // Without SSH access to the node: not offered and refused.
+        self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)));
+
+        // Node access configured; the panel creates its key.
+        $integrations = $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class);
+        $hostKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBxKkqsQwyM4Ln1Fxocek342noZ8nQglRlAwXVIL1+qP';
+        $integrations->storeGenerated($this->integrationId, [], ['lxc_ssh_nodes' => "pve1=203.0.113.11\npve2=203.0.113.12:2222", 'lxc_ssh_host_keys' => "# 203.0.113.11:22 SSH-2.0-OpenSSH_9.2\n203.0.113.11 " . $hostKey . "\n", 'lxc_ssh_user' => 'root']);
+        $nodeShell = $this->app->container()->get(\Nebrix\Integration\Proxmox\NodeShell::class);
+        $integration = $integrations->find($this->integrationId);
+        self::assertNotNull($integration);
+        self::assertNull($nodeShell->authorizedKeysLine($integration));
+        $nodeShell->ensureKey($integration);
+        $integration = $integrations->find($this->integrationId);
+        self::assertNotNull($integration);
+        self::assertMatchesRegularExpression('#^restrict,command="/usr/local/sbin/nebrix-lxc-passwd" ssh-ed25519 [A-Za-z0-9+/]+=* nebrix-lxc$#', (string) $nodeShell->authorizedKeysLine($integration));
+        self::assertArrayHasKey('reset_password', $runner->available($this->reload($service->id)));
+
+        $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null)['message'];
+        self::assertStringContainsString('has been set', $message);
+        $password = (string) $repository->credentials($this->reload($service->id))['password'];
+        self::assertSame([
+            'host' => '203.0.113.11', 'port' => 22, 'user' => 'root', 'host_keys' => [$hostKey],
+            'command' => 'passwd 20700 ' . $service->id, 'stdin' => $password . "\n",
+        ], $shell->calls[0], 'Only IDs on the command line; the password on stdin; the host key pinned.');
+
+        // A stopped container or a refusal keeps the stored password.
+        $shell->exit = 5;
+        try {
+            $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+            self::fail('A stopped container cannot get a password.');
+        } catch (\Nebrix\Provisioning\ServiceStateException $exception) {
+            self::assertStringContainsString('not running', $exception->getMessage());
+        }
+        $shell->exit = 3;
+        try {
+            $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+            self::fail('A refusal by the node is an error.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('marker of this service', $exception->getMessage());
+        }
+        self::assertSame($password, (string) $repository->credentials($this->reload($service->id))['password']);
+
+        // A guest without this service's marker is refused before any SSH connection.
+        $this->guests[20700]['description'] = 'nebrix-service-999999';
+        $calls = count($shell->calls);
+        try {
+            $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+            self::fail('Foreign guest accepted.');
+        } catch (\Throwable) {
+        }
+        self::assertCount($calls, $shell->calls);
+
+        // A container on a node without SSH access gets no action.
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve3']);
+        self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)));
+    }
+
+    public function testNodeAccessSettingsAreParsedStrictly(): void
+    {
+        $keys = \Nebrix\Integration\Proxmox\NodeShell::parseHostKeys("pve1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBxKkqsQwyM4Ln1Fxocek342noZ8nQglRlAwXVIL1+qP\n[pve1]:2222 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPyQ=\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDfA9t5xYz0123456789abc comment\n");
+        self::assertSame(['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBxKkqsQwyM4Ln1Fxocek342noZ8nQglRlAwXVIL1+qP', 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPyQ=', 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDfA9t5xYz0123456789abc'], $keys);
+        foreach (['pve1 ssh-dss AAAAB3NzaC1kc3MAAACBAP' . str_repeat('A', 40), 'not a key', 'pve1 ssh-ed25519 short'] as $line) {
+            try {
+                \Nebrix\Integration\Proxmox\NodeShell::parseHostKeys($line);
+                self::fail('Accepted: ' . $line);
+            } catch (\InvalidArgumentException) {
+            }
+        }
+        self::assertSame(['pve1' => ['host' => '10.0.0.11', 'port' => 22], 'pve2' => ['host' => '2001:db8::2', 'port' => 2222]], \Nebrix\Integration\Proxmox\NodeShell::parseNodes("pve1=10.0.0.11\n# comment\npve2=[2001:db8::2]:2222"));
+        $this->expectException(\InvalidArgumentException::class);
+        \Nebrix\Integration\Proxmox\NodeShell::parseNodes('pve1 10.0.0.11');
     }
 
     public function testLegacyGuestIsOnlyDeletedWhileItKeepsItsRecordedHostname(): void

@@ -32,9 +32,14 @@ final class IntegrationType
                     'base_url' => ['label' => 'API URL', 'rules' => 'required|url|max:255', 'help' => 'e.g. https://pve.example.com:8006 – one entry per cluster.'],
                     'token_id' => ['label' => 'API token ID', 'rules' => 'required|string|max:200|regex:/^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+![A-Za-z0-9._-]+$/', 'help' => 'Format user@realm!tokenname. Grant the token only the privileges it needs (see INTEGRATIONS.md).'],
                     'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool', 'help' => 'Only disable for lab systems with self-signed certificates.'],
+                    'lxc_ssh_nodes' => ['label' => 'SSH access to the nodes for LXC root passwords (optional, one per line: node=address[:port])', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. pve1=10.0.0.11 – Proxmox has no API for changing a container password. Empty = LXC passwords change only with a reinstall.'],
+                    'lxc_ssh_host_keys' => ['label' => 'SSH host keys of these nodes (output of ssh-keyscan)', 'rules' => 'nullable|string|max:20000', 'type' => 'text', 'help' => 'Required with SSH access; the panel connects only to nodes presenting one of these keys.'],
+                    'lxc_ssh_user' => ['label' => 'SSH user on the nodes', 'rules' => 'nullable|string|max:32|regex:/^[a-z_][a-z0-9_-]*$/', 'default' => 'root'],
                 ],
                 'secrets' => [
                     'token_secret' => ['label' => 'API token secret', 'rules' => 'regex:/^[0-9a-fA-F-]{36}$/', 'required' => true],
+                    // Used only for SSH to the configured nodes (forced command), never sent to the API.
+                    'lxc_ssh_key' => ['label' => 'Private SSH key for LXC root passwords (optional)', 'rules' => 'string|max:5000', 'endpoint_bound' => false, 'format' => 'ssh_private_key', 'help' => 'Leave empty: the panel creates a key; the line for authorized_keys is shown on the integration page.'],
                 ],
             ],
             self::PTERODACTYL => [
@@ -95,7 +100,7 @@ final class IntegrationType
                 'secrets' => [
                     'password' => ['label' => 'Webservice password', 'rules' => 'string|max:255', 'required' => true],
                     // Used only for SSH to the panel's own rescue systems, never sent to the Robot API.
-                    'wipe_ssh_key' => ['label' => 'Private SSH key for disk wiping (optional)', 'rules' => 'string|max:5000', 'endpoint_bound' => false, 'help' => 'Leave empty: the panel creates a key and stores its public part in Robot when the first server is wiped.'],
+                    'wipe_ssh_key' => ['label' => 'Private SSH key for disk wiping (optional)', 'rules' => 'string|max:5000', 'endpoint_bound' => false, 'format' => 'ssh_private_key', 'help' => 'Leave empty: the panel creates a key and stores its public part in Robot when the first server is wiped.'],
                 ],
             ],
             self::PLESK => [

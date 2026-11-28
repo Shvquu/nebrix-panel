@@ -53,7 +53,7 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 
 * Category: VPS/KVM, LXC container, Dedicated server, Webhosting, Domain, Minecraft/game server, TeamSpeak 3, Nextcloud storage.
 * Name, URL slug, description, feature list, price, setup fee, currency, billing cycle (monthly, quarterly, every 6 months, annually, one-time), tax rate, stock (empty = unlimited), visibility and active flags, sort order, optional customer-group restriction.
-* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk, IP pool, reinstall templates, backup storage and number of backups for Proxmox; mode (pool, order, server auction), model, location, images and auction limits for Hetzner dedicated servers; service plan for Plesk; TLD for domains; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. For manual fulfilment leave the integration empty and switch off "Provision automatically" (the form does not accept automation without an integration).
+* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk, IPv4/IPv6 pools, reinstall templates, backup storage and number of backups for Proxmox; mode (pool, order, server auction), model, location, images and auction limits for Hetzner dedicated servers; service plan for Plesk; TLD for domains; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. For manual fulfilment leave the integration empty and switch off "Provision automatically" (the form does not accept automation without an integration).
 * For Hetzner pool products set the **stock** to the number of free pool servers so customers cannot order more than you have.
 * Products are not deleted; deactivate or hide them instead. Existing orders and services keep their price snapshot.
 
@@ -152,12 +152,14 @@ Customers open tickets (optionally about one of their services). Staff reply, ch
 
 Add Proxmox clusters, Hetzner Robot accounts, Plesk servers, INWX accounts, Pterodactyl panels, Nextcloud instances and TeamSpeak servers; credentials are stored encrypted and never displayed again. The integration page shows health, the last check, the request log and available resources (Proxmox nodes, Pterodactyl nodes/eggs, TeamSpeak servers, Hetzner servers with their pool state). Disabled integrations are not used for provisioning.
 
+**Proxmox LXC root passwords**: Proxmox has no API for this. To let customers reset the root password of a container without reinstalling, enter the nodes' SSH addresses and host keys on the Proxmox integration, install the script `resources/proxmox/nebrix-lxc-passwd` on every node and add the `authorized_keys` line shown on the integration page (details: [INTEGRATIONS.md](INTEGRATIONS.md#lxc-root-passwords)).
+
 **Hetzner pool workflow**: name spare servers in Robot with the pool prefix (e.g. `nebrix-free-1`). Assigned servers are renamed to `nebrix-service-<id>`. After a termination the server appears as *wipe* (`nebrix-wipe-<number>`). With **Wipe disks of returned servers automatically** (integration settings) the panel wipes it through the rescue system and returns it to the pool by itself; the integration page lists the wipes, their log and a *Retry* button for failed ones, and *Queue waiting servers* adds servers that were waiting before the option was switched on. Without the option wipe the disks yourself, clear the server's firewall in Robot and rename it back to the pool prefix. Details and the wipe methods: [INTEGRATIONS.md](INTEGRATIONS.md#disk-wiping).
 
 **Hetzner server auction**: products in the mode *Buy a matching server from the Hetzner server auction* buy the cheapest auction server within the maximum price, minimum memory/disk, CPU text and location you set on the product (requires *Allow ordering* on the integration; test it with test mode first). Nothing outside the limits is bought – while no offer matches, the order waits in provisioning.
 
 ### IP pools
-Admin → IP pools: create IPv4 pools (network, gateway, resolvers, optional range) and assign them to VPS/LXC products. The pool page shows every address with its status and service; free addresses can be reserved (and released) with a note. Pools that are used by products or still have assigned addresses cannot be deleted.
+Admin → IP pools: create IPv4 pools and IPv6 pools (network or prefix, gateway, resolvers, optional range; IPv6 pools hand out single addresses, at most 4096 per pool, and accept a link-local gateway such as `fe80::1`) and assign them to VPS/LXC products – one IPv4 and one IPv6 pool per product; without an IPv6 pool guests use SLAAC. The pool page shows every address with its status and service; free addresses can be reserved (and released) with a note. Pools that are used by products or still have assigned addresses cannot be deleted.
 
 ## E-mail templates
 

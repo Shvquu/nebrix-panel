@@ -39,8 +39,12 @@ A product is provisioned automatically when it has an integration and "Provision
 | API token ID | `user@realm!tokenname` |
 | API token secret | UUID shown once by Proxmox when the token is created. |
 | Verify TLS certificate | Keep enabled; use a trusted certificate (e.g. ACME) on Proxmox. |
+| SSH access to the nodes for LXC root passwords | Optional, one line per node: `node=address` or `node=address:port` (IPv6 with port: `node=[address]:port`). See [LXC root passwords](#lxc-root-passwords). |
+| SSH host keys of these nodes | Required with SSH access: the output of `ssh-keyscan -t ed25519 <address>` for every node. The panel connects only to a node presenting one of these keys. |
+| SSH user on the nodes | Default `root` (the forced command needs root for `pct`). |
+| Private SSH key for LXC root passwords | Leave empty: the panel creates an Ed25519 key when the integration is saved. A pasted key must be unencrypted (OpenSSH or PEM). |
 
-Authentication uses the header `Authorization: PVEAPIToken=<id>=<secret>`. No passwords, tickets, SSH or shell commands are used.
+Authentication uses the header `Authorization: PVEAPIToken=<id>=<secret>`. No passwords or tickets are used. SSH is used only for the optional LXC root passwords, with a key that can run nothing but the forced command described below.
 
 ### Creating a least-privilege token
 Create a dedicated user and token (with privilege separation) and grant only what is needed. A starting point – verify it against your Proxmox version and adjust paths to your pools/storages:
@@ -66,14 +70,14 @@ Granting the role on `/` is the simplest option; for tighter scoping grant it on
 For customer backups additionally `VM.Backup` (create, restore, delete backups) and `Datastore.AllocateSpace` + `Datastore.Audit` on the backup storage. Additional privileges for the console and the password reset: `VM.Console` (`vncproxy`/`vncwebsocket`) and the privilege for QEMU guest agent calls (`VM.Monitor` on Proxmox VE 8; newer versions use `VM.GuestAgent.*` privileges). Check the API viewer of your Proxmox version for `agent/set-user-password` and `vncproxy`.
 
 ### Product configuration
-**VPS / KVM server** – Node (empty = node with the most free memory), template VM ID, target storage, CPU cores, memory, disk size, bridge, rate limit, first VM ID, IP pool (empty = DHCP), additional templates for reinstall (`VM ID|Label` per line). Customers choose a hostname when ordering.
+**VPS / KVM server** – Node (empty = node with the most free memory), template VM ID, target storage, CPU cores, memory, disk size, bridge, rate limit, first VM ID, IPv4 pool (empty = DHCP), IPv6 pool (empty = SLAAC), additional templates for reinstall (`VM ID|Label` per line). Customers choose a hostname when ordering.
 
-**LXC container** – Node, OS template (`local:vztmpl/debian-12-standard_….tar.zst`), root disk storage, cores, memory, swap, disk, bridge, rate limit, unprivileged flag, first container ID, IP pool, additional OS templates for reinstall (`template|Label` per line).
+**LXC container** – Node, OS template (`local:vztmpl/debian-12-standard_….tar.zst`), root disk storage, cores, memory, swap, disk, bridge, rate limit, unprivileged flag, first container ID, IPv4 pool, IPv6 pool, additional OS templates for reinstall (`template|Label` per line).
 
 Both: **backup storage** (a Proxmox storage with content type `backup` – directory/NFS/CIFS or Proxmox Backup Server; empty = no customer backups) and **backups per server** (0–50).
 
 ### IP pools (static addressing)
-Admin → IP pools manages IPv4 networks (CIDR /16–/32) with gateway, resolvers and an optional assignable range. Network, broadcast and gateway addresses are never assigned; single addresses can be reserved (e.g. for routers). A product with a pool gives each service one address: KVM via cloud-init (`ipconfig0 ip=…/prefix,gw=…`, `nameserver`), LXC via `net0 ip=…,gw=…` and `nameserver`. IPv6 stays on SLAAC (`ip6=auto`). The allocation is idempotent per service (row lock, unique key), survives reinstalls and is released after the guest has been deleted. When a pool is exhausted provisioning stops with a clear error.
+Admin → IP pools manages IPv4 networks (CIDR /16–/32) and IPv6 prefixes (/48–/128) with gateway, resolvers and an optional assignable range. IPv4: network, broadcast and gateway addresses are never assigned. IPv6: single addresses of an on-link prefix (typically a /64 on the bridge) are handed out, at most 4096 per pool – from the first address after the subnet-router anycast address (`…::1`) unless you set a range, e.g. `2001:db8:1::100` to `2001:db8:1::fff`; the gateway may be inside the prefix or link-local (`fe80::1`). Single addresses can be reserved (e.g. for routers). A product with pools gives each service one address per family: KVM via cloud-init (`ipconfig0 ip=…/prefix,gw=…,ip6=…/prefix,gw6=…`, `nameserver`), LXC via `net0 ip=…,gw=…,ip6=…,gw6=…` and `nameserver` (resolvers of both pools). Without an IPv6 pool IPv6 stays on SLAAC (`ip6=auto`); a pool of the wrong family stops provisioning with an error. The allocation is idempotent per service (row lock, unique key), survives reinstalls and is released after the guest has been deleted. When a pool is exhausted provisioning stops with a clear error.
 
 ### Lifecycle
 | Step | KVM | LXC |
@@ -82,7 +86,7 @@ Admin → IP pools manages IPv4 networks (CIDR /16–/32) with gateway, resolver
 | VMID | `vmid_start + service ID` (deterministic). An existing guest on that VMID is adopted only if its description contains `nebrix-service-<id>` (written at creation); otherwise provisioning stops with a conflict and termination refuses to delete it. Use non-overlapping `vmid_start` ranges per product. | same |
 | Suspend / unsuspend | Stop / start the guest | same |
 | Terminate | Stop (if running) → delete the guest (`purge`) after the task finished | same |
-| Customer actions | Start, shut down, reboot, force stop, **reset root password** (QEMU guest agent; if the agent is not running and the VM has a cloud-init drive, via cloud-init at the next boot – otherwise the action fails without changes), **reinstall**, **console**; live status (state, uptime, CPU, memory, disk, network, IPv4) | Start, shut down, reboot, force stop, **reinstall**, **console** (the root password of a container can only be changed by reinstalling) |
+| Customer actions | Start, shut down, reboot, force stop, **reset root password** (QEMU guest agent; if the agent is not running and the VM has a cloud-init drive, via cloud-init at the next boot – otherwise the action fails without changes), **reinstall**, **console**; live status (state, uptime, CPU, memory, disk, network, IPv4/IPv6) | Start, shut down, reboot, force stop, **reset root password** (only with [SSH access to the node](#lxc-root-passwords); otherwise only by reinstalling), **reinstall**, **console** |
 | Reinstall | Stop → delete (ownership checked) → clone the chosen template again with the same VMID and address, new root password | same with the chosen OS template |
 | Backups | See [Customer backups](#customer-backups) | same |
 
@@ -92,6 +96,22 @@ Requirements and limitations:
 * Guests imported from RED-Host (`legacy:import --only=services`) have no marker; the importer records their VMID and host name, and the provisioner accepts exactly that VMID only while the guest still has the recorded host name and carries no marker of another service (a reused VMID is never deleted).
 * Keep "Unprivileged container" enabled for LXC products: Proxmox allows only `root@pam` to set feature flags on privileged containers, and many privileged-container options are not available to API tokens.
 * Multi-cluster: create one integration per cluster and one product per cluster/plan.
+
+### LXC root passwords
+Proxmox has no API for changing the password of a container, so the panel can do it over SSH – with a key that may run exactly one program on the node:
+
+1. Edit the integration, enter the SSH address of every node (`pve1=10.0.0.11`) and their host keys (`ssh-keyscan -t ed25519 10.0.0.11`), save. The panel creates its key; the integration page shows the line for `authorized_keys`.
+2. On every node install the script shipped as `resources/proxmox/nebrix-lxc-passwd`:
+
+```bash
+install -o root -g root -m 0755 nebrix-lxc-passwd /usr/local/sbin/nebrix-lxc-passwd
+```
+
+3. Add the line from the integration page to `/root/.ssh/authorized_keys` on every node. It starts with `restrict,command="/usr/local/sbin/nebrix-lxc-passwd"`: whatever the client asks for, SSH runs only the script, without a terminal, forwarding or agent. You may add `from="<panel address>"` in front of `restrict`.
+
+The panel then sends `passwd <container ID> <service ID>` and the new password on standard input (never on a command line). The script accepts nothing else, checks that the container is on this node, that its notes carry the line `nebrix-service-<service ID>` and that it is running, and sets the password with `pct exec <ID> -- chpasswd` (the container needs `chpasswd`, which standard templates have). The panel checks the guest's ownership through the API before connecting. Customers see **Reset root password** only for containers on nodes with SSH access. Without this setup LXC passwords change only by reinstalling.
+
+The script was tested with a simulated `pct` and against a local SSH server (forced command, host key pinning, stdin), **not on a Proxmox node**: try it on one container first (`echo NewPassword123x | SSH_ORIGINAL_COMMAND="passwd <ID> <service ID>" /usr/local/sbin/nebrix-lxc-passwd`).
 
 ### Customer backups
 With a backup storage and a number of backups > 0 on the product, customers get the actions *Create backup*, *Restore backup* and *Delete backup*.

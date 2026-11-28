@@ -12,6 +12,7 @@ use Nebrix\Database\Connection;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
+use Nebrix\Integration\Proxmox\NodeShell;
 use Nebrix\Network\IpPoolService;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
@@ -50,6 +51,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         private readonly IpPoolService $ipPools,
         private readonly Connection $db,
         private readonly LoggerInterface $logger,
+        private readonly NodeShell $nodeShell,
     ) {
     }
 
@@ -60,6 +62,19 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         }
 
         return $this->integrations->proxmox($this->integrations->get($service->integrationId));
+    }
+
+    /** LXC root passwords: only with SSH access to the guest's node (forced command). */
+    private function lxcPasswordAvailable(Service $service): bool
+    {
+        if ($this->type($service) !== ProxmoxClient::TYPE_LXC || $service->integrationId === null || !isset($service->remote['node'])) {
+            return false;
+        }
+        try {
+            return $this->nodeShell->available($this->integrations->get($service->integrationId), (string) $service->remote['node']);
+        } catch (IntegrationException) {
+            return false;
+        }
     }
 
     private function type(Service $service): string
@@ -93,8 +108,17 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         // Static address from the product's IP pool (idempotent per service).
         $poolId = (int) $service->config('ip_pool_id', 0);
         if ($poolId > 0 && !isset($remote['ipv4'])) {
-            $lease = $this->ipPools->allocate($poolId, $service->id);
+            $lease = $this->ipPools->allocate($poolId, $service->id, 4);
             $addressing = ['ipv4' => $lease['address'] . '/' . $lease['prefix'], 'gateway' => $lease['gateway'], 'dns' => implode(' ', $lease['dns'])];
+            $this->services->mergeRemote($service->id, $addressing);
+            $remote = $addressing + $remote;
+        }
+        // Static IPv6 address (otherwise SLAAC); resolvers of the IPv6 pool are added.
+        $pool6Id = (int) $service->config('ip6_pool_id', 0);
+        if ($pool6Id > 0 && !isset($remote['ipv6'])) {
+            $lease = $this->ipPools->allocate($pool6Id, $service->id, 6);
+            $dns = trim(implode(' ', array_unique([...array_filter(explode(' ', (string) ($remote['dns'] ?? ''))), ...$lease['dns']])));
+            $addressing = ['ipv6' => $lease['address'] . '/' . $lease['prefix'], 'gateway6' => $lease['gateway'], 'dns' => $dns];
             $this->services->mergeRemote($service->id, $addressing);
             $remote = $addressing + $remote;
         }
@@ -326,7 +350,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             'memory' => (int) $service->config('memory_mb', 1024),
             'swap' => (int) $service->config('swap_mb', 512),
             'rootfs' => sprintf('%s:%d', (string) $service->config('storage'), (int) $service->config('disk_gb', 10)),
-            'net0' => sprintf('name=eth0,bridge=%s,%s,ip6=auto%s', (string) $service->config('bridge', 'vmbr0'), $ipv4, $rate > 0 ? ',rate=' . $rate : ''),
+            'net0' => sprintf('name=eth0,bridge=%s,%s,%s%s', (string) $service->config('bridge', 'vmbr0'), $ipv4, self::ipv6Setting($remote), $rate > 0 ? ',rate=' . $rate : ''),
             'password' => $password,
             'unprivileged' => $unprivileged ? 1 : 0,
             'onboot' => 1,
@@ -358,7 +382,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             'memory' => (int) $service->config('memory_mb', 2048),
             'ciuser' => 'root',
             'cipassword' => $password,
-            'ipconfig0' => isset($remote['ipv4']) ? sprintf('ip=%s,gw=%s,ip6=auto', (string) $remote['ipv4'], (string) ($remote['gateway'] ?? '')) : 'ip=dhcp,ip6=auto',
+            'ipconfig0' => (isset($remote['ipv4']) ? sprintf('ip=%s,gw=%s', (string) $remote['ipv4'], (string) ($remote['gateway'] ?? '')) : 'ip=dhcp') . ',' . self::ipv6Setting($remote),
             'net0' => sprintf('virtio,bridge=%s%s', (string) $service->config('bridge', 'vmbr0'), $rate > 0 ? ',rate=' . $rate : ''),
             'onboot' => 1,
         ];
@@ -367,6 +391,18 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         }
 
         return $parameters;
+    }
+
+    /**
+     * "ip6=…,gw6=…" for a static address, "ip6=auto" (SLAAC) otherwise.
+     *
+     * @param array<string, mixed> $remote
+     */
+    private static function ipv6Setting(array $remote): string
+    {
+        return isset($remote['ipv6'])
+            ? sprintf('ip6=%s,gw6=%s', (string) $remote['ipv6'], (string) ($remote['gateway6'] ?? ''))
+            : 'ip6=auto';
     }
 
     public function suspend(Service $service): void
@@ -485,6 +521,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             'connection' => array_filter([
                 'Hostname' => $this->hostname($service),
                 'IPv4' => isset($service->remote['ipv4']) ? strtok((string) $service->remote['ipv4'], '/') : '',
+                'IPv6' => isset($service->remote['ipv6']) ? strtok((string) $service->remote['ipv6'], '/') : '',
                 'Node' => $node,
                 'ID' => (string) $vmid,
             ], static fn (string|false $value): bool => $value !== '' && $value !== false),
@@ -499,7 +536,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
             'reboot' => ServiceAction::simple('Reboot', 'Reboot the server?'),
             'stop' => ServiceAction::simple('Force stop', 'Force-stop the server? Unsaved data may be lost.', true),
         ];
-        if ($this->type($service) === ProxmoxClient::TYPE_QEMU) {
+        if ($this->type($service) === ProxmoxClient::TYPE_QEMU || $this->lxcPasswordAvailable($service)) {
             $actions['reset_password'] = ServiceAction::simple('Reset root password', 'Set a new root password? The current password stops working.');
         }
         $templates = $this->reinstallTemplates($service);
@@ -622,6 +659,19 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
     {
         $client = $this->client($service);
         [$node, $vmid, $type] = $this->ownedGuest($service, $client);
+
+        if ($action === 'reset_password' && $type === ProxmoxClient::TYPE_LXC) {
+            if (!$this->lxcPasswordAvailable($service)) {
+                throw new IntegrationException('Unsupported action.');
+            }
+            $password = self::generatePassword();
+            // Through the forced command on the node (no Proxmox API for this); the
+            // ownership of the guest was checked above and is checked again on the node.
+            $this->nodeShell->setLxcRootPassword($this->integrations->get((int) $service->integrationId), $node, $vmid, $service->id, $password);
+            $this->services->setCredentials($service->id, ['password' => $password] + $this->services->credentials($service));
+
+            return 'A new root password has been set. You can view it under access data.';
+        }
 
         if ($action === 'reset_password' && $type === ProxmoxClient::TYPE_QEMU) {
             $password = self::generatePassword();
