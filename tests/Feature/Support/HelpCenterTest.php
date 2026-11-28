@@ -135,4 +135,34 @@ final class HelpCenterTest extends FeatureTestCase
         self::assertSame(1, (int) $this->db->fetchValue('SELECT `helpful_yes` FROM `nx_help_articles` WHERE `id` = ?', [$article]));
         self::assertSame(404, $this->post('/help/articles/999999/vote', ['helpful' => 'yes'])->status());
     }
+
+    public function testTicketFormSuggestsArticles(): void
+    {
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $category = $this->category();
+        $this->article($category, 'Change the server password', 'How to change your password.');
+        $this->article($category, 'Secret draft about passwords', 'internal', false);
+
+        $this->actingAs($this->createUser());
+        $form = $this->get('/tickets/create')->body();
+        self::assertStringContainsString('data-help-suggest="/help/suggest"', $form);
+        self::assertStringContainsString('/assets/js/support.js', $form);
+
+        $response = $this->get('/help/suggest', ['q' => 'password']);
+        self::assertSame('application/json', explode(';', (string) $response->header('Content-Type'))[0]);
+        $json = json_decode($response->body(), true);
+        self::assertSame([['title' => 'Change the server password', 'category' => 'Servers', 'url' => '/help/servers/change-the-server-password']], $json['articles']);
+        self::assertSame([], json_decode($this->get('/help/suggest', ['q' => 'pa'])->body(), true)['articles']);
+
+        $this->app->container()->get(SettingsRepository::class)->set('support.ticket_suggestions', false);
+        self::assertSame([], json_decode($this->get('/help/suggest', ['q' => 'password'])->body(), true)['articles']);
+        self::assertStringNotContainsString('data-help-suggest="/help/suggest"', $this->get('/tickets/create')->body());
+
+        // The customer area links the help center; switched off, it disappears.
+        self::assertStringContainsString('href="/help"', $this->get('/dashboard')->body());
+        $this->app->container()->get(SettingsRepository::class)->set('support.help_center_enabled', false);
+        self::assertSame(404, $this->get('/help')->status());
+        self::assertSame(404, $this->get('/help/servers/change-the-server-password')->status());
+        self::assertStringNotContainsString('href="/help"', $this->get('/dashboard')->body());
+    }
 }

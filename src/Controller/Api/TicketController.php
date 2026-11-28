@@ -71,7 +71,7 @@ final class TicketController extends ApiController
         $data = $this->validateInput($request, ['message' => 'required|string|min:2|max:20000']);
         $this->throttle('ticket-reply:' . $user->id, 30, 3600);
 
-        $this->tickets->addMessage((int) $ticket['id'], $user->id, false, (string) $data['message']);
+        $this->tickets->addMessage((int) $ticket['id'], $user->id, false, (string) $data['message'], 'api');
 
         return $this->data(Resource::ticket($this->find($request, $id), $this->tickets->messages($id)), 201);
     }

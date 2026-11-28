@@ -11,6 +11,14 @@ return [
     // ------------------------------------------------------- help center & tickets
     'support.help_center_enabled' => ['group' => 'support', 'type' => 'bool', 'default' => true, 'label' => 'Enable the public help center (/help)'],
     'support.ticket_suggestions' => ['group' => 'support', 'type' => 'bool', 'default' => true, 'label' => 'Suggest help articles while customers write a ticket subject'],
+    'support.attachments_enabled' => ['group' => 'support', 'type' => 'bool', 'default' => true, 'label' => 'Allow attachments in tickets', 'help' => 'Images (PNG, JPEG, GIF, WebP), PDF and plain text/log files, checked by their content. Stored under storage/attachments.'],
+    'support.attachment_max_mb' => ['group' => 'support', 'type' => 'int', 'default' => 5, 'label' => 'Maximum size per attachment (MB)', 'rules' => 'required|int|min:1|max:25'],
+    'support.attachment_max_files' => ['group' => 'support', 'type' => 'int', 'default' => 3, 'label' => 'Maximum attachments per message', 'rules' => 'required|int|min:1|max:10'],
+    'support.ratings_enabled' => ['group' => 'support', 'type' => 'bool', 'default' => true, 'label' => 'Ask customers to rate closed tickets'],
+    'support.email_replies_enabled' => ['group' => 'support', 'type' => 'bool', 'default' => false, 'label' => 'Accept e-mail replies to ticket notifications', 'help' => 'Notifications get a personal Reply-To address. Your mail provider must forward replies as JSON to /webhooks/inbound-mail, signed with the shared secret (see the documentation).'],
+    'support.reply_local_part' => ['group' => 'support', 'type' => 'string', 'default' => 'support', 'label' => 'Local part of the reply address', 'help' => 'Replies go to <local part>+<ticket>.<signature>@<domain>.', 'rules' => 'required|string|max:30|regex:/^[a-z0-9][a-z0-9._-]{0,29}$/'],
+    'support.reply_domain' => ['group' => 'support', 'type' => 'string', 'default' => '', 'label' => 'Domain of the reply address', 'rules' => 'nullable|string|max:150|regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)?$/'],
+    'support.inbound_secret' => ['group' => 'support', 'type' => 'string', 'default' => null, 'label' => 'Shared secret for the inbound e-mail webhook', 'secret' => true, 'help' => 'At least 32 characters. Used to verify the X-Nebrix-Signature header (HMAC-SHA256).', 'rules' => 'nullable|string|min:32|max:200'],
 
     // ----------------------------------------------------------------- notifications
     'notifications.discord_dm' => ['group' => 'notifications', 'type' => 'bool', 'default' => false, 'label' => 'Offer Discord direct messages to customers with a linked Discord account', 'help' => 'Sent by the bot configured under Discord. Customers choose the events themselves; Discord only delivers them while the customer shares the server with the bot and allows direct messages.'],

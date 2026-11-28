@@ -41,6 +41,7 @@ final class Permission
     public const TICKETS_MANAGE = 'tickets.manage';
     public const STATUS_MANAGE = 'status.manage';
     public const HELP_CENTER_MANAGE = 'help_center.manage';
+    public const CANNED_RESPONSES_MANAGE = 'canned_responses.manage';
 
     public const SETTINGS_GENERAL = 'settings.general';
     public const SETTINGS_BRANDING = 'settings.branding';
@@ -101,6 +102,7 @@ final class Permission
                 self::TICKETS_MANAGE => 'Close, reopen and reassign tickets',
                 self::STATUS_MANAGE => 'Manage the status page, incidents and maintenance announcements',
                 self::HELP_CENTER_MANAGE => 'Manage help center categories and articles',
+                self::CANNED_RESPONSES_MANAGE => 'Manage canned responses for ticket replies',
             ],
             'Settings' => [
                 self::SETTINGS_GENERAL => 'Edit general, registration and billing settings',
@@ -151,7 +153,7 @@ final class Permission
                 self::ADMIN_ACCESS, self::DASHBOARD_VIEW, self::CUSTOMERS_VIEW, self::SERVICES_VIEW,
                 self::SERVICES_MANAGE, self::ORDERS_VIEW, self::INVOICES_VIEW, self::PRODUCTS_VIEW,
                 self::INTEGRATIONS_VIEW, self::TICKETS_VIEW, self::TICKETS_REPLY, self::TICKETS_MANAGE, self::STATUS_MANAGE,
-                self::HELP_CENTER_MANAGE,
+                self::HELP_CENTER_MANAGE, self::CANNED_RESPONSES_MANAGE,
             ],
             'finance' => [
                 self::ADMIN_ACCESS, self::DASHBOARD_VIEW, self::CUSTOMERS_VIEW, self::CUSTOMERS_CREDIT,

@@ -104,6 +104,14 @@ return [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',
     ],
+    'ticket_closed' => [
+        'subject' => 'Ihr Ticket „{{ ticket_subject }}“ wurde geschlossen',
+        'html' => '<p>Hallo {{ name }},</p><p>wir haben Ihr Ticket <strong>{{ ticket_subject }}</strong> geschlossen. Falls Sie noch Hilfe benötigen, antworten Sie einfach im Ticket – es wird dann wieder geöffnet.</p><p>Wie zufrieden waren Sie mit unserem Support? Ihre Bewertung dauert keine Minute:</p><p><a class="button" href="{{ rating_url }}">Support bewerten</a></p>',
+    ],
+    'ticket_assigned' => [
+        'subject' => 'Ticket #{{ ticket_id }} wurde Ihnen zugewiesen',
+        'html' => '<p>Hallo {{ name }},</p><p>{{ assigned_by }} hat Ihnen das Ticket <strong>#{{ ticket_id }} – {{ ticket_subject }}</strong> (Priorität: {{ priority }}) zugewiesen.</p><p><a class="button" href="{{ ticket_url }}">Ticket öffnen</a></p>',
+    ],
     'test' => [
         'subject' => 'Test-E-Mail von {{ company_name }}',
         'html' => '<p>Dies ist eine Testnachricht. Ihre SMTP-Einstellungen funktionieren.</p>',

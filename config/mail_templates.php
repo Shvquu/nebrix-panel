@@ -154,6 +154,18 @@ return [
         'subject' => 'New reply to your ticket "{{ ticket_subject }}"',
         'html' => '<p>Hello {{ name }},</p><p>our support team has replied to your ticket <strong>{{ ticket_subject }}</strong>.</p><p><a class="button" href="{{ ticket_url }}">View ticket</a></p>',
     ],
+    'ticket_closed' => [
+        'name' => 'Support ticket closed (with rating link)',
+        'variables' => ['name', 'ticket_subject', 'ticket_url', 'rating_url'],
+        'subject' => 'Your ticket "{{ ticket_subject }}" has been closed',
+        'html' => '<p>Hello {{ name }},</p><p>we have closed your ticket <strong>{{ ticket_subject }}</strong>. If you still need help, simply reply in the ticket and it will be reopened.</p><p>How satisfied were you with our support? Your rating takes less than a minute:</p><p><a class="button" href="{{ rating_url }}">Rate our support</a></p>',
+    ],
+    'ticket_assigned' => [
+        'name' => 'Support ticket assigned (staff)',
+        'variables' => ['name', 'ticket_id', 'ticket_subject', 'priority', 'assigned_by', 'ticket_url'],
+        'subject' => 'Ticket #{{ ticket_id }} has been assigned to you',
+        'html' => '<p>Hello {{ name }},</p><p>{{ assigned_by }} has assigned ticket <strong>#{{ ticket_id }} – {{ ticket_subject }}</strong> (priority: {{ priority }}) to you.</p><p><a class="button" href="{{ ticket_url }}">Open ticket</a></p>',
+    ],
     'test' => [
         'name' => 'SMTP test message',
         'variables' => [],

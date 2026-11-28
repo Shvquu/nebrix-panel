@@ -1,0 +1,9 @@
+{# File field for ticket messages (customer and staff). Parameter: uploads {enabled, max_files, max_mb} #}
+{% if uploads.enabled %}
+<div class="form-row">
+    <label for="f-attachments">{{ 'Attachments'|t }}</label>
+    <input id="f-attachments" type="file" name="attachments[]" multiple accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,.log,.txt" class="{{ error('attachments') ? 'is-invalid' : '' }}">
+    <div class="help">{{ 'Images, PDF or text/log files; at most :files files of :mb MB each.'|t({files: uploads.max_files, mb: uploads.max_mb}) }}</div>
+    {% if error('attachments') %}<div class="field-error">{{ error('attachments')|t }}</div>{% endif %}
+</div>
+{% endif %}

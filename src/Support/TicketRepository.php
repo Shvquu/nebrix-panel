@@ -37,13 +37,27 @@ class TicketRepository
         });
     }
 
-    public function addMessage(int $ticketId, int $userId, bool $isStaff, string $message): void
+    /**
+     * @param string $source web, email or api
+     * @return int ID of the new message
+     */
+    public function addMessage(int $ticketId, int $userId, bool $isStaff, string $message, string $source = 'web'): int
     {
-        $this->db->transaction(function () use ($ticketId, $userId, $isStaff, $message): void {
+        return $this->db->transaction(function () use ($ticketId, $userId, $isStaff, $message, $source): int {
             $now = $this->clock->nowString();
-            $this->db->insert('nx_ticket_messages', ['ticket_id' => $ticketId, 'user_id' => $userId, 'is_staff' => $isStaff, 'message' => $message, 'created_at' => $now]);
+            $id = $this->db->insert('nx_ticket_messages', ['ticket_id' => $ticketId, 'user_id' => $userId, 'is_staff' => $isStaff, 'message' => $message, 'source' => in_array($source, ['web', 'email', 'api'], true) ? $source : 'web', 'created_at' => $now]);
             $this->db->update('nx_tickets', ['status' => $isStaff ? 'answered' : 'customer_reply', 'updated_at' => $now, 'closed_at' => null], ['id' => $ticketId]);
+
+            return $id;
         });
+    }
+
+    /** The opening message of a ticket (attachments of a new ticket belong to it). */
+    public function firstMessageId(int $ticketId): ?int
+    {
+        $id = $this->db->fetchValue('SELECT `id` FROM `nx_ticket_messages` WHERE `ticket_id` = ? ORDER BY `id` LIMIT 1', [$ticketId]);
+
+        return $id !== null ? (int) $id : null;
     }
 
     /**
@@ -139,7 +153,7 @@ class TicketRepository
 
         return [
             'items' => $this->db->fetchAll(
-                "SELECT t.*, u.`email`, a.`email` AS assignee_email $from WHERE $whereSql
+                "SELECT t.*, u.`email`, a.`email` AS assignee_email, (SELECT r.`rating` FROM `nx_ticket_ratings` r WHERE r.`ticket_id` = t.`id`) AS rating $from WHERE $whereSql
                  ORDER BY FIELD(t.`status`, 'customer_reply', 'open', 'answered', 'closed'), FIELD(t.`priority`, 'high', 'normal', 'low'), t.`updated_at` DESC LIMIT ? OFFSET ?",
                 [...$params, $perPage, max(0, ($page - 1) * $perPage)],
             ),

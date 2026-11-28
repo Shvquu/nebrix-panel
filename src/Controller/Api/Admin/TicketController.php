@@ -7,11 +7,9 @@ namespace Nebrix\Controller\Api\Admin;
 use Nebrix\Api\ApiException;
 use Nebrix\Api\Resource;
 use Nebrix\Controller\Api\ApiController;
-use Nebrix\Core\Config;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
-use Nebrix\Mail\Mailer;
-use Nebrix\Repository\UserRepository;
+use Nebrix\Support\TicketNotifier;
 use Nebrix\Support\TicketRepository;
 
 /**
@@ -22,9 +20,7 @@ final class TicketController extends ApiController
 {
     public function __construct(
         private readonly TicketRepository $tickets,
-        private readonly UserRepository $users,
-        private readonly Mailer $mailer,
-        private readonly Config $config,
+        private readonly TicketNotifier $notifier,
     ) {
     }
 
@@ -55,17 +51,9 @@ final class TicketController extends ApiController
         $ticket = $this->tickets->find($id) ?? throw ApiException::notFound();
         $data = $this->validateInput($request, ['message' => 'required|string|min:2|max:20000']);
 
-        $this->tickets->addMessage($id, $this->user($request)->id, true, (string) $data['message']);
+        $this->tickets->addMessage($id, $this->user($request)->id, true, (string) $data['message'], 'api');
         $this->apiAudit($request, 'ticket.replied', 'ticket', $id);
-
-        $customer = $this->users->find((int) $ticket['user_id']);
-        if ($customer !== null) {
-            $this->mailer->queue($customer->email, $customer->displayName(), 'ticket_reply', [
-                'name' => $customer->displayName(),
-                'ticket_subject' => (string) $ticket['subject'],
-                'ticket_url' => rtrim($this->config->string('app.url'), '/') . '/tickets/' . $id,
-            ]);
-        }
+        $this->notifier->staffReplied($ticket);
 
         $updated = $this->tickets->find($id) ?? $ticket;
 
