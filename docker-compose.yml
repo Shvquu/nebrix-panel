@@ -21,6 +21,7 @@ services:
     volumes:
       - uploads:/var/www/nebrix/public/uploads
       - invoices:/var/www/nebrix/storage/invoices
+      - attachments:/var/www/nebrix/storage/attachments
     restart: unless-stopped
 
   worker:
@@ -35,6 +36,7 @@ services:
       disable: true
     volumes:
       - invoices:/var/www/nebrix/storage/invoices
+      - attachments:/var/www/nebrix/storage/attachments
     depends_on:
       db:
         condition: service_healthy
@@ -51,6 +53,7 @@ services:
       disable: true
     volumes:
       - invoices:/var/www/nebrix/storage/invoices
+      - attachments:/var/www/nebrix/storage/attachments
     depends_on:
       db:
         condition: service_healthy
@@ -115,3 +118,4 @@ volumes:
   db-data:
   uploads:
   invoices:
+  attachments:
