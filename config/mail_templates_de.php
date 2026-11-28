@@ -124,4 +124,8 @@ return [
         'subject' => '{{ owner_name }} lädt Sie zu seinem Kundenkonto ein',
         'html' => '<p>Hallo,</p><p><strong>{{ owner_name }}</strong> lädt Sie ein, auf Dienste seines Kundenkontos zuzugreifen.</p><p>Melden Sie sich mit dieser E-Mail-Adresse an (oder registrieren Sie sich damit) und nehmen Sie die Einladung an. Der Link ist {{ expires_days }} Tage gültig.</p><p><a class="button" href="{{ invitation_url }}">Einladung annehmen</a></p><p>Wenn Sie den Absender nicht kennen, können Sie diese E-Mail ignorieren.</p>',
     ],
+    'order_review' => [
+        'subject' => 'Ihre Bestellung {{ order_number }} wird geprüft',
+        'html' => '<p>Hallo {{ name }},</p><p>vielen Dank für Ihre Bestellung <strong>{{ order_number }}</strong>. Bevor wir sie einrichten, prüft unser Team sie kurz. Das dauert meist nur wenige Stunden; falls wir etwas benötigen, melden wir uns bei Ihnen.</p>',
+    ],
 ];

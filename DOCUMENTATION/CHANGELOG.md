@@ -72,6 +72,12 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Pterodactyl 2.x**: eggs are read through `/api/application/eggs/{id}` (the nest endpoints were removed in 2.0); the panel version is detected automatically or set per integration; the nest ID is only needed for 1.x; egg images as single value or map. Tested against a fake, not against a real 2.0 beta panel.
 - **Game server configurator**: memory, CPU cores, disk, backups, databases and additional ports with maxima and step prices; later changes through the upgrade/downgrade flow and the Pterodactyl build endpoint.
 
+### Added (automatic payments, team access, fraud check)
+- **Saved payment methods** (Stripe card, optionally SEPA direct debit) and **automatic renewal payments** with them: off-session charges one day before the due date, at most one charge per invoice and attempt (reserved attempts, fixed idempotency keys), card retries, SEPA pre-notifications, customer e-mails for declines and authentication requests, webhooks for SEPA results, detached methods and revoked mandates; migration `2026_11_30_000070_create_saved_payment_methods`.
+- **Team access**: customers invite colleagues with permissions (view, manage, access data, invoices) for all or selected services; contract actions stay with the owner; migration `2026_11_30_000071_create_account_members`.
+- **Fraud check** for paid orders (throw-away e-mails, payment vs. billing country, shared IPs, chargebacks, new accounts with high values, order bursts) with the review queue Orders → Order review; migration `2026_11_30_000072_add_order_fraud_review`.
+- Translations, routes and settings can be split into area files (`resources/lang/<code>/*.php`, `config/routes/*.php`, `config/settings/*.php`).
+
 ### Added (global sales, wide package card)
 - **Global sales** (Admin → Sale campaigns): percentage for all products, categories or selected products within a period, permanent or for the first billing period; never added to a product promotion (the higher one wins); stored with the order item; site-wide banner with countdown, notice in the shop, sale name and previous price (§ 11 PAngV) on the product pages; migration `2026_11_29_000020_create_sales`.
 - The last package of a tab is shown as a wide card (name and price, features in two columns, order button).

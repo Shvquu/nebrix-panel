@@ -53,6 +53,9 @@ php bin/nebrix migrate
 | `000018_add_cache_and_location_evidence` | encrypted cache (`nx_cache`), payment country and location conflict on invoices |
 | `000019_add_website_catalog` | product line and promotion columns on `nx_products`, `nx_product_price_history` (previous lowest price, § 11 PAngV), `promo_bp` on order items, `configuration` on service changes |
 | `000020_create_sales` | global sales (`nx_sales`) and the sale of an order item (`nx_order_items.sale_id`) |
+| `2026_11_30_000070_create_saved_payment_methods` | saved Stripe payment methods (`nx_payment_methods`), automatic payment attempts and SEPA pre-notifications (`nx_autopay_attempts`), `stripe_customer_id` and `auto_pay_saved` on `nx_users` |
+| `2026_11_30_000071_create_account_members` | team access (`nx_account_members`) |
+| `2026_11_30_000072_add_order_fraud_review` | fraud check result and staff decision on `nx_orders` (`fraud_score`, `fraud_status`, `fraud_reasons`, `fraud_checked_at`, `fraud_reviewed_by`, `fraud_reviewed_at`) |
 
 ## Tables
 
@@ -62,6 +65,9 @@ php bin/nebrix migrate
 | `nx_roles` | Roles (`super_admin`, `admin`, `support`, `finance`, `customer`, custom staff roles). `is_system` roles cannot be deleted. |
 | `nx_role_permissions` | Permission strings per role (catalog in `src/Authorization/Permission.php`). |
 | `nx_customer_groups` | Discount (`discount_bp`, basis points) and the switches `can_order` / `can_manage_services`. |
+| `nx_account_members` | Team access: owner, member (after acceptance), invited address, permissions (`services.view`, `services.manage`, `services.credentials`, `billing`), all or selected services, status `invited` / `active` / `revoked`, SHA-256 hash and expiry of the invitation token. |
+| `nx_payment_methods` | Saved payment methods at Stripe: PaymentMethod and Customer ID, type (`card`, `sepa_debit`), brand, last four digits, expiry, country, SEPA mandate ID and reference, default flag, status (`active`, `inactive`, `removed`). No card numbers or IBANs. |
+| `nx_autopay_attempts` | Automatic payments with saved methods: one row per charge attempt or SEPA pre-notification (unique per invoice, kind and attempt), PaymentIntent ID, status (`processing`, `retry`, `succeeded`, `failed`, `action_required`, `sent`), announced debit date, error code. |
 | `nx_users` | Customers and staff. Unique `email`, `username`, `legacy_id`. Status `pending`, `active`, `suspended`, `closed`. Argon2id hash, encrypted 2FA secret, hashed recovery codes, credit balance (minor units), `auto_pay_credit` (renewals from credit, default on), VAT ID with VIES result (`vat_id_valid`: 1 valid, 0 invalid, `NULL` not checked; `vat_id_checked_at`, `vat_id_name`), support PIN (`support_pin`, encrypted). |
 | `nx_user_tokens` | Hashed single-use tokens (password reset, e-mail verification) with expiry. |
 | `nx_sessions` | Server-side sessions (hashed ID, user, IP, user agent, payload, last activity). |

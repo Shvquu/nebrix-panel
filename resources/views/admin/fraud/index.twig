@@ -1,0 +1,28 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Order review'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Order review'|t }}</h1><p class="muted">{{ 'Paid orders held by the fraud check. Approved orders are set up immediately; rejected orders are not set up.'|t }}</p></div></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Order'|t }}</th><th>{{ 'Customer'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Score'|t }}</th><th>{{ 'Reasons'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+        <tr>
+            <td><a href="/admin/orders/{{ o.id }}" class="mono">{{ o.number }}</a><div class="small muted">{{ o.created_at|dt }}{% if o.ip %} · <span class="mono">{{ o.ip }}</span>{% endif %}</div></td>
+            <td><a href="/admin/customers/{{ o.user_id }}">{{ o.company ?: (o.first_name ~ ' ' ~ o.last_name)|trim }}</a><div class="small muted">{{ o.email }}</div></td>
+            <td class="text-right">{{ o.total|money(o.currency) }}</td>
+            <td><strong>{{ o.fraud_score }}</strong></td>
+            <td class="small">{% for r in o.reasons %}{{ ('fraud.' ~ r.rule)|t }} (+{{ r.points }}){% if r.detail %}: {{ r.detail }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+            <td>{% if o.fraud_status == 'review' %}<span class="badge badge-warning">{{ 'waiting'|t }}</span>{% elseif o.fraud_status == 'approved' %}<span class="badge badge-success">{{ 'approved'|t }}</span>{% else %}<span class="badge badge-danger">{{ 'rejected'|t }}</span>{% endif %}</td>
+            <td class="actions">
+                {% if o.fraud_status == 'review' and can('orders.manage') %}
+                <form method="post" action="/admin/orders/review/{{ o.id }}/approve" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-primary" type="submit">{{ 'Approve'|t }}</button></form>
+                <form method="post" action="/admin/orders/review/{{ o.id }}/reject" class="inline" data-confirm="{{ 'Reject this order? It will not be set up.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-danger" type="submit">{{ 'Reject'|t }}</button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% else %}
+        <tr><td colspan="7" class="empty">{{ 'No orders are waiting for review.'|t }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

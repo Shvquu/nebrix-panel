@@ -123,6 +123,24 @@ With the website switched on (default), `/` shows a public start page instead of
 * **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for. Every refund creates a correction document (credit note) for the refunded amount.
 * **Webhook events**: every received payment webhook with its processing status.
 
+## Fraud check
+
+Admin → Settings → General → *Fraud check* (off by default). When switched on, every paid order is checked before it is set up. Each matching rule adds points; from the *Review score* (default 50) on, the order waits in **Orders → Order review** and the customer receives the e-mail `order_review`.
+
+| Rule | Points |
+|---|---|
+| Throw-away e-mail domain (built-in list `resources/fraud/disposable-domains.txt` plus the domains in the settings; subdomains match) | 40 |
+| Payment country (card issuer / PayPal account) differs from the billing country | 25 |
+| Two or more other accounts ordered from the same IP address within 30 days | 25 |
+| The IP address was used by accounts with chargebacks | 30 |
+| New account (less than a day old) with an order of at least the *High order value* | 20 |
+| More than three orders in 24 hours | 15 |
+| Last name or country missing | 10 |
+| The customer had a chargeback before | 60 |
+| An earlier order of the customer was rejected | 60 |
+
+Staff with `orders.manage` **approve** an order (it is set up immediately) or **reject** it (nothing is set up; refund the payment under Payments if appropriate). Decisions are audit-logged and final. The check uses only data the panel already has – no external services; VPN/proxy detection would need an external provider and is not included.
+
 ## Status page and maintenance announcements
 
 The public page **`/status`** (linked on the sign-in page and in the customer menu; JSON for monitoring tools: `/status.json`) shows the state of your systems, current incidents, scheduled maintenance and the last 14 days. Manage it under *Support → Status page* (permission `status.manage`; the built-in Administrator and Support roles have it).
@@ -193,6 +211,12 @@ Switch it on under *Settings → General → Refer a friend* ([CONFIGURATION.md]
 * **Support PIN**: when a customer calls, ask for the PIN shown on their dashboard and check it on the customer page (*Support PIN → Check PIN*). Staff never see the PIN.
 * **Discord**: see [INTEGRATIONS.md](INTEGRATIONS.md#discord-account-link-and-roles) for the set-up. The customer page shows the linked account, server membership and the last role sync; staff can unlink it.
 * Colours and logo come from Settings → Branding (primary = purple, accent = cyan by default; the portal uses a gradient of both).
+
+## Team access
+
+Customers give colleagues access under Account → **Team**: they invite an e-mail address and choose permissions – *view services*, *manage services* (power actions, reinstall, console, backups), *show access data* and *view and pay invoices* – for all services (including future ones) or selected services. The invitation link is valid for seven days and can only be accepted by a signed-in user whose verified e-mail address matches it. Shared services appear under "My services → Shared with me", shared invoices under "Invoices of shared accounts".
+
+Cancellations, package changes, orders, payment methods, account settings, API tokens and the team itself always stay with the owner. Members cannot pay another account's invoices with their own credit. Removing a member (or a locked owner account) ends access with the next request; removed members are kept as `revoked`. The REST API only covers the token owner's own account.
 
 ## Services
 

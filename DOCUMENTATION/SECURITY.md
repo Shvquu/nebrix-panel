@@ -130,6 +130,13 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Refunds and chargebacks reverse what the payment bought: refunded/disputed credit top-ups are removed from the balance (staff cannot refund already spent credit), fully refunded or disputed orders/renewals suspend the services.
 * All payment steps are appended to `nx_payment_events` (no update/delete code path). No card data is processed or stored.
 * Provisioning runs after the payment transaction in idempotent jobs; payment success does not depend on provisioning.
+* Saved payment methods: only Stripe references and display data are stored; the setup session is retrieved server-side and bound to the account's Stripe Customer. Off-session charges are reserved per invoice and attempt (unique key) before Stripe is called and use a fixed idempotency key, so parallel runs or retries after network errors cannot charge twice.
+* Fraud check: paid orders above the review score are not set up until staff with `orders.manage` approve them; decisions are conditional updates (no double decision) and audit-logged.
+
+### Team access
+* Every customer lookup of services and invoices goes through `TeamService`, which checks the membership, its permissions, the service selection and an active owner account on each request (no cached grants). Unknown permissions are dropped; only services of the owner can be shared.
+* Contract and account actions (cancellation, withdrawal, package changes, orders, payment methods, settings, API tokens, team) remain owner-only. Members cannot pay another account's invoices with their own credit.
+* Invitation tokens are 256-bit random values stored as SHA-256 hashes, valid for seven days, single use and bound to the invited, verified e-mail address.
 
 ### Background processing
 * No HTTP-triggered cron endpoints; worker and scheduler run from the CLI (H-07).

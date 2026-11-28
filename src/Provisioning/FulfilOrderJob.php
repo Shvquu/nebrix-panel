@@ -9,12 +9,19 @@ use Nebrix\Queue\JobHandler;
 
 final class FulfilOrderJob implements JobHandler
 {
-    public function __construct(private readonly ProvisioningService $provisioning)
-    {
+    public function __construct(
+        private readonly ProvisioningService $provisioning,
+        private readonly \Nebrix\Billing\FraudCheck $fraud,
+    ) {
     }
 
     public function handle(array $payload): void
     {
-        $this->provisioning->fulfilOrder((int) ($payload['order_id'] ?? 0));
+        $orderId = (int) ($payload['order_id'] ?? 0);
+        // Held for fraud review: staff approval dispatches the job again.
+        if (!$this->fraud->clearForFulfilment($orderId)) {
+            return;
+        }
+        $this->provisioning->fulfilOrder($orderId);
     }
 }

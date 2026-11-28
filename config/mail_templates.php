@@ -184,4 +184,10 @@ return [
         'subject' => '{{ owner_name }} invites you to their account',
         'html' => '<p>Hello,</p><p><strong>{{ owner_name }}</strong> invites you to access services of their customer account.</p><p>Sign in with this e-mail address (or register with it) and accept the invitation. The link is valid for {{ expires_days }} days.</p><p><a class="button" href="{{ invitation_url }}">Accept invitation</a></p><p>If you do not know the sender, you can ignore this e-mail.</p>',
     ],
+    'order_review' => [
+        'name' => 'Order under review',
+        'variables' => ['name', 'order_number'],
+        'subject' => 'Your order {{ order_number }} is being reviewed',
+        'html' => '<p>Hello {{ name }},</p><p>thank you for your order <strong>{{ order_number }}</strong>. Before we set it up, our team checks it briefly. This usually takes only a few hours; we will contact you if we need anything.</p>',
+    ],
 ];

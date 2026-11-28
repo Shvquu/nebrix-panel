@@ -61,6 +61,20 @@ The country of the payment method is stored with the paid invoice (`payment_coun
 * Staff adjust balances in Admin → Customers → Credit (permission `customers.credit`, reason required, audit-logged).
 * Every movement is written to `nx_credit_ledger` with the resulting balance.
 
+## Saved payment methods and automatic payments
+
+Enable *Allow customers to save a payment method for automatic renewal payments* (Admin → Settings → Payment providers → Stripe) and, optionally, *Offer SEPA direct debit as a saved payment method* (SEPA Direct Debit must be activated in the Stripe account; EUR invoices only). Add the webhook events `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_method.detached` and `mandate.updated` to the existing Stripe endpoint.
+
+* **Saving**: Account → Payment methods → *Add card* opens a Stripe Checkout Session in setup mode for the customer's Stripe Customer (created once per account). After the return, the session is retrieved server-side and must belong to the signed-in account (Stripe Customer ID stored in the panel; metadata is checked as well). The panel stores only the Stripe reference, brand, last four digits, expiry, country and – for SEPA – the mandate ID and mandate reference. Up to five methods per account; one is the default.
+* **Automatic payment** (customer switch, off by default): unpaid renewal invoices are charged off-session with the default method at the earliest one day before the due date (scheduler task `billing.auto_pay_saved`, hourly). When automatic credit payment is enabled and the credit covers the invoice, the credit is used instead.
+* **Never twice**: every attempt is reserved in `nx_autopay_attempts` (unique per invoice and attempt) before Stripe is called and uses the idempotency key `nebrix-autopay-<invoice>-<attempt>`. An attempt interrupted by a network error is repeated with the same key; Stripe returns the original result instead of charging again.
+* **Cards**: up to three attempts, three days apart. A bank asking for authentication (3-D Secure) or a decline sends the customer an e-mail with a link to pay manually (templates `autopay_action_required`, `autopay_failed`).
+* **SEPA**: the customer first receives a pre-notification with amount, debit date and mandate reference (template `sepa_prenotification`); the debit happens no earlier than *Days between the SEPA pre-notification and the debit* later (default 2 – must not be shorter than the period in the mandate text). SEPA payments are "processing" for a few days and are settled by the `payment_intent.succeeded` webhook; a returned debit (`payment_intent.payment_failed`) is not retried automatically, because return debits cost fees.
+* Results are taken from Stripe's API response or verified webhooks only; amount and currency are checked against the invoice like every other payment. Removing a method detaches it at Stripe; a detached method or an inactive mandate is no longer charged.
+* Staff see the saved methods and the last attempts on the customer page.
+
+Tested against a mocked Stripe API only (`tests/Feature/SavedPaymentMethodTest.php`); run a test-mode charge with a test card and a test IBAN before going live.
+
 ## Manual payments
 
 Admin → Invoices → *Record payment* (permission `invoices.manage`) records bank transfers or other offline payments with a reference. The amount must equal the invoice total; partial payments are not supported.

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Nebrix\Controller\Account;
+use Nebrix\Controller\Admin;
 use Nebrix\Http\Router;
 
 /*
@@ -25,5 +26,11 @@ return static function (Router $r): void {
         $r->post('/account/team/memberships/{id:\d+}/leave', [Account\TeamController::class, 'leave']);
         $r->get('/team/invitations/{token:[a-f0-9]{64}}', [Account\TeamController::class, 'invitation']);
         $r->post('/team/invitations/{token:[a-f0-9]{64}}/accept', [Account\TeamController::class, 'accept']);
+    });
+
+    $r->group(['prefix' => '/admin', 'middleware' => ['auth', 'staff']], static function (Router $r): void {
+        $r->get('/orders/review', [Admin\FraudReviewController::class, 'index'], ['middleware' => ['permission:orders.view']]);
+        $r->post('/orders/review/{id:\d+}/approve', [Admin\FraudReviewController::class, 'approve'], ['middleware' => ['permission:orders.manage']]);
+        $r->post('/orders/review/{id:\d+}/reject', [Admin\FraudReviewController::class, 'reject'], ['middleware' => ['permission:orders.manage']]);
     });
 };
