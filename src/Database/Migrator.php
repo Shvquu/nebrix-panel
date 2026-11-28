@@ -29,6 +29,11 @@ final class Migrator
 
     public function ensureRepository(): void
     {
+        // DDL commits an open transaction implicitly: only create the table when it is missing
+        // (read-only pages such as the system settings check pending migrations).
+        if ((int) $this->db->fetchValue("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nx_migrations'") > 0) {
+            return;
+        }
         $this->db->run(
             'CREATE TABLE IF NOT EXISTS `nx_migrations` (
                 `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
