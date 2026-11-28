@@ -10,6 +10,7 @@ use Nebrix\Http\Request;
 use Nebrix\Http\Response;
 use Nebrix\Security\RateLimiter;
 use Nebrix\Settings\SettingsRepository;
+use Nebrix\Support\Assistant\HelpAssistant;
 use Nebrix\Support\HelpCenter;
 use Nebrix\Support\Markdown;
 use Nebrix\Website\WebsiteCatalog;
@@ -29,6 +30,7 @@ final class HelpController extends Controller
         private readonly SettingsRepository $settings,
         private readonly WebsiteCatalog $catalog,
         private readonly RateLimiter $limiter,
+        private readonly HelpAssistant $assistant,
     ) {
     }
 
@@ -177,6 +179,7 @@ final class HelpController extends Controller
             'about_page' => trim($this->settings->string('website.about_text')) !== '',
             'small_business' => $catalog->smallBusiness(),
             'trustpilot' => null,
+            'assistant_enabled' => $this->assistant->enabled(),
         ]);
     }
 }

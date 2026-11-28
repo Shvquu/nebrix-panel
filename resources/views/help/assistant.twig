@@ -1,0 +1,53 @@
+{% extends 'layouts/website.twig' %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'AI assistant'|t }} · {{ 'Help center'|t }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/support.css') }}">
+<section class="site-section help-article-section">
+    <div class="site-container site-narrow">
+        <p class="help-crumbs"><a href="/help">{{ 'Help center'|t }}</a></p>
+        <h1>{{ 'AI assistant'|t }}</h1>
+        <div class="help-ai-notice" role="note">
+            {{ i.icon('info') }}
+            <p>{{ 'Answers are generated automatically by an AI (Claude by Anthropic) from our help articles. They can be incomplete or wrong – please check them, and open a support ticket if you are unsure. Only your question is sent, no account data. Do not enter passwords or personal data.'|t }}</p>
+        </div>
+        {% include 'partials/flash.twig' %}
+
+        <div class="help-chat">
+            {% for entry in history %}
+            <div class="help-chat-question"><strong>{{ 'You'|t }}:</strong> {{ entry.question }}</div>
+            <div class="help-chat-answer{{ entry.ai ? '' : ' is-local' }}">
+                {% if entry.ai %}
+                    <span class="site-badge">{{ i.icon('zap') }} {{ 'AI-generated answer'|t }}</span>
+                    <div class="help-chat-text">{{ entry.answer|nl2br }}</div>
+                {% else %}
+                    <div class="help-chat-text">{{ 'I could not find an answer to this question in our help center. Please open a support ticket – our team will answer you personally.'|t }}</div>
+                {% endif %}
+                {% if entry.sources is not empty %}
+                <p class="site-small site-muted">{{ 'Sources'|t }}: {% for s in entry.sources %}<a href="{{ s.url }}">{{ s.title }}</a>{{ not loop.last ? ', ' : '' }}{% endfor %}</p>
+                {% endif %}
+                {% if tickets_enabled %}
+                <a class="site-btn site-btn-ghost help-chat-ticket" href="/tickets/create?{{ {subject: entry.question|slice(0, 200), message: entry.question}|url_encode }}">{{ i.icon('support') }} {{ 'Create ticket'|t }}</a>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="site-muted">{{ 'Ask a question about our services, for example "How do I reset the password of my server?"'|t }}</p>
+            {% endfor %}
+        </div>
+
+        <form method="post" action="/help/assistant" class="help-chat-form" novalidate>
+            {{ csrf_field() }}
+            <label for="assistant-question">{{ 'Your question'|t }}</label>
+            <textarea id="assistant-question" name="question" rows="3" maxlength="{{ max_length }}" required>{{ old('question', '') }}</textarea>
+            {% if error('question') %}<div class="field-error">{{ error('question')|t }}</div>{% endif %}
+            <p class="site-small site-muted">{{ 'At most :n characters.'|t({n: max_length}) }}</p>
+            <div class="site-actions">
+                <button class="site-btn site-btn-primary" type="submit">{{ 'Ask'|t }}</button>
+            </div>
+        </form>
+        {% if history is not empty %}
+        <form method="post" action="/help/assistant/clear" class="help-chat-clear">{{ csrf_field() }}<button class="site-btn site-btn-ghost" type="submit">{{ 'Start a new conversation'|t }}</button></form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,4 +1,4 @@
-{# "Still need help?" box: support ticket. #}
+{# "Still need help?" box: AI assistant (when enabled) and support ticket. #}
 {% import 'macros/icons.twig' as i %}
 <div class="help-more site-card">
     <div>
@@ -6,6 +6,7 @@
         <p class="site-muted">{{ 'Our support team is happy to help you personally.'|t }}</p>
     </div>
     <div class="site-actions">
+        {% if assistant_enabled|default(false) %}<a class="site-btn site-btn-ghost" href="/help/assistant">{{ i.icon('chat') }} {{ 'Ask the AI assistant'|t }}</a>{% endif %}
         {% if setting('system.tickets_enabled') %}<a class="site-btn site-btn-primary" href="/tickets/create">{{ i.icon('support') }} {{ 'Open a support ticket'|t }}</a>{% endif %}
     </div>
 </div>

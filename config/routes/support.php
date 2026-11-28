@@ -6,6 +6,7 @@ use Nebrix\Controller\Account\NotificationController;
 use Nebrix\Controller\Admin\CannedResponseController;
 use Nebrix\Controller\Admin\HelpCenterController;
 use Nebrix\Controller\Admin\TicketController as AdminTicketController;
+use Nebrix\Controller\Customer\AssistantController;
 use Nebrix\Controller\Customer\TicketController;
 use Nebrix\Controller\HelpController;
 use Nebrix\Controller\InboundMailController;
@@ -13,7 +14,8 @@ use Nebrix\Controller\StatusSubscriptionController;
 use Nebrix\Http\Router;
 
 /*
- * Support area: help center, ticket attachments and ratings, inbound e-mail replies, status subscriptions, notification preferences.
+ * Support area: help center, AI assistant, ticket attachments and ratings,
+ * inbound e-mail replies, notification preferences, status subscriptions.
  */
 return static function (Router $r): void {
     // Help center (public). The fixed pages come before the category route.
@@ -21,6 +23,11 @@ return static function (Router $r): void {
     $r->get('/help/search', [HelpController::class, 'search']);
     $r->get('/help/suggest', [HelpController::class, 'suggest']);
     $r->post('/help/articles/{id:\d+}/vote', [HelpController::class, 'vote']);
+    $r->group(['middleware' => ['auth', 'verified']], static function (Router $r): void {
+        $r->get('/help/assistant', [AssistantController::class, 'show']);
+        $r->post('/help/assistant', [AssistantController::class, 'ask']);
+        $r->post('/help/assistant/clear', [AssistantController::class, 'clear']);
+    });
     $r->get('/help/{category:[a-z0-9-]{1,80}}', [HelpController::class, 'category']);
     $r->get('/help/{category:[a-z0-9-]{1,80}}/{article:[a-z0-9-]{1,120}}', [HelpController::class, 'article']);
 
