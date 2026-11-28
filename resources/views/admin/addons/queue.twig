@@ -1,0 +1,41 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Add-ons to set up'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Add-ons to set up'|t }}</h1><p class="muted">{{ 'Paid add-ons without an automatic provisioner (or whose automatic set-up failed) and ended add-ons to remove by hand.'|t }}</p></div></div>
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Add-on'|t }}</th><th>{{ 'Service'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Action'|t }}</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+            <tr>
+                <td><strong>{{ e.name }}</strong> × {{ e.quantity }}<div class="small muted">{{ kinds[e.kind]|default(e.kind)|t }} · #{{ e.id }}</div>
+                    {% for key, value in e.details %}{% if value is not same as(null) and value != '' %}<div class="small mono">{{ key == 'info' ? '' : key ~ ': ' }}{{ value }}</div>{% endif %}{% endfor %}
+                    {% if e.last_error %}<div class="small text-danger">{{ e.last_error }}</div>{% endif %}
+                </td>
+                <td>{% if can('services.view') %}<a href="/admin/services/{{ e.service_id }}">{{ e.service_name }}</a>{% else %}{{ e.service_name }}{% endif %} <span class="badge {{ e.service_status|status_class }}">{{ e.service_status|t }}</span></td>
+                <td class="small">{{ e.email }}</td>
+                <td><span class="badge {{ e.status|status_class }}">{{ (e.status == 'removing' ? 'to remove' : (e.status == 'failed' ? 'failed' : 'to set up'))|t }}</span></td>
+                <td>
+                    {% if can('services.manage') %}
+                        {% if e.status in ['pending', 'failed'] %}
+                        <form method="post" action="/admin/addon-queue/{{ e.id }}/done" class="filters" novalidate>
+                            {{ csrf_field() }}
+                            <div class="form-row"><label for="f-details-{{ e.id }}" class="small">{{ 'Details for the customer (optional)'|t }}</label><input id="f-details-{{ e.id }}" type="text" name="details" maxlength="1000"></div>
+                            <button class="btn btn-sm btn-primary" type="submit">{{ 'Mark as set up'|t }}</button>
+                        </form>
+                        {% if e.status == 'failed' %}<form method="post" action="/admin/addon-queue/{{ e.id }}/retry" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Retry automatic set-up'|t }}</button></form>{% endif %}
+                        {% else %}
+                        <form method="post" action="/admin/addon-queue/{{ e.id }}/removed" class="filters" novalidate>
+                            {{ csrf_field() }}
+                            <div class="form-row"><label for="f-note-{{ e.id }}" class="small">{{ 'Note (optional)'|t }}</label><input id="f-note-{{ e.id }}" type="text" name="note" maxlength="500"></div>
+                            <button class="btn btn-sm btn-primary" type="submit">{{ 'Mark as removed'|t }}</button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'Nothing to do.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

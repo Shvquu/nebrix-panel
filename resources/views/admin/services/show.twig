@@ -90,4 +90,9 @@
         </ul></div>
     </div>
 </div>
+{% if service_addons is defined and service_addons is not empty %}
+<div class="card mt-2"><div class="card-header"><h2>{{ 'Add-ons'|t }}</h2><a class="small" href="/admin/addon-queue">{{ 'Add-ons to set up'|t }}</a></div><div class="table-wrap"><table class="table"><tbody>
+    {% for a in service_addons %}<tr><td><strong>{{ a.name }}</strong> × {{ a.quantity }}{% for key, value in a.details %}{% if value is not same as(null) and value != '' %}<div class="small mono">{{ key == 'info' ? '' : key ~ ': ' }}{{ value }}</div>{% endif %}{% endfor %}</td><td><span class="badge {{ a.status|status_class }}">{{ a.status|humanize|t }}</span>{% if a.fulfilment %} <span class="small muted">{{ a.fulfilment }}</span>{% endif %}</td><td class="text-right">{{ a.recurring_amount|money(a.currency) }} {{ 'net'|t }}</td><td class="small">{% if a.cancel_at %}{{ 'Cancelled – ends on :date'|t({date: a.cancel_at|d}) }}{% endif %}</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endif %}
 {% endblock %}

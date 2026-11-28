@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Add-ons'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Add-ons'|t }}</h1><p class="muted">{{ 'Extras customers book for a service, with the order or later: billed with the service in its billing cycle.'|t }} <a href="/admin/addon-queue">{{ 'Add-ons to set up'|t }}</a></p></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/addons/create">{{ 'New add-on'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Kind'|t }}</th><th class="text-right">{{ 'Price per month (net)'|t }}</th><th class="text-right">{{ 'Setup fee (net)'|t }}</th><th>{{ 'Offered for'|t }}</th><th class="text-right">{{ 'Booked'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for a in addons %}
+            <tr>
+                <td><strong>{{ a.name }}</strong>{% if not a.is_active %} <span class="badge badge-neutral">{{ 'inactive'|t }}</span>{% endif %}</td>
+                <td>{{ kinds[a.kind]|default(a.kind)|t }}</td>
+                <td class="text-right">{{ a.price|money(a.currency) }}</td>
+                <td class="text-right">{{ a.setup_fee|money(a.currency) }}</td>
+                <td class="small">{% for c in a.categories %}{{ categories[c]|default(c)|t }}{{ loop.last ? '' : ', ' }}{% endfor %}{% if a.product_ids is not empty %}{{ a.categories is empty ? '' : ' · ' }}{{ ':n products'|t({n: a.product_ids|length}) }}{% endif %}</td>
+                <td class="text-right">{{ a.booked }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/addons/{{ a.id }}">{{ can('products.manage') ? 'Edit'|t : 'View'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No add-ons yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

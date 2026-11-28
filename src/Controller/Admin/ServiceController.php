@@ -94,6 +94,8 @@ final class ServiceController extends Controller
             'package_open' => $this->changes->openChange($id),
             'package_targets' => $this->can($request, Permission::SERVICES_MANAGE) && ($owner = $this->users->find($service->userId)) !== null
                 ? $this->changes->adminTargets($service, $owner) : [],
+            // Booked add-ons (orders area).
+            'service_addons' => $this->container->get(\Nebrix\Service\Addon\AddonRepository::class)->forService($id),
         ]);
     }
 

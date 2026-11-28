@@ -43,6 +43,24 @@
             </div>
         </div>
     </div>
+    {% if offers_cycles %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Additional billing cycles'|t }}</h2></div>
+        <div class="card-body">
+            <p class="small muted">{{ 'The billing cycle above is always offered at the price above. Each additional cycle costs that price scaled to its length (e.g. × 12 for annually when the price is monthly) less its discount. Promotions, sales, customer-group discounts and coupons apply to the price of the cycle the customer chooses.'|t }}</p>
+            <div class="form-grid">
+            {% for key, label in cycle_options %}
+                <div class="form-row">
+                    <label class="checkbox"><input type="checkbox" name="cycle_{{ key }}" value="1"{% if old('cycle_' ~ key, cycle_discounts[key] is defined ? '1' : '') == '1' %} checked{% endif %}> <span>{{ label|t }}</span></label>
+                    <label for="f-cycle_{{ key }}_discount" class="small">{{ 'Discount (%)'|t }}</label>
+                    <input id="f-cycle_{{ key }}_discount" type="text" inputmode="decimal" name="cycle_{{ key }}_discount" value="{{ old('cycle_' ~ key ~ '_discount', cycle_discounts[key] ?? '') }}" class="{{ error('cycle_' ~ key ~ '_discount') ? 'is-invalid' : '' }}">
+                    {% if error('cycle_' ~ key ~ '_discount') %}<div class="field-error">{{ error('cycle_' ~ key ~ '_discount')|t }}</div>{% endif %}
+                </div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
     <div class="card">
         <div class="card-header"><h2>{{ 'Provisioning'|t }}</h2></div>
         <div class="card-body">

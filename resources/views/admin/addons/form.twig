@@ -1,0 +1,38 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set a = addon %}
+{% block title %}{{ a ? a.name : 'New add-on'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ a ? a.name : 'New add-on'|t }}</h1><p class="muted"><a href="/admin/addons">&larr; {{ 'Add-ons'|t }}</a></p></div></div>
+<form method="post" action="{{ a ? '/admin/addons/' ~ a.id : '/admin/addons' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Add-on'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', a.name|default(''), 'text', {required: true, maxlength: 100}) }}
+                {{ f.textarea('description', 'Description', a.description|default('')) }}
+                {{ f.select('kind', 'Kind', kinds, a.kind|default('custom'), {help: 'Kinds with an automatic provisioner are set up after payment; all others appear under "Add-ons to set up".'}) }}
+                {{ f.input('sort_order', 'Sort order', a.sort_order|default(0), 'number') }}
+                {{ f.checkbox('is_active', 'Active (can be booked)', a ? a.is_active : true) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Pricing & availability'|t }}</h2></div>
+            <div class="card-body form-grid">
+                {{ f.input('price', 'Price per month (net)', price, 'text', {required: true, inputmode: 'decimal', help: 'Per unit. Charged per billing period of the service (e.g. × 12 for annual services).'}) }}
+                {{ f.input('setup_fee', 'Setup fee (net)', setup_fee, 'text', {inputmode: 'decimal'}) }}
+                {{ f.select('currency', 'Currency', currencies, a.currency|default(currencies|keys|first)) }}
+                {{ f.input('tax_rate', 'Tax rate (%)', tax_rate, 'text', {inputmode: 'decimal'}) }}
+                {{ f.input('max_quantity', 'Maximum quantity per service', a.max_quantity|default(1), 'number', {min: 1, max: 100}) }}
+            </div>
+            <div class="card-body">
+                {{ f.multiselect('categories', 'Offered for categories', categories, a.categories|default([])) }}
+                {{ f.multiselect('product_ids', 'Offered for products', products, a ? a.product_ids|map(id => id ~ '') : []) }}
+                <p class="small muted">{{ 'Customer-group discounts apply to add-ons; promotions, sales, bundles and coupons do not. Booked add-ons keep their price.'|t }}</p>
+            </div>
+        </div>
+    </div>
+    {% if can('products.manage') %}<div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>{% endif %}
+</form>
+{% endblock %}
