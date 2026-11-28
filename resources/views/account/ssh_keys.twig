@@ -1,0 +1,48 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'SSH keys'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'SSH keys'|t }}</h1><p class="muted">{{ 'Public keys you can install on new and reinstalled servers. Only the public part of a key is stored.'|t }}</p></div></div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Your keys'|t }}</h2><span class="muted small">{{ ':count of :max'|t({count: keys|length, max: max_keys}) }}</span></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Fingerprint'|t }}</th><th>{{ 'Added'|t }}</th><th>{{ 'Last used'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for key in keys %}
+                <tr>
+                    <td>{{ key.name }}</td>
+                    <td class="small">{{ key.type }} ({{ key.bits }} bit)</td>
+                    <td class="mono small">{{ key.fingerprint }}</td>
+                    <td>{{ key.created_at|dt }}</td>
+                    <td>{{ key.last_used_at ? key.last_used_at|dt : '–' }}</td>
+                    <td>
+                        <form method="post" action="/account/ssh-keys/{{ key.id }}/delete" data-confirm="{{ 'Delete this SSH key? Servers that already have it keep it.'|t }}">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-danger" type="submit">{{ 'Delete'|t }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="muted">{{ 'You have not added any SSH keys yet.'|t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if keys|length < max_keys %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Add a key'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/account/ssh-keys" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('name', 'Name', '', 'text', {required: true, maxlength: 100, help: 'For example the computer the key belongs to.'}) }}
+            {{ f.textarea('public_key', 'Public key', '', {rows: 4, class: 'mono', spellcheck: 'false', help: 'The content of the .pub file, e.g. ssh-ed25519 AAAA… user@laptop. Allowed: Ed25519, ECDSA (P-256/384/521) and RSA with at least 2048 bits.'}) }}
+            <button class="btn btn-primary" type="submit">{{ 'Add key'|t }}</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
