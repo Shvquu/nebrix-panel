@@ -284,6 +284,47 @@ final class AuthenticationTest extends FeatureTestCase
         self::assertSame(2, $countMails('two_factor_failed'));
     }
 
+    public function testAlertsAreBudgetedAndAResetLiftsTheLockout(): void
+    {
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 12:00:00'));
+        $settings = $this->app->container()->get(\Nebrix\Settings\SettingsRepository::class);
+        $settings->set('auth.max_login_attempts', 3);
+        $countMails = fn (string $template): int => (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'mail.send' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.template')) = ?", [$template]);
+
+        // One client network locking many accounts: at most 10 alert mails per hour.
+        for ($a = 0; $a < 12; $a++) {
+            $this->createUser(Role::CUSTOMER, ['email' => 'flood' . $a . '@example.test']);
+            for ($i = 0; $i < 4; $i++) {
+                $this->post('/login', ['email' => 'flood' . $a . '@example.test', 'password' => 'wrong-' . $i]);
+            }
+        }
+        self::assertSame(10, $countMails('account_locked'));
+
+        // Pending (unconfirmed) accounts get no alert.
+        $pending = $this->createUser(Role::CUSTOMER, ['email' => 'pending@example.test', 'status' => 'pending']);
+        $this->clientIp = '203.0.113.99';
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['email' => 'pending@example.test', 'password' => 'wrong-' . $i]);
+        }
+        self::assertSame(10, $countMails('account_locked'));
+        unset($pending);
+
+        // The reset the alert suggests lifts the lockout.
+        $user = $this->createUser(Role::CUSTOMER, ['email' => 'locked@example.test']);
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['email' => 'locked@example.test', 'password' => 'wrong-' . $i]);
+        }
+        $limiter = $this->app->container()->get(\Nebrix\Security\RateLimiter::class);
+        self::assertGreaterThanOrEqual(3, $limiter->attempts('login:user:' . $user->id));
+        $this->post('/password/forgot', ['email' => 'locked@example.test']);
+        $mail = $this->lastMail('password_reset');
+        self::assertNotNull($mail);
+        $link = $this->extractLink($mail['text'], '/password/reset/');
+        $this->post('/password/reset', ['token' => substr($link, strlen('/password/reset/')), 'password' => 'Brand-New-Password-456', 'password_confirmation' => 'Brand-New-Password-456']);
+        self::assertSame(0, $limiter->attempts('login:user:' . $user->id));
+        $this->assertRedirect($this->post('/login', ['email' => 'locked@example.test', 'password' => 'Brand-New-Password-456']), '/dashboard');
+    }
+
     public function testParallelRequestsCannotReuseOneTotpOrRecoveryCode(): void
     {
         $user = $this->createUser();

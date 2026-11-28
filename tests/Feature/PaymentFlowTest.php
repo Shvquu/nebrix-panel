@@ -330,6 +330,45 @@ final class PaymentFlowTest extends FeatureTestCase
         self::assertStringContainsString('conflict checked', $this->get('/admin/invoices/' . $second['id'])->body());
     }
 
+    public function testConflictsWithoutTaxCountryAndForTopUpsAreFlagged(): void
+    {
+        // A consumer without a country pays the home rate; a Hungarian card contradicts that.
+        $noCountry = $this->createUser(Role::CUSTOMER, ['country' => null]);
+        $invoice = $this->orderInvoice($noCountry);
+        self::assertNull($invoice['tax_country']);
+        $this->stripe->on('get', '/v1/payment_intents/pi_hu', static fn (): array => [200, ['id' => 'pi_hu', 'object' => 'payment_intent', 'latest_charge' => ['id' => 'ch_hu', 'object' => 'charge', 'payment_method_details' => ['type' => 'card', 'card' => ['country' => 'HU']]]]]);
+        $payload = $this->stripeEvent('checkout.session.completed', $this->paidSession($invoice, 'pi_hu'));
+        $this->postRaw('/webhooks/stripe', $payload, ['Stripe-Signature' => FakeStripeHttp::signature($payload, self::WEBHOOK_SECRET)]);
+        self::assertSame(['HU', 1], [$this->db->fetchValue('SELECT payment_country FROM nx_invoices WHERE id = ?', [$invoice['id']]), (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$invoice['id']])]);
+
+        // Credit top-ups are compared with the billing address.
+        $topUp = $this->app->container()->get(InvoiceService::class)->createCreditTopUp($this->customer, 2000, 'EUR');
+        $this->stripe->on('get', '/v1/payment_intents/pi_top', static fn (): array => [200, ['id' => 'pi_top', 'object' => 'payment_intent', 'latest_charge' => ['id' => 'ch_t', 'object' => 'charge', 'payment_method_details' => ['type' => 'card', 'card' => ['country' => 'AT']]]]]);
+        $row = (array) $this->db->fetchOne('SELECT * FROM nx_invoices WHERE id = ?', [$topUp]);
+        $payload = $this->stripeEvent('checkout.session.completed', $this->paidSession($row, 'pi_top'));
+        $this->postRaw('/webhooks/stripe', $payload, ['Stripe-Signature' => FakeStripeHttp::signature($payload, self::WEBHOOK_SECRET)]);
+        self::assertSame(1, (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$topUp]));
+
+        // Paid invoices without any payment country can be listed.
+        $manual = $this->orderInvoice();
+        $this->app->container()->get(PaymentService::class)->recordPayment('manual', 'bank-1', (int) $manual['id'], (int) $manual['total'], 'EUR');
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $list = $this->get('/admin/invoices', ['location' => 'missing'])->body();
+        self::assertStringContainsString((string) $manual['number'], $list);
+        self::assertStringNotContainsString((string) $invoice['number'], $list);
+    }
+
+    public function testABrokenCacheNeverBlocksPayPal(): void
+    {
+        $this->db->run('RENAME TABLE nx_cache TO nx_cache_gone');
+        try {
+            $client = new \Nebrix\Payment\PayPal\PayPalClient($this->paypal->client(), 'client-id', 'client-secret', true, $this->app->container()->get(\Nebrix\Cache\SecureCache::class));
+            self::assertSame('A21AA-token', $client->accessToken(), 'Falls back to a live token.');
+        } finally {
+            $this->db->run('RENAME TABLE nx_cache_gone TO nx_cache');
+        }
+    }
+
     public function testPayPalReportsThePayerCountry(): void
     {
         $invoice = $this->orderInvoice();

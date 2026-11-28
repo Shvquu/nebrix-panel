@@ -41,6 +41,7 @@ if ! pct status "$VMID" | grep -q '^status: running$'; then
 fi
 
 IFS= read -r PASSWORD || true
+exec </dev/null # nothing else from the panel's session reaches the container
 case "$PASSWORD" in
     ''|*[!A-Za-z0-9]*) echo "nebrix: invalid password" >&2; exit 4 ;;
 esac
@@ -49,9 +50,11 @@ if [ "${#PASSWORD}" -lt 12 ] || [ "${#PASSWORD}" -gt 128 ]; then
     exit 4
 fi
 
-if printf 'root:%s\n' "$PASSWORD" | pct exec "$VMID" -- chpasswd; then
+# The container belongs to the customer: it gets neither the SSH environment nor the session's
+# output channel, and it cannot hold the session open (10 s limit, then killed).
+if printf 'root:%s\n' "$PASSWORD" | env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root timeout -k 3 10 pct exec "$VMID" -- chpasswd >/dev/null 2>&1; then
     echo "ok"
     exit 0
 fi
-echo "nebrix: chpasswd failed in container $VMID" >&2
+echo "nebrix: chpasswd failed or timed out in container $VMID" >&2
 exit 6

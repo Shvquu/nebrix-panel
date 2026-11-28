@@ -90,6 +90,9 @@ class AuthService
             $minutes = (int) ceil(max($this->limiter->availableIn($accountKey), $this->limiter->availableIn($ipKey)) / 60);
             if (!$withinAccountLimit && $user !== null) {
                 $this->securityAlert($user, 'account_locked', $request, ['attempts' => (string) $maxAttempts, 'minutes' => (string) max(1, (int) ceil($this->limiter->availableIn($accountKey) / 60))]);
+            } else {
+                // Same work for unknown accounts: the alert check must not reveal which addresses exist.
+                $this->limiter->attempts('security_alert:account_locked:none');
             }
 
             throw new AuthenticationException(sprintf('Too many failed sign-in attempts. Please try again in %d minute(s).', max(1, $minutes)));
@@ -433,7 +436,9 @@ class AuthService
         if ($user->status === User::STATUS_PENDING) {
             $this->users->update($user->id, ['status' => User::STATUS_ACTIVE, 'email_verified_at' => $this->clock->nowString()]);
         }
+        // The lockout counts per account: a reset (the way the alert e-mail suggests) lifts it.
         $this->limiter->clear('login:account:' . $user->email);
+        $this->limiter->clear('login:user:' . $user->id);
         $this->audit->log($user->id, 'auth.password_reset', 'user', $user->id, [], $request->clientIp());
     }
 
@@ -490,7 +495,12 @@ class AuthService
      */
     private function securityAlert(User $user, string $template, Request $request, array $variables): void
     {
-        if ($user->status === User::STATUS_CLOSED || !$this->limiter->attempt('security_alert:' . $template . ':' . $user->id, 1, 21600)) {
+        // Only for accounts that can act on it; once per kind and account every 6 hours, and with
+        // budgets per client network and in total, so the alerts cannot be used for mail floods.
+        if ($user->status !== User::STATUS_ACTIVE
+            || !$this->limiter->attempt('security_alert:' . $template . ':' . $user->id, 1, 21600)
+            || !$this->limiter->attempt('security_alert:network:' . RateLimiter::network($request->clientIp()), 10, 3600)
+            || !$this->limiter->attempt('security_alert:all', 200, 3600)) {
             return;
         }
         $this->mailer->queue($user->email, $user->displayName(), $template, $variables + [

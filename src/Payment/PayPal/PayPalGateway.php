@@ -339,6 +339,8 @@ class PayPalGateway implements PaymentGateway
     public function testConnection(): HealthResult
     {
         try {
+            // A fresh token: the test must reach PayPal, not the cache.
+            $this->client()->forgetToken();
             $this->client()->accessToken();
         } catch (PayPalException $exception) {
             return HealthResult::down($exception->getMessage());

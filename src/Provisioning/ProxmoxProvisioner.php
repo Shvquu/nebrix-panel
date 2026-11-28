@@ -67,7 +67,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
     /** LXC root passwords: only with SSH access to the guest's node (forced command). */
     private function lxcPasswordAvailable(Service $service): bool
     {
-        if ($this->type($service) !== ProxmoxClient::TYPE_LXC || $service->integrationId === null || !isset($service->remote['node'])) {
+        // Imported legacy containers carry no ownership marker, which the node script requires.
+        if ($this->type($service) !== ProxmoxClient::TYPE_LXC || $service->integrationId === null || !isset($service->remote['node']) || ($service->remote['legacy'] ?? false) === true) {
             return false;
         }
         try {
@@ -117,7 +118,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider, PackageC
         $pool6Id = (int) $service->config('ip6_pool_id', 0);
         if ($pool6Id > 0 && !isset($remote['ipv6'])) {
             $lease = $this->ipPools->allocate($pool6Id, $service->id, 6);
-            $dns = trim(implode(' ', array_unique([...array_filter(explode(' ', (string) ($remote['dns'] ?? ''))), ...$lease['dns']])));
+            // Resolvers of both pools; guests use at most three.
+            $dns = trim(implode(' ', array_slice(array_values(array_unique([...array_filter(explode(' ', (string) ($remote['dns'] ?? ''))), ...$lease['dns']])), 0, 3)));
             $addressing = ['ipv6' => $lease['address'] . '/' . $lease['prefix'], 'gateway6' => $lease['gateway'], 'dns' => $dns];
             $this->services->mergeRemote($service->id, $addressing);
             $remote = $addressing + $remote;

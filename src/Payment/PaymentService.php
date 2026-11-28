@@ -41,6 +41,7 @@ class PaymentService
         private readonly OrderRepository $orders,
         private readonly ServiceRepository $services,
         private readonly ServiceManager $serviceManager,
+        private readonly \Nebrix\Settings\SettingsRepository $settings,
     ) {
     }
 
@@ -115,13 +116,31 @@ class PaymentService
         if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
             return;
         }
+        // The country the tax was based on; top-ups and customers without a tax country
+        // fall back to the billing address snapshot.
         $billing = strtoupper((string) ($invoice['tax_country'] ?? ''));
+        if ($billing === '') {
+            $snapshot = json_decode((string) ($invoice['billing_details'] ?? ''), true);
+            $billing = is_array($snapshot) ? strtoupper(trim((string) ($snapshot['country'] ?? ''))) : '';
+        }
+        $category = (string) ($invoice['tax_category'] ?? '');
+        $home = strtoupper($this->settings->string('tax.home_country') ?: 'DE');
         // Reverse charge (VAT ID) and small-business invoices do not depend on the consumer's location.
-        $conflict = $billing !== '' && in_array((string) ($invoice['tax_category'] ?? ''), ['S', 'O'], true) && $billing !== $country;
-        $this->db->update('nx_invoices', ['payment_country' => $country, 'location_conflict' => $conflict ? 1 : 0], ['id' => (int) $invoice['id']]);
-        if ($conflict) {
-            $this->event($gateway, 'tax.location_conflict', $reference, (int) $invoice['id'], (int) $invoice['user_id'], null, null, ['billing_country' => $billing, 'payment_country' => $country]);
-            $this->logger->warning('Location evidence conflict', ['invoice' => $invoice['id'], 'billing_country' => $billing, 'payment_country' => $country]);
+        $consumer = !in_array($category, ['AE', 'E'], true);
+        $conflict = $consumer && ($billing !== '' ? $billing !== $country : $country !== $home);
+        try {
+            $this->db->update('nx_invoices', ['payment_country' => $country, 'location_conflict' => $conflict ? 1 : 0], ['id' => (int) $invoice['id']]);
+            if ($conflict) {
+                $this->event($gateway, 'tax.location_conflict', $reference, (int) $invoice['id'], (int) $invoice['user_id'], null, null, ['billing_country' => $billing !== '' ? $billing : null, 'payment_country' => $country]);
+                $this->logger->warning('Location evidence conflict', ['invoice' => $invoice['id'], 'billing_country' => $billing, 'payment_country' => $country]);
+            }
+        } catch (PDOException $exception) {
+            // Evidence is auxiliary: it must not undo a confirmed payment. A deadlock already
+            // rolled the transaction back and is passed on (the provider retries).
+            if (in_array((int) ($exception->errorInfo[1] ?? 0), [1213], true)) {
+                throw $exception;
+            }
+            $this->logger->error('Location evidence could not be stored', ['invoice' => $invoice['id'], 'message' => $exception->getMessage()]);
         }
     }
 

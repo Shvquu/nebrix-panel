@@ -33,7 +33,7 @@ final class InvoiceController extends Controller
             'status' => in_array($request->string('status'), ['unpaid', 'paid', 'cancelled', 'refunded'], true) ? $request->string('status') : '',
             'type' => in_array($request->string('type'), ['order', 'renewal', 'upgrade', 'credit'], true) ? $request->string('type') : '',
             'search' => mb_substr($request->string('search'), 0, 100),
-            'location' => $request->string('location') === 'conflict' ? 'conflict' : '',
+            'location' => in_array($request->string('location'), ['conflict', 'missing'], true) ? $request->string('location') : '',
         ];
         $page = $this->page($request);
 
@@ -106,11 +106,11 @@ final class InvoiceController extends Controller
     public function locationReviewed(Request $request, int $id): Response
     {
         $this->authorize($request, Permission::INVOICES_MANAGE);
-        $this->invoices->find($id) ?? throw HttpException::notFound();
+        $invoice = $this->invoices->find($id) ?? throw HttpException::notFound();
         $data = $this->validate($request, ['note' => 'required|string|max:500']);
         $changed = $this->db->run('UPDATE `nx_invoices` SET `location_conflict` = 2 WHERE `id` = ? AND `location_conflict` = 1', [$id])->rowCount() > 0;
         if ($changed) {
-            $this->audit($request, 'invoice.location_reviewed', 'invoice', $id, ['note' => (string) $data['note']]);
+            $this->audit($request, 'invoice.location_reviewed', 'invoice', $id, ['note' => (string) $data['note'], 'billing_country' => $invoice['tax_country'] ?? null, 'payment_country' => $invoice['payment_country'] ?? null]);
             $this->flash($request, 'success', 'The location evidence has been marked as checked.');
         }
 

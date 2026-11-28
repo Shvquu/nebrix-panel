@@ -19,6 +19,9 @@ class SecureShell
 {
     public const TIMEOUT = 20;
 
+    /** Output beyond this is not read (a remote side could otherwise flood the panel). */
+    public const MAX_OUTPUT = 65536;
+
     /**
      * @param list<string> $hostKeys accepted host keys ("type base64 [comment]"); empty = not pinned
      * @return array{output: string, exit: int|null}
@@ -58,7 +61,20 @@ class SecureShell
                 $ssh->exec($command, false); // @phpstan-ignore argument.type
                 $ssh->write($stdin, SSH2::CHANNEL_EXEC);
                 $ssh->sendEOF(SSH2::CHANNEL_EXEC);
-                $output = $ssh->read('', SSH2::READ_SIMPLE, SSH2::CHANNEL_EXEC);
+                // Read packet by packet with an overall deadline and a size limit.
+                $output = '';
+                $deadline = microtime(true) + self::TIMEOUT;
+                while (true) {
+                    $chunk = $ssh->read('', SSH2::READ_NEXT, SSH2::CHANNEL_EXEC);
+                    if (!is_string($chunk) || $ssh->isTimeout()) {
+                        break; // channel closed (true), failed (false) or timed out
+                    }
+                    $output .= $chunk;
+                    if (strlen($output) > self::MAX_OUTPUT || microtime(true) > $deadline) {
+                        $ssh->disconnect();
+                        throw new IntegrationException('The SSH command did not finish properly (too much output or too slow).');
+                    }
+                }
             }
             $timedOut = $ssh->isTimeout();
             $exit = $ssh->getExitStatus();

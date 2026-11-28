@@ -128,6 +128,10 @@ class InvoiceRepository
         if (($filters['location'] ?? '') === 'conflict') {
             $where[] = 'i.`location_conflict` = 1';
         }
+        if (($filters['location'] ?? '') === 'missing') {
+            // Paid consumer invoices without a country of the payment method (credit, manual, PayPal webhook).
+            $where[] = "i.`status` = 'paid' AND i.`payment_country` IS NULL AND i.`total` > 0 AND i.`type` IN ('order', 'renewal', 'upgrade', 'credit') AND COALESCE(i.`tax_category`, '') NOT IN ('AE', 'E')";
+        }
         if (isset($filters['user_id'])) {
             $where[] = 'i.`user_id` = ?';
             $params[] = $filters['user_id'];

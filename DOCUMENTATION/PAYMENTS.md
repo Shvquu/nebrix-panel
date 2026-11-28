@@ -52,7 +52,7 @@ The OAuth access token is reused until 10 minutes before PayPal's expiry (stored
 The legacy PayPal IPN endpoint and the deprecated v1 SDK are not used.
 
 ## Location evidence
-The country of the payment method is stored with the paid invoice (`payment_country`): Stripe reports the card issuer or bank account country of the charge (on the return flow from the expanded session, for webhooks with one extra lookup that never blocks the payment), PayPal the country of the payer's account (return flow). A conflict with the billing country is logged as `tax.location_conflict` and flagged for review – see ADMIN_GUIDE.md, *Taxes and invoices*.
+The country of the payment method is stored with the paid invoice (`payment_country`): Stripe reports the card issuer or bank account country of the charge (on the return flow from the expanded session, for webhooks with one extra lookup that never blocks the payment), PayPal the country of the payer's account (return flow; for guest card payments this is the billing address the payer typed, so it is weaker evidence than a card issuer country; captures completed later by webhook carry none). A conflict with the billing country is logged as `tax.location_conflict` and flagged for review – see ADMIN_GUIDE.md, *Taxes and invoices*.
 
 ## Account credit
 

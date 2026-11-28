@@ -183,6 +183,10 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
             ['2001:db8:1::/64', '2001:db8:2::1', null, null, 'gateway'],  // gateway outside, not link-local
             ['2001:db8:1::/64', 'fe80::1', '2001:db8:2::5', null, 'first'],
             ['2001:db8:1::/64', 'fe80::1', '2001:db8:1::1', '2001:db8:1::2000', 'network'], // more than 4096
+            ['2001:db8:1::5/128', 'fe80::1', null, null, 'network'],     // no assignable address
+            ['ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00/120', 'fe80::1', null, null, 'network'], // multicast
+            ['fe80::/64', 'fe80::1', null, null, 'network'],              // link-local
+            ['::ffff:10.0.0.0/120', 'fe80::1', null, null, 'network'],    // IPv4-mapped
         ] as $i => [$network, $gateway, $first, $last, $field]) {
             try {
                 $pools->createPool('v6-' . $i, $network, $gateway, null, null, $first, $last);
@@ -191,11 +195,27 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
                 self::assertArrayHasKey($field, $exception->errors(), $network);
             }
         }
-        // Default range: from ::1 up to the maximum; an in-network gateway is skipped.
+        // Default range: from ::100 (below are router and node) up to the maximum.
         $id = $pools->createPool('v6-default', '2001:db8:1::/64', '2001:db8:1::1', null, null);
         $addresses = array_column($pools->addresses($id), 'address');
-        self::assertCount(IpPoolService::MAX_POOL_SIZE - 1, $addresses);
-        self::assertSame(['2001:db8:1::2', '2001:db8:1::1000'], [$addresses[0], end($addresses)]);
+        self::assertCount(IpPoolService::MAX_POOL_SIZE, $addresses);
+        self::assertSame(['2001:db8:1::100', '2001:db8:1::10ff'], [$addresses[0], end($addresses)]);
+        // A second pool overlapping it is refused (the same address would go to two customers); a disjoint range is fine.
+        try {
+            $pools->createPool('v6-overlap', '2001:db8:1::/64', 'fe80::1', null, null, '2001:db8:1::1000', '2001:db8:1::1100');
+            self::fail('Overlapping pool accepted.');
+        } catch (\Nebrix\Security\ValidationException $exception) {
+            self::assertStringContainsString('overlaps the pool "v6-default"', $exception->errors()['network'][0] ?? '');
+        }
+        self::assertGreaterThan(0, $pools->createPool('v6-disjoint', '2001:db8:1::/64', 'fe80::1', null, null, '2001:db8:1::2000', '2001:db8:1::20ff'));
+        $v4 = $pools->createPool('v4-a', '198.51.100.0/28', '198.51.100.1', null, null);
+        self::assertGreaterThan(0, $v4);
+        try {
+            $pools->createPool('v4-b', '198.51.100.0/29', '198.51.100.1', null, null);
+            self::fail('Overlapping IPv4 pool accepted.');
+        } catch (\Nebrix\Security\ValidationException $exception) {
+            self::assertArrayHasKey('network', $exception->errors());
+        }
         // A /126 holds the three addresses after the anycast address.
         $small = $pools->createPool('v6-small', '2001:db8:2::/126', 'fe80::1', null, null);
         self::assertSame(['2001:db8:2::1', '2001:db8:2::2', '2001:db8:2::3'], array_column($pools->addresses($small), 'address'));
@@ -401,6 +421,10 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
 
         // A container on a node without SSH access gets no action.
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve3']);
+        self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)));
+
+        // Imported legacy containers carry no marker for the node script: no action either.
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'legacy' => true]);
         self::assertArrayNotHasKey('reset_password', $runner->available($this->reload($service->id)));
     }
 

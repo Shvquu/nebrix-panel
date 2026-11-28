@@ -117,6 +117,7 @@ class IpPoolService
 
         $resolvers = self::parseResolvers($dns);
         $this->assertUniqueName($name);
+        $this->assertNoOverlap(long2ip($start), long2ip($end));
 
         return $this->db->transaction(function () use ($name, $networkLong, $prefix, $gateway, $resolvers, $integrationId, $note, $start, $end, $gatewayLong): int {
             $now = $this->clock->nowString();
@@ -159,14 +160,28 @@ class IpPoolService
             throw ValidationException::withMessages(['gateway' => 'The gateway must be an address inside the network or a link-local address (fe80::/10).']);
         }
 
-        // The all-zero address of the prefix is the subnet-router anycast address.
-        $start = self::add6($networkBin, 1);
+        if ($prefix === 128) {
+            throw ValidationException::withMessages(['network' => 'A /128 holds no assignable address; use the on-link prefix (e.g. /64) and a range.']);
+        }
+        // Not usable for servers: multicast, link-local, IPv4-mapped, unspecified/loopback.
+        foreach (['ff00::/8', 'fe80::/10', '::ffff:0:0/96', '::/127'] as $reserved) {
+            if (\Nebrix\Http\IpRange::contains($reserved, (string) inet_ntop($networkBin))) {
+                throw ValidationException::withMessages(['network' => 'This IPv6 network cannot be used for servers (multicast, link-local, IPv4-mapped or loopback).']);
+            }
+        }
+        // Default range from …::100: the addresses below are typically the router's and the
+        // Proxmox node's own (…::1, …::2); the all-zero address is the subnet-router anycast.
+        $start = self::add6($networkBin, strcmp(self::add6($networkBin, 0x100), $lastBin) <= 0 ? 0x100 : 1);
         if ($first !== null && $first !== '') {
             $value = @inet_pton($first);
-            if ($value === false || strlen($value) !== 16 || strcmp($value, $start) < 0 || strcmp($value, $lastBin) > 0) {
+            // An explicit range may start at …::1 (only the anycast address is excluded).
+            if ($value === false || strlen($value) !== 16 || strcmp($value, self::add6($networkBin, 1)) < 0 || strcmp($value, $lastBin) > 0) {
                 throw ValidationException::withMessages(['first' => 'The first address must be a usable address of the network.']);
             }
             $start = $value;
+        }
+        if (strcmp($start, $lastBin) > 0 || strcmp($start, $networkBin) <= 0) {
+            throw ValidationException::withMessages(['network' => 'The network holds no assignable address.']);
         }
         $end = self::add6($start, self::MAX_POOL_SIZE - 1);
         if (strcmp($end, $lastBin) > 0 || strcmp($end, $start) < 0) {
@@ -185,6 +200,7 @@ class IpPoolService
 
         $resolvers = self::parseResolvers($dns);
         $this->assertUniqueName($name);
+        $this->assertNoOverlap((string) inet_ntop($start), (string) inet_ntop($end));
 
         return $this->db->transaction(function () use ($name, $networkBin, $prefix, $gatewayBin, $resolvers, $integrationId, $note, $start, $end): int {
             $now = $this->clock->nowString();
@@ -209,6 +225,25 @@ class IpPoolService
 
             return $poolId;
         });
+    }
+
+    /**
+     * No address of the new range may already belong to another pool (two
+     * customers would otherwise get the same address).
+     *
+     * @throws ValidationException
+     */
+    private function assertNoOverlap(string $first, string $last): void
+    {
+        $family = str_contains($first, ':') ? 16 : 4;
+        $taken = $this->db->fetchOne(
+            'SELECT a.`address`, p.`name` FROM `nx_ip_addresses` a JOIN `nx_ip_pools` p ON p.`id` = a.`pool_id`
+             WHERE LENGTH(INET6_ATON(a.`address`)) = ? AND INET6_ATON(a.`address`) BETWEEN INET6_ATON(?) AND INET6_ATON(?) LIMIT 1',
+            [$family, $first, $last],
+        );
+        if ($taken !== null) {
+            throw ValidationException::withMessages(['network' => sprintf('The range overlaps the pool "%s" (%s). Every address may belong to one pool only.', (string) $taken['name'], (string) $taken['address'])]);
+        }
     }
 
     /** @throws ValidationException */
