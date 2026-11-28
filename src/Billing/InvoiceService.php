@@ -30,6 +30,7 @@ class InvoiceService
     public const JOB_FULFIL_ORDER = 'order.fulfil';
     public const JOB_UNSUSPEND_SERVICE = 'service.unsuspend';
     public const JOB_APPLY_CHANGE = 'service.change';
+    public const JOB_PROVISION_ADDON = 'addon.provision';
 
     public function __construct(
         private readonly InvoiceRepository $invoices,
@@ -48,6 +49,7 @@ class InvoiceService
         private readonly \Nebrix\Repository\ProductRepository $products,
         private readonly Translator $translator,
         private readonly Coupons\CouponService $coupons,
+        private readonly \Nebrix\Service\Addon\AddonRepository $addons,
     ) {
     }
 
@@ -156,6 +158,8 @@ class InvoiceService
             if ($this->invoices->openRenewalFor($service->id) !== null) {
                 return null;
             }
+            // The billing cycle the customer chose for the next term starts with this renewal.
+            $service = $this->applyCycleChange($service);
             // An upgrade still waiting for payment was priced up to the old due date only. It is
             // withdrawn, so a renewal at the old price can never extend the larger package; the
             // customer requests it again after the renewal (priced for the new period).
@@ -167,6 +171,14 @@ class InvoiceService
             if ($pendingUpgrade !== null) {
                 $this->cancel((int) $pendingUpgrade['invoice_id']);
                 $this->db->update('nx_service_changes', ['error' => 'A renewal invoice was issued before the upgrade was paid; please request the upgrade again.'], ['id' => $pendingUpgrade['id']]);
+            }
+            // Likewise an add-on whose booking invoice is unpaid: it was priced up to the old due date only.
+            foreach ($this->db->fetchAll(
+                "SELECT a.`invoice_id` FROM `nx_service_addons` a JOIN `nx_invoices` i ON i.`id` = a.`invoice_id`
+                  WHERE a.`service_id` = ? AND a.`status` = 'pending_payment' AND i.`status` = 'unpaid' FOR UPDATE",
+                [$service->id],
+            ) as $booking) {
+                $this->cancel((int) $booking['invoice_id']);
             }
 
             $user = $this->users->find($service->userId) ?? throw new RuntimeException('Customer not found.');
@@ -180,6 +192,43 @@ class InvoiceService
             $product = $service->productId !== null ? $this->products->find($service->productId) : null;
             $taxRate = $product !== null ? $decision->rate((int) $product['tax_rate_bp']) : $service->taxRateBp;
             $tax = Money::tax($net, $taxRate);
+            $language = $this->language($user);
+            $lines = [[
+                'service_id' => $service->id,
+                'description' => $this->translator->translateTo($language, ':name – renewal :from to :to', [
+                    'name' => $service->name,
+                    'from' => Translator::date($language, $periodStart),
+                    'to' => Translator::date($language, $periodEnd),
+                ]),
+                'quantity' => 1,
+                'unit_amount' => $net,
+                'tax_rate_bp' => $taxRate,
+                'total' => $net,
+                'period_start' => $periodStart->format('Y-m-d H:i:s'),
+                'period_end' => $periodEnd->format('Y-m-d H:i:s'),
+            ]];
+            // Booked add-ons: one line each, taxed with their own rate.
+            foreach ($this->addons->renewable($service->id, $periodStart->format('Y-m-d H:i:s')) as $addon) {
+                $addonNet = max(0, (int) $addon['recurring_amount']);
+                $addonRate = $decision->rate((int) $addon['tax_rate_bp']);
+                $net += $addonNet;
+                $tax += Money::tax($addonNet, $addonRate);
+                $lines[] = [
+                    'service_id' => $service->id,
+                    'description' => mb_substr($this->translator->translateTo($language, 'Add-on :name × :quantity – :from to :to', [
+                        'name' => (string) $addon['name'],
+                        'quantity' => (string) $addon['quantity'],
+                        'from' => Translator::date($language, $periodStart),
+                        'to' => Translator::date($language, $periodEnd),
+                    ]), 0, 255),
+                    'quantity' => 1,
+                    'unit_amount' => $addonNet,
+                    'tax_rate_bp' => $addonRate,
+                    'total' => $addonNet,
+                    'period_start' => $periodStart->format('Y-m-d H:i:s'),
+                    'period_end' => $periodEnd->format('Y-m-d H:i:s'),
+                ];
+            }
 
             $id = $this->invoices->create([
                 'number' => $this->nextNumber('invoice'),
@@ -194,20 +243,7 @@ class InvoiceService
                 ...($product !== null ? $this->taxColumns($decision) : ['tax_category' => $taxRate > 0 ? 'S' : null, 'tax_note' => null, 'tax_country' => $decision->country]),
                 'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 'due_at' => $service->nextDueAt,
-            ], [[
-                'service_id' => $service->id,
-                'description' => $this->translator->translateTo($this->language($user), ':name – renewal :from to :to', [
-                    'name' => $service->name,
-                    'from' => Translator::date($this->language($user), $periodStart),
-                    'to' => Translator::date($this->language($user), $periodEnd),
-                ]),
-                'quantity' => 1,
-                'unit_amount' => $net,
-                'tax_rate_bp' => $taxRate,
-                'total' => $net,
-                'period_start' => $periodStart->format('Y-m-d H:i:s'),
-                'period_end' => $periodEnd->format('Y-m-d H:i:s'),
-            ]]);
+            ], $lines);
 
             $invoice = $this->invoices->find($id);
             if ($net + $tax === 0) {
@@ -221,6 +257,108 @@ class InvoiceService
             ], null, [], $id);
 
             return $invoice !== null ? (int) $invoice['id'] : null;
+        });
+    }
+
+    /**
+     * Applies a billing cycle the customer chose for the next term (inside
+     * the renewal transaction, service row locked): the service and its
+     * add-ons are billed in the new cycle from this renewal on.
+     */
+    private function applyCycleChange(Service $service): Service
+    {
+        $row = $this->db->fetchOne('SELECT `billing_cycle`, `next_billing_cycle`, `next_recurring_amount` FROM `nx_services` WHERE `id` = ?', [$service->id]);
+        $next = (string) ($row['next_billing_cycle'] ?? '');
+        if ($row === null || $next === '' || $next === $row['billing_cycle'] || !BillingCycle::isRecurring($next) || $row['next_recurring_amount'] === null) {
+            return $service;
+        }
+        $from = BillingCycle::months((string) $row['billing_cycle']);
+        $to = BillingCycle::months($next);
+        $this->services->update($service->id, [
+            'billing_cycle' => $next,
+            'recurring_amount' => max(0, (int) $row['next_recurring_amount']),
+            'next_billing_cycle' => null,
+            'next_recurring_amount' => null,
+        ]);
+        // Add-ons cost a monthly price: their amount follows the length of the new cycle.
+        if ($from > 0) {
+            foreach ($this->addons->forService($service->id) as $addon) {
+                $this->addons->update((int) $addon['id'], ['recurring_amount' => intdiv((int) $addon['recurring_amount'] * $to * 2 + $from, 2 * $from)]);
+            }
+        }
+
+        return $this->services->find($service->id) ?? $service;
+    }
+
+    /**
+     * Invoice for an add-on booked for a running service: the prorated
+     * price up to the end of the paid term and the setup fee. The add-on is
+     * set up when it is paid.
+     *
+     * @param array<string, mixed> $addon catalog entry
+     * @param int $net prorated net amount for the rest of the term
+     * @param int $setupFee net setup fee
+     */
+    public function createAddon(Service $service, User $user, array $addon, int $quantity, int $net, int $setupFee, \DateTimeImmutable $periodStart, \DateTimeImmutable $periodEnd): int
+    {
+        return $this->db->transaction(function () use ($service, $user, $addon, $quantity, $net, $setupFee, $periodStart, $periodEnd): int {
+            $decision = $this->taxes->decide($user);
+            $rate = $decision->rate((int) $addon['tax_rate_bp']);
+            $language = $this->language($user);
+            $lines = [[
+                'service_id' => $service->id,
+                'description' => mb_substr($this->translator->translateTo($language, 'Add-on :name × :quantity for :service (:from to :to)', [
+                    'name' => (string) $addon['name'],
+                    'quantity' => (string) $quantity,
+                    'service' => $service->name,
+                    'from' => Translator::date($language, $periodStart),
+                    'to' => Translator::date($language, $periodEnd),
+                ]), 0, 255),
+                'quantity' => 1,
+                'unit_amount' => $net,
+                'tax_rate_bp' => $rate,
+                'total' => $net,
+                'period_start' => $periodStart->format('Y-m-d H:i:s'),
+                'period_end' => $periodEnd->format('Y-m-d H:i:s'),
+            ]];
+            if ($setupFee > 0) {
+                $lines[] = [
+                    'service_id' => $service->id,
+                    'description' => mb_substr($this->translator->translateTo($language, 'Setup fee: :name', ['name' => (string) $addon['name']]), 0, 255),
+                    'quantity' => 1,
+                    'unit_amount' => $setupFee,
+                    'tax_rate_bp' => $rate,
+                    'total' => $setupFee,
+                ];
+            }
+            $subtotal = $net + $setupFee;
+            $tax = Money::tax($net, $rate) + Money::tax($setupFee, $rate);
+            $id = $this->invoices->create([
+                'number' => $this->nextNumber('invoice'),
+                'user_id' => $user->id,
+                'service_id' => $service->id,
+                'type' => InvoiceRepository::TYPE_ADDON,
+                'status' => InvoiceRepository::STATUS_UNPAID,
+                'currency' => $service->currency,
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'total' => $subtotal + $tax,
+                ...$this->taxColumns($decision),
+                'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'due_at' => $this->clock->now()->modify(sprintf('+%d days', max(0, $this->settings->int('billing.invoice_due_days'))))->format('Y-m-d H:i:s'),
+            ], $lines);
+            if ($subtotal + $tax > 0) {
+                $invoice = $this->invoices->find($id);
+                $this->mailer->queue($user->email, $user->displayName(), 'invoice_created', [
+                    'name' => $user->displayName(),
+                    'invoice_number' => (string) ($invoice['number'] ?? ''),
+                    'invoice_total' => Money::format($subtotal + $tax, $service->currency, $language),
+                    'due_date' => Translator::date($language, new \DateTimeImmutable((string) ($invoice['due_at'] ?? 'now'), new \DateTimeZone('UTC'))),
+                    'invoice_url' => $this->url('/invoices/' . $id),
+                ], null, [], $id);
+            }
+
+            return $id;
         });
     }
 
@@ -332,6 +470,14 @@ class InvoiceService
                 $this->jobs->dispatch(self::JOB_APPLY_CHANGE, ['invoice_id' => $id], self::JOB_APPLY_CHANGE . ':invoice:' . $id);
                 break;
 
+            case InvoiceRepository::TYPE_ADDON:
+                // Paid: the add-on is set up in the queue (by its provisioner or by staff).
+                foreach ($this->db->fetchAll("SELECT `id` FROM `nx_service_addons` WHERE `invoice_id` = ? AND `status` = 'pending_payment' FOR UPDATE", [$id]) as $booked) {
+                    $this->addons->update((int) $booked['id'], ['status' => \Nebrix\Service\Addon\AddonRepository::PENDING]);
+                    $this->jobs->dispatch(self::JOB_PROVISION_ADDON, ['service_addon_id' => (int) $booked['id']], self::JOB_PROVISION_ADDON . ':' . $booked['id']);
+                }
+                break;
+
             case InvoiceRepository::TYPE_CREDIT:
                 $this->credit->adjust((int) $invoice['user_id'], (int) $invoice['total'], 'Credit top-up ' . $invoice['number'], 'invoice', (string) $id);
                 break;
@@ -395,6 +541,10 @@ class InvoiceService
                         $this->db->run('UPDATE `nx_products` SET `stock` = `stock` + 1 WHERE `id` = ? AND `stock` IS NOT NULL', [(int) $item['product_id']]);
                     }
                 }
+            }
+            if ($invoice['type'] === InvoiceRepository::TYPE_ADDON) {
+                // The add-on was never paid: it is not set up.
+                $this->db->run("UPDATE `nx_service_addons` SET `status` = 'cancelled', `updated_at` = ? WHERE `invoice_id` = ? AND `status` = 'pending_payment'", [$this->clock->nowString(), $invoiceId]);
             }
             if ($invoice['type'] === InvoiceRepository::TYPE_UPGRADE) {
                 // The upgrade does not happen; the reserved unit of the target product is free again.

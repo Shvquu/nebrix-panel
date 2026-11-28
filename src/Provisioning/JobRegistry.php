@@ -23,6 +23,8 @@ final class JobRegistry
             ProvisioningService::JOB_TERMINATE => TerminateServiceJob::class,
             \Nebrix\Discord\DiscordService::JOB_SYNC => \Nebrix\Discord\DiscordSyncJob::class,
             InvoiceService::JOB_APPLY_CHANGE => \Nebrix\Service\ServiceChangeJob::class,
+            \Nebrix\Service\Addon\AddonService::JOB_PROVISION => \Nebrix\Service\Addon\ProvisionAddonJob::class,
+            \Nebrix\Service\Addon\AddonService::JOB_DEPROVISION => \Nebrix\Service\Addon\DeprovisionAddonJob::class,
         ];
     }
 }

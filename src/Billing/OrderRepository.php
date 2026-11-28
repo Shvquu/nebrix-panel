@@ -55,7 +55,7 @@ class OrderRepository
     /**
      * @param array<string, mixed> $order
      * @param list<array<string, mixed>> $items
-     * @return array{0: int, 1: list<int>} order ID and item IDs
+     * @return array{0: int, 1: list<int>} order ID and item IDs (item "_parent": index of the parent item)
      */
     public function create(array $order, array $items): array
     {
@@ -65,6 +65,11 @@ class OrderRepository
         foreach ($items as $item) {
             if (isset($item['options']) && is_array($item['options'])) {
                 $item['options'] = json_encode($item['options'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            // Add-on items refer to the item of their service by its position in the list.
+            if (array_key_exists('_parent', $item)) {
+                $item['parent_item_id'] = $itemIds[(int) $item['_parent']] ?? throw new \LogicException('The parent item must come first.');
+                unset($item['_parent']);
             }
             $itemIds[] = $this->db->insert('nx_order_items', $item + ['order_id' => $id, 'created_at' => $now]);
         }

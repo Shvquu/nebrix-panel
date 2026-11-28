@@ -108,4 +108,12 @@ return [
         'subject' => 'Test-E-Mail von {{ company_name }}',
         'html' => '<p>Dies ist eine Testnachricht. Ihre SMTP-Einstellungen funktionieren.</p>',
     ],
+    'addon_ready' => [
+        'subject' => 'Ihre Zusatzoption {{ addon_name }} für {{ service_name }} ist bereit',
+        'html' => '<p>Hallo {{ name }},</p><p>die Zusatzoption <strong>{{ addon_name }}</strong> Ihres Dienstes <strong>{{ service_name }}</strong> wurde eingerichtet.</p><p>{{ details }}</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
+    ],
+    'addon_cancelled' => [
+        'subject' => 'Ihre Kündigung der Zusatzoption {{ addon_name }} wird zum {{ effective_date }} wirksam',
+        'html' => '<p>Hallo {{ name }},</p><p>wir haben Ihre Kündigung der Zusatzoption <strong>{{ addon_name }}</strong> Ihres Dienstes <strong>{{ service_name }}</strong> am {{ received_at }} erhalten. Die Zusatzoption endet am <strong>{{ effective_date }}</strong> und wird danach nicht mehr berechnet.</p><p>Bis dahin können Sie die Kündigung auf der Seite des Dienstes zurücknehmen.</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
+    ],
 ];

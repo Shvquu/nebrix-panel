@@ -62,6 +62,8 @@ class Scheduler
         private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
         private readonly \Nebrix\Cache\SecureCache $cache,
         private readonly \Nebrix\Provisioning\DomainRenewals $domainRenewals,
+        private readonly \Nebrix\Service\Addon\AddonService $addons,
+        private readonly \Nebrix\Billing\Cart\CartService $carts,
     ) {
     }
 
@@ -108,6 +110,12 @@ class Scheduler
                 return sprintf('%d referral(s) qualified, %d rewarded, %d reset after a refund, %d reward(s) reversed', $result['qualified'], $result['rewarded'], $result['reset'], $result['reversed']);
             }],
             'tax.recheck_vat_ids' => [60, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
+            'addons.process' => [15, function (): string {
+                $result = $this->addons->process();
+
+                return sprintf('%d add-on(s) ended, %d unpaid add-on booking(s) cancelled', $result['ended'], $result['expired']);
+            }],
+            'carts.prune' => [1440, fn (): string => sprintf('%d abandoned cart(s) removed', $this->carts->prune())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

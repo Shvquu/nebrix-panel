@@ -76,6 +76,7 @@ final class StoreController extends ApiController
             'accept_terms' => 'required|bool',
             'options' => 'nullable|array',
             'coupon' => 'nullable|string|max:40',
+            'billing_cycle' => 'nullable|string|max:20',
         ]);
         if ($data['accept_terms'] !== true) {
             throw ApiException::unprocessable('The terms must be accepted ("accept_terms": true) to place an order.');
@@ -96,7 +97,7 @@ final class StoreController extends ApiController
         }
 
         try {
-            $result = $this->orderService->place($user, (int) $product['id'], $options, $request->clientIp(), $data['coupon'] !== null ? (string) $data['coupon'] : null);
+            $result = $this->orderService->place($user, (int) $product['id'], $options, $request->clientIp(), $data['coupon'] !== null ? (string) $data['coupon'] : null, $data['billing_cycle'] !== null ? (string) $data['billing_cycle'] : null);
         } catch (\Nebrix\Billing\Coupons\CouponException $exception) {
             throw new ApiException(422, 'coupon_invalid', $exception->getMessage());
         } catch (OrderException $exception) {

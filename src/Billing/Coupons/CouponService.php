@@ -151,11 +151,69 @@ class CouponService
     }
 
     /**
+     * Discounts of a code for several order lines (cart preview). Percent
+     * coupons reduce every line they are valid for; a fixed amount reduces
+     * one line – the most expensive one it is valid for.
+     *
+     * @param array<int|string, array{product: array<string, mixed>, base: int, setup: int}> $lines
+     * @return array{coupon: array<string, mixed>, lines: array<int|string, array{first: int, recurring: int}>, first: int, recurring: int}
+     *
+     * @throws CouponException
+     */
+    public function evaluateLines(string $code, array $lines, User $user): array
+    {
+        $code = self::normalize($code);
+        $coupon = self::isValidCode($code) ? $this->db->fetchOne('SELECT * FROM `nx_coupons` WHERE `code` = ?', [$code]) : null;
+
+        return $this->checkLines($coupon, $lines, $user, false);
+    }
+
+    /**
+     * Inside the order transaction (cart checkout): locks the coupon row and checks it again.
+     *
+     * @param array<int|string, array{product: array<string, mixed>, base: int, setup: int}> $lines
+     * @return array{coupon: array<string, mixed>, lines: array<int|string, array{first: int, recurring: int}>, first: int, recurring: int}
+     *
+     * @throws CouponException
+     */
+    public function lockAndEvaluateLines(string $code, array $lines, User $user): array
+    {
+        $code = self::normalize($code);
+        $coupon = self::isValidCode($code) ? $this->db->fetchOne('SELECT * FROM `nx_coupons` WHERE `code` = ? FOR UPDATE', [$code]) : null;
+
+        return $this->checkLines($coupon, $lines, $user, true);
+    }
+
+    /**
      * @param array<string, mixed>|null $coupon
      * @param array<string, mixed> $product
      * @return array{coupon: array<string, mixed>, first: int, recurring: int}
      */
     private function check(?array $coupon, array $product, User $user, int $base, int $setupFee, bool $locking): array
+    {
+        $result = $this->checkLines($coupon, [0 => ['product' => $product, 'base' => $base, 'setup' => $setupFee]], $user, $locking);
+
+        return ['coupon' => $result['coupon'], 'first' => $result['lines'][0]['first'] ?? 0, 'recurring' => $result['lines'][0]['recurring'] ?? 0];
+    }
+
+    /**
+     * @param array<string, mixed> $coupon
+     * @param array<string, mixed> $product
+     */
+    private static function validFor(array $coupon, array $product): bool
+    {
+        $products = array_filter(array_map('intval', explode(',', (string) $coupon['product_ids'])));
+
+        return ($products === [] || in_array((int) $product['id'], $products, true))
+            && ($coupon['type'] !== self::FIXED || strtoupper((string) $coupon['currency']) === strtoupper((string) $product['currency']));
+    }
+
+    /**
+     * @param array<string, mixed>|null $coupon
+     * @param array<int|string, array{product: array<string, mixed>, base: int, setup: int}> $lines
+     * @return array{coupon: array<string, mixed>, lines: array<int|string, array{first: int, recurring: int}>, first: int, recurring: int}
+     */
+    private function checkLines(?array $coupon, array $lines, User $user, bool $locking): array
     {
         // Inside the order transaction the counts are locking reads: they see the latest
         // committed rows, not the transaction's snapshot.
@@ -173,9 +231,8 @@ class CouponService
         if ($coupon['max_uses'] !== null && (int) $coupon['uses'] >= (int) $coupon['max_uses']) {
             throw new CouponException('This coupon code has been used up.');
         }
-        $products = array_filter(array_map('intval', explode(',', (string) $coupon['product_ids'])));
-        if (($products !== [] && !in_array((int) $product['id'], $products, true))
-            || ($coupon['type'] === self::FIXED && strtoupper((string) $coupon['currency']) !== strtoupper((string) $product['currency']))) {
+        $eligible = array_filter($lines, static fn (array $line): bool => self::validFor($coupon, $line['product']));
+        if ($eligible === []) {
             throw new CouponException('This coupon code is not valid for this product.');
         }
         $used = (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_coupon_redemptions` WHERE `coupon_id` = ? AND `user_id` = ?' . $lock, [$coupon['id'], $user->id]);
@@ -188,11 +245,35 @@ class CouponService
         }
 
         $value = (int) $coupon['value'];
-        $first = $coupon['type'] === self::PERCENT ? Money::discount($base + $setupFee, $value) : min($value, $base + $setupFee);
-        $recurring = $coupon['duration'] === self::FOREVER
-            ? ($coupon['type'] === self::PERCENT ? Money::discount($base, $value) : min($value, $base))
-            : 0;
+        $forever = $coupon['duration'] === self::FOREVER;
+        $result = [];
+        if ($coupon['type'] === self::PERCENT) {
+            foreach ($eligible as $key => $line) {
+                $result[$key] = [
+                    'first' => max(0, Money::discount($line['base'] + $line['setup'], $value)),
+                    'recurring' => $forever ? max(0, Money::discount($line['base'], $value)) : 0,
+                ];
+            }
+        } else {
+            // A fixed amount is granted once per order: on the most expensive line it is valid for.
+            $target = array_key_first($eligible);
+            foreach ($eligible as $key => $line) {
+                if ($line['base'] + $line['setup'] > $eligible[$target]['base'] + $eligible[$target]['setup']) {
+                    $target = $key;
+                }
+            }
+            $line = $eligible[$target];
+            $result[$target] = [
+                'first' => max(0, min($value, $line['base'] + $line['setup'])),
+                'recurring' => $forever ? max(0, min($value, $line['base'])) : 0,
+            ];
+        }
 
-        return ['coupon' => $coupon, 'first' => max(0, $first), 'recurring' => max(0, $recurring)];
+        return [
+            'coupon' => $coupon,
+            'lines' => $result,
+            'first' => array_sum(array_column($result, 'first')),
+            'recurring' => array_sum(array_column($result, 'recurring')),
+        ];
     }
 }

@@ -160,4 +160,16 @@ return [
         'subject' => 'Test e-mail from {{ company_name }}',
         'html' => '<p>This is a test message. Your SMTP settings work.</p>',
     ],
+    'addon_ready' => [
+        'name' => 'Add-on set up',
+        'variables' => ['name', 'addon_name', 'service_name', 'details', 'service_url'],
+        'subject' => 'Your add-on {{ addon_name }} for {{ service_name }} is ready',
+        'html' => '<p>Hello {{ name }},</p><p>the add-on <strong>{{ addon_name }}</strong> of your service <strong>{{ service_name }}</strong> has been set up.</p><p>{{ details }}</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
+    ],
+    'addon_cancelled' => [
+        'name' => 'Add-on cancellation confirmed',
+        'variables' => ['name', 'addon_name', 'service_name', 'received_at', 'effective_date', 'service_url'],
+        'subject' => 'Your cancellation of the add-on {{ addon_name }} takes effect on {{ effective_date }}',
+        'html' => '<p>Hello {{ name }},</p><p>we received your cancellation of the add-on <strong>{{ addon_name }}</strong> of your service <strong>{{ service_name }}</strong> on {{ received_at }}. The add-on ends on <strong>{{ effective_date }}</strong>; it is no longer billed after this date.</p><p>Until then you can take the cancellation back on the service page.</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
+    ],
 ];

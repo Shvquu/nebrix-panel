@@ -133,6 +133,13 @@ return static function (Container $c, Config $config, string $basePath): void {
         ],
     ));
 
+    // Add-on provisioners: fulfil booked add-ons automatically. Kinds without a
+    // provisioner that supports them go to the staff queue (Admin → Add-ons to set up).
+    $c->set(Nebrix\Service\Addon\AddonProvisioners::class, static fn (Container $c): Nebrix\Service\Addon\AddonProvisioners => new Nebrix\Service\Addon\AddonProvisioners([
+        // >>> Proxmox IPv4 add-on provisioner (written by the IPv4/Proxmox team): register it here, e.g.
+        // $c->get(Nebrix\Provisioning\Addon\ProxmoxIpv4AddonProvisioner::class),
+    ]));
+
     $extra = $basePath . '/config/services.php';
     if (is_file($extra)) {
         (require $extra)($c, $config, $basePath);
