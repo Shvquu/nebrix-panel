@@ -65,6 +65,10 @@ class PaymentService
             );
             if ($existing !== null && $existing['status'] === 'completed') {
                 $this->event($gateway, 'payment.duplicate_ignored', $reference, $invoiceId, (int) $invoice['user_id'], $amount, $currency, []);
+                // The webhook may have arrived first without the payer's country; the return flow adds it.
+                if (($invoice['payment_country'] ?? null) === null && $invoice['status'] === InvoiceRepository::STATUS_PAID) {
+                    $this->recordLocationEvidence($invoice, $metadata['payer_country'] ?? null, $gateway, $reference);
+                }
 
                 return PaymentOutcome::duplicate((int) $existing['id']);
             }
@@ -89,9 +93,36 @@ class PaymentService
 
             $this->invoiceService->markPaid($invoice, $transactionId);
             $this->event($gateway, 'payment.completed', $reference, $invoiceId, (int) $invoice['user_id'], $amount, $currency, $metadata);
+            $this->recordLocationEvidence($invoice, $metadata['payer_country'] ?? null, $gateway, $reference);
 
             return PaymentOutcome::completed($transactionId, true);
         });
+    }
+
+    /**
+     * OSS location evidence: the country the payment provider reports (card
+     * issuer, bank account, PayPal account) is stored with the invoice. When it
+     * contradicts the billing country the tax was based on, the invoice is
+     * flagged for review – two non-contradictory pieces of evidence are needed
+     * for the place of supply of electronic services to consumers.
+     */
+    /**
+     * @param array<string, mixed> $invoice
+     */
+    private function recordLocationEvidence(array $invoice, mixed $country, string $gateway, string $reference): void
+    {
+        $country = is_string($country) ? strtoupper(trim($country)) : '';
+        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+            return;
+        }
+        $billing = strtoupper((string) ($invoice['tax_country'] ?? ''));
+        // Reverse charge (VAT ID) and small-business invoices do not depend on the consumer's location.
+        $conflict = $billing !== '' && in_array((string) ($invoice['tax_category'] ?? ''), ['S', 'O'], true) && $billing !== $country;
+        $this->db->update('nx_invoices', ['payment_country' => $country, 'location_conflict' => $conflict ? 1 : 0], ['id' => (int) $invoice['id']]);
+        if ($conflict) {
+            $this->event($gateway, 'tax.location_conflict', $reference, (int) $invoice['id'], (int) $invoice['user_id'], null, null, ['billing_country' => $billing, 'payment_country' => $country]);
+            $this->logger->warning('Location evidence conflict', ['invoice' => $invoice['id'], 'billing_country' => $billing, 'payment_country' => $country]);
+        }
     }
 
     /**

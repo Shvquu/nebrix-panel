@@ -40,6 +40,18 @@ return [
         'subject' => 'Your password was changed',
         'html' => '<p>Hello {{ name }},</p><p>the password of your {{ company_name }} account was changed on {{ time }} (IP address {{ ip }}). All other sessions were signed out and all API tokens were revoked.</p><p>If this was not you, reset your password immediately and contact {{ support_email }}.</p>',
     ],
+    'account_locked' => [
+        'name' => 'Sign-in locked after failed attempts',
+        'variables' => ['name', 'attempts', 'minutes', 'ip', 'time', 'security_url'],
+        'subject' => 'Sign-in to your account was locked',
+        'html' => '<p>Hello {{ name }},</p><p>after {{ attempts }} failed sign-in attempts, sign-in to your {{ company_name }} account is locked for {{ minutes }} minute(s) (last attempt on {{ time }} from IP address {{ ip }}).</p><p>If this was you, wait and try again or reset your password. If it was not you, someone tried to guess your password: your account is safe as long as the password was not entered correctly. Use a strong, unique password and enable two-factor authentication.</p><p><a class="button" href="{{ security_url }}">Security settings</a></p><p>Questions? Contact {{ support_email }}.</p>',
+    ],
+    'two_factor_failed' => [
+        'name' => 'Correct password, wrong two-factor code',
+        'variables' => ['name', 'ip', 'time', 'security_url'],
+        'subject' => 'Sign-in attempt with your password',
+        'html' => '<p>Hello {{ name }},</p><p>on {{ time }} someone signed in to your {{ company_name }} account with the <strong>correct password</strong> from IP address {{ ip }}, but entered a wrong two-factor code. Two-factor authentication stopped the sign-in.</p><p>If this was not you, your password is known to someone else: change it immediately (this also signs out all sessions and revokes API tokens).</p><p><a class="button" href="{{ security_url }}">Change password</a></p><p>Questions? Contact {{ support_email }}.</p>',
+    ],
     'order_confirmation' => [
         'name' => 'Order confirmation',
         'variables' => ['name', 'order_number', 'order_total', 'invoice_url'],

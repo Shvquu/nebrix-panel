@@ -233,6 +233,57 @@ final class AuthenticationTest extends FeatureTestCase
         $this->assertRedirect($this->get('/dashboard'), '/login');
     }
 
+    public function testOwnersAreWarnedAboutLockoutsAndWrongTwoFactorCodes(): void
+    {
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 12:00:00'));
+        $settings = $this->app->container()->get(\Nebrix\Settings\SettingsRepository::class);
+        $settings->set('auth.max_login_attempts', 3);
+        $victim = $this->createUser(Role::CUSTOMER, ['email' => 'victim@example.test', 'language' => 'de']);
+        $countMails = fn (string $template): int => (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'mail.send' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.template')) = ?", [$template]);
+
+        // Failed attempts up to the limit: no mail yet; the lockout sends one (in the owner's language).
+        for ($i = 0; $i < 3; $i++) {
+            $this->post('/login', ['email' => 'victim@example.test', 'password' => 'wrong-password-' . $i]);
+        }
+        self::assertSame(0, $countMails('account_locked'));
+        $this->post('/login', ['email' => 'victim@example.test', 'password' => 'wrong-password-x']);
+        $mail = $this->lastMail('account_locked');
+        self::assertNotNull($mail);
+        self::assertSame('victim@example.test', $mail['to']);
+        self::assertStringContainsString('gesperrt', $mail['subject']);
+        self::assertStringContainsString('/account/security', $mail['html']);
+
+        // Further attempts – also after the lockout ended – do not flood the mailbox.
+        $this->post('/login', ['email' => 'victim@example.test', 'password' => 'wrong-password-y']);
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 12:40:00'));
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['email' => 'victim@example.test', 'password' => 'wrong-again-' . $i]);
+        }
+        self::assertSame(1, $countMails('account_locked'));
+        // Unknown addresses get nothing.
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['email' => 'nobody@example.test', 'password' => 'wrong-password-' . $i]);
+        }
+        self::assertSame(1, $countMails('account_locked'));
+
+        // Correct password, wrong two-factor code: the owner learns that the password is known.
+        $user = $this->createUser(Role::CUSTOMER, ['email' => 'twofa@example.test']);
+        $twoFactor = $this->app->container()->get(TwoFactorService::class);
+        $secret = $twoFactor->generateSecret();
+        $twoFactor->enable($user, $secret, (new TwoFactorAuth(new BaconQrCodeProvider()))->getCode($secret, $this->clock()->now()->getTimestamp()));
+        $this->login($user->email);
+        $this->post('/two-factor', ['code' => '000000']);
+        $alert = $this->lastMail('two_factor_failed');
+        self::assertNotNull($alert);
+        self::assertStringContainsString('correct password', $alert['html']);
+        $this->post('/two-factor', ['code' => '111111']);
+        self::assertSame(1, $countMails('two_factor_failed'), 'Once per 6 hours.');
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 19:00:00'));
+        $this->login($user->email);
+        $this->post('/two-factor', ['code' => '222222']);
+        self::assertSame(2, $countMails('two_factor_failed'));
+    }
+
     public function testParallelRequestsCannotReuseOneTotpOrRecoveryCode(): void
     {
         $user = $this->createUser();

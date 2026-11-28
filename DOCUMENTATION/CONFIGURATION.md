@@ -180,6 +180,6 @@ Coupon codes have no global settings; they are managed under Sales → Coupons (
 | `discord.sync_roles` | 30 min | Queues a role sync for Discord links whose roles changed (or were not checked for a day). |
 | `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |
-| `maintenance.cleanup` | daily | Deletes expired sessions, tokens, rate-limit entries, old login history and integration logs according to the retention settings. |
+| `maintenance.cleanup` | daily | Deletes expired sessions, tokens, rate-limit entries, cache entries, old login history and integration logs according to the retention settings. |
 
 Concurrent scheduler runs are prevented with a database lock.

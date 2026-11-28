@@ -125,6 +125,9 @@ class InvoiceRepository
             $where[] = 'i.`type` = ?';
             $params[] = $filters['type'];
         }
+        if (($filters['location'] ?? '') === 'conflict') {
+            $where[] = 'i.`location_conflict` = 1';
+        }
         if (isset($filters['user_id'])) {
             $where[] = 'i.`user_id` = ?';
             $params[] = $filters['user_id'];

@@ -285,6 +285,104 @@ final class PaymentFlowTest extends FeatureTestCase
         self::assertSame('capture-5O190127TN364715T', $this->paypal->requests('POST', '/v2/checkout/orders/5O190127TN364715T/capture')[0]->getHeaderLine('PayPal-Request-Id'));
     }
 
+    // ------------------------------------------------ OSS location evidence
+
+    public function testThePaymentCountryIsStoredAndConflictsAreFlaggedForReview(): void
+    {
+        // Stripe return flow: the card country comes with the expanded charge.
+        $invoice = $this->orderInvoice();
+        $this->actingAs($this->customer);
+        $this->stripe->on('get', '/v1/checkout/sessions/cs_test_abc', fn (array $params): array => [200, ['payment_intent' => [
+            'id' => 'pi_123', 'object' => 'payment_intent',
+            'latest_charge' => ['id' => 'ch_1', 'object' => 'charge', 'payment_method_details' => ['type' => 'card', 'card' => ['country' => 'DE', 'brand' => 'visa']]],
+        ]] + $this->paidSession($invoice)]);
+        $this->get('/invoices/' . $invoice['id'] . '/return/stripe', ['session_id' => 'cs_test_abc']);
+        self::assertSame(['payment_intent.latest_charge'], $this->stripe->calls[array_key_last($this->stripe->calls)]['params']['expand'] ?? null);
+        self::assertSame(['DE', 0], [$this->db->fetchValue('SELECT payment_country FROM nx_invoices WHERE id = ?', [$invoice['id']]), (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$invoice['id']])]);
+
+        // Stripe webhook: the payment intent is looked up; a French bank account contradicts DE.
+        $second = $this->orderInvoice();
+        $this->stripe->on('get', '/v1/payment_intents/pi_sepa', static fn (): array => [200, ['id' => 'pi_sepa', 'object' => 'payment_intent', 'latest_charge' => ['id' => 'ch_2', 'object' => 'charge', 'payment_method_details' => ['type' => 'sepa_debit', 'sepa_debit' => ['country' => 'FR']]]]]);
+        $payload = $this->stripeEvent('checkout.session.completed', $this->paidSession($second, 'pi_sepa'));
+        $this->postRaw('/webhooks/stripe', $payload, ['Stripe-Signature' => FakeStripeHttp::signature($payload, self::WEBHOOK_SECRET)]);
+        self::assertSame('paid', $this->db->fetchValue('SELECT status FROM nx_invoices WHERE id = ?', [$second['id']]));
+        self::assertSame(['FR', 1], [$this->db->fetchValue('SELECT payment_country FROM nx_invoices WHERE id = ?', [$second['id']]), (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$second['id']])]);
+        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_payment_events WHERE event_type = 'tax.location_conflict' AND invoice_id = ?", [$second['id']]));
+
+        // A failing lookup never blocks the payment.
+        $third = $this->orderInvoice();
+        $payload = $this->stripeEvent('checkout.session.completed', $this->paidSession($third, 'pi_unknown'));
+        $this->postRaw('/webhooks/stripe', $payload, ['Stripe-Signature' => FakeStripeHttp::signature($payload, self::WEBHOOK_SECRET)]);
+        self::assertSame(['paid', null], [$this->db->fetchValue('SELECT status FROM nx_invoices WHERE id = ?', [$third['id']]), $this->db->fetchValue('SELECT payment_country FROM nx_invoices WHERE id = ?', [$third['id']])]);
+
+        // Staff review: listed under the filter, marked as checked with a note (invoices.manage).
+        $this->actingAs($this->createUser(Role::SUPPORT));
+        self::assertSame(403, $this->post('/admin/invoices/' . $second['id'] . '/location-reviewed', ['note' => 'checked'])->status());
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $list = $this->get('/admin/invoices', ['location' => 'conflict'])->body();
+        self::assertStringContainsString((string) $second['number'], $list);
+        self::assertStringNotContainsString((string) $invoice['number'], $list);
+        $page = html_entity_decode($this->get('/admin/invoices/' . $second['id'])->body());
+        self::assertStringContainsString('billing country DE, but the payment provider reports FR', $page);
+        $this->post('/admin/invoices/' . $second['id'] . '/location-reviewed', ['note' => 'Customer lives in Saarbrücken, French bank account']);
+        self::assertSame(2, (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$second['id']]));
+        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_audit_log WHERE action = 'invoice.location_reviewed' AND target_id = ?", [$second['id']]));
+        self::assertStringContainsString('conflict checked', $this->get('/admin/invoices/' . $second['id'])->body());
+    }
+
+    public function testPayPalReportsThePayerCountry(): void
+    {
+        $invoice = $this->orderInvoice();
+        $capture = ['id' => '3C679366HH908993F', 'status' => 'COMPLETED', 'custom_id' => 'invoice:' . $invoice['id'], 'amount' => ['currency_code' => 'EUR', 'value' => '11.90']];
+        $this->paypal
+            ->on('GET', '/v2/checkout/orders/5O190127TN364715T', fn (): Psr7Response => new Psr7Response(200, [], json_encode($this->paypalOrder($invoice, 'APPROVED'), JSON_THROW_ON_ERROR)))
+            ->on('POST', '/v2/checkout/orders/5O190127TN364715T/capture', fn (): Psr7Response => new Psr7Response(201, [], json_encode(['payer' => ['address' => ['country_code' => 'AT']]] + $this->paypalOrder($invoice, 'COMPLETED', $capture), JSON_THROW_ON_ERROR)));
+        $this->actingAs($this->customer);
+        $this->get('/invoices/' . $invoice['id'] . '/return/paypal', ['token' => '5O190127TN364715T', 'PayerID' => 'X']);
+
+        self::assertSame(['paid', 'AT', 1], [
+            $this->db->fetchValue('SELECT status FROM nx_invoices WHERE id = ?', [$invoice['id']]),
+            $this->db->fetchValue('SELECT payment_country FROM nx_invoices WHERE id = ?', [$invoice['id']]),
+            (int) $this->db->fetchValue('SELECT location_conflict FROM nx_invoices WHERE id = ?', [$invoice['id']]),
+        ]);
+    }
+
+    public function testThePayPalTokenIsCachedEncryptedAndRenewedAfterA401(): void
+    {
+        $gateway = fn (): \Nebrix\Payment\PayPal\PayPalGateway => $this->app->container()->get(\Nebrix\Payment\PayPal\PayPalGateway::class);
+        $calls = 0;
+        $this->paypal->on('GET', '/v2/checkout/orders/ORDER-1', function ($request) use (&$calls): Psr7Response {
+            $calls++;
+
+            return $request->getHeaderLine('Authorization') === 'Bearer A21AA-token' ? new Psr7Response(200, [], '{"id":"ORDER-1","status":"CREATED"}') : new Psr7Response(401, [], '{"error":"invalid_token"}');
+        });
+
+        // Two separate clients (e.g. web and worker) share one token.
+        (new \Nebrix\Payment\PayPal\PayPalClient($this->paypal->client(), 'client-id', 'client-secret', true, $this->app->container()->get(\Nebrix\Cache\SecureCache::class)))->getOrder('ORDER-1');
+        (new \Nebrix\Payment\PayPal\PayPalClient($this->paypal->client(), 'client-id', 'client-secret', true, $this->app->container()->get(\Nebrix\Cache\SecureCache::class)))->getOrder('ORDER-1');
+        self::assertCount(1, $this->paypal->requests('POST', '/v1/oauth2/token'));
+        $stored = (string) $this->db->fetchValue('SELECT `value` FROM nx_cache LIMIT 1');
+        self::assertStringNotContainsString('A21AA-token', $stored, 'Stored encrypted.');
+
+        // A revoked token: discarded, a new one is fetched and the request repeated once.
+        $this->app->container()->get(\Nebrix\Cache\SecureCache::class)->put('paypal-token:' . hash('sha256', "sandbox\0client-id\0client-secret"), 'revoked-token', 3000);
+        $calls = 0;
+        (new \Nebrix\Payment\PayPal\PayPalClient($this->paypal->client(), 'client-id', 'client-secret', true, $this->app->container()->get(\Nebrix\Cache\SecureCache::class)))->getOrder('ORDER-1');
+        self::assertSame(2, $calls);
+        self::assertCount(2, $this->paypal->requests('POST', '/v1/oauth2/token'));
+
+        // Other credentials never reuse the token; a token that keeps failing is an error, not a loop.
+        $this->paypal->on('POST', '/v1/oauth2/token', ['access_token' => 'other-token', 'expires_in' => 32400]);
+        try {
+            (new \Nebrix\Payment\PayPal\PayPalClient($this->paypal->client(), 'client-id', 'new-secret', true, $this->app->container()->get(\Nebrix\Cache\SecureCache::class)))->getOrder('ORDER-1');
+            self::fail('401 must surface.');
+        } catch (\Nebrix\Payment\PayPal\PayPalException $exception) {
+            self::assertSame(401, $exception->getCode());
+        }
+        self::assertCount(4, $this->paypal->requests('POST', '/v1/oauth2/token'));
+        self::assertNotNull($gateway());
+    }
+
     public function testPayPalOrderOfAnotherInvoiceIsRejected(): void
     {
         $mine = $this->orderInvoice();

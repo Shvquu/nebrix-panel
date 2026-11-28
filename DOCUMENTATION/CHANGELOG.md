@@ -65,6 +65,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 
+### Added (security alerts, PayPal tokens, location evidence)
+- Security e-mails (EN/DE) when sign-in is locked after failed attempts and when the correct password was entered with a wrong two-factor code; at most one per kind and account every 6 hours.
+- PayPal access tokens are cached encrypted until shortly before they expire and renewed once after a 401 (new table `nx_cache`, pruned by `maintenance.cleanup`).
+- OSS location evidence: the country of the payment method (Stripe card/bank country, PayPal account country) is stored with paid invoices; contradictions with the billing country are flagged, filterable and marked as checked by staff (migration `2026_11_29_000018`).
+
 ### Added (Proxmox: IPv6 pools and LXC root passwords)
 - **Static IPv6** from IPv6 pools (single addresses of an on-link prefix, link-local gateways, up to 4096 per pool) for VPS and LXC, alongside IPv4 pools; SLAAC stays the default.
 - **LXC root password reset** without reinstalling (optional): SSH to the node with a panel-generated key restricted to the forced command `resources/proxmox/nebrix-lxc-passwd` (ownership marker checked on the node, password on stdin, pinned host keys).

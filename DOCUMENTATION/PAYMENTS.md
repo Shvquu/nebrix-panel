@@ -47,7 +47,12 @@ Nebrix bills in invoices. Customers pay an invoice with Stripe, PayPal or their 
 3. Webhooks: `PAYMENT.CAPTURE.COMPLETED` settles (idempotent), `CHECKOUT.ORDER.APPROVED` captures orders whose customer never returned, `DENIED/DECLINED` are recorded as failures.
 4. Webhooks are verified with PayPal's `verify-webhook-signature` API using the configured webhook ID; the event body is forwarded unchanged. Unverified events get HTTP 400; if PayPal is unreachable Nebrix answers 503 so PayPal retries.
 
+The OAuth access token is reused until 10 minutes before PayPal's expiry (stored encrypted in `nx_cache`, shared by web, worker and scheduler, keyed by mode and credentials so a new secret never reuses an old token). If PayPal answers 401, the token is discarded and the request repeated once with a new token.
+
 The legacy PayPal IPN endpoint and the deprecated v1 SDK are not used.
+
+## Location evidence
+The country of the payment method is stored with the paid invoice (`payment_country`): Stripe reports the card issuer or bank account country of the charge (on the return flow from the expanded session, for webhooks with one extra lookup that never blocks the payment), PayPal the country of the payer's account (return flow). A conflict with the billing country is logged as `tax.location_conflict` and flagged for review – see ADMIN_GUIDE.md, *Taxes and invoices*.
 
 ## Account credit
 

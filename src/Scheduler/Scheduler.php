@@ -60,6 +60,7 @@ class Scheduler
         private readonly \Nebrix\Service\ServiceChangeService $serviceChanges,
         private readonly \Nebrix\Status\StatusService $status,
         private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
+        private readonly \Nebrix\Cache\SecureCache $cache,
     ) {
     }
 
@@ -279,7 +280,8 @@ class Scheduler
             + $this->integrationLogs->prune($this->settings->int('system.integration_log_retention_days') ?: 30)
             + $this->jobs->pruneCompleted(30)
             + $this->consoleSessions->prune()
-            + $this->apiTokens->pruneIdempotency();
+            + $this->apiTokens->pruneIdempotency()
+            + $this->cache->prune();
 
         return sprintf('%d expired record(s) removed', $removed);
     }

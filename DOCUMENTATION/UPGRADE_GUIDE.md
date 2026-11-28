@@ -132,6 +132,10 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to security alerts, PayPal token caching and location evidence
+
+Migration `2026_11_29_000018_add_cache_and_location_evidence` adds the table `nx_cache` and the columns `nx_invoices.payment_country` / `location_conflict` (additive; existing invoices keep `NULL`/`0`). Run `php bin/nebrix migrate` after pulling. The new e-mail templates *Sign-in locked after failed attempts* and *Correct password, wrong two-factor code* are active immediately and can be edited under E-mail templates.
+
 ### Updating to IPv6 pools and LXC root passwords
 
 No migration. IPv6 pools are created under Admin → IP pools and selected on VPS/LXC products (*IP pool for static IPv6 addresses*); existing products keep SLAAC. LXC root password resets stay off until you configure SSH access to the nodes on the Proxmox integration and install the forced command on every node ([INTEGRATIONS.md](INTEGRATIONS.md#lxc-root-passwords)).

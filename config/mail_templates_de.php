@@ -28,6 +28,14 @@ return [
         'subject' => 'Ihr Passwort wurde geändert',
         'html' => '<p>Hallo {{ name }},</p><p>das Passwort Ihres Kontos bei {{ company_name }} wurde am {{ time }} geändert (IP-Adresse {{ ip }}). Alle anderen Sitzungen wurden abgemeldet und alle API-Tokens widerrufen.</p><p>Falls Sie das nicht waren, setzen Sie Ihr Passwort sofort zurück und wenden Sie sich an {{ support_email }}.</p>',
     ],
+    'account_locked' => [
+        'subject' => 'Die Anmeldung bei Ihrem Konto wurde gesperrt',
+        'html' => '<p>Hallo {{ name }},</p><p>nach {{ attempts }} fehlgeschlagenen Anmeldeversuchen ist die Anmeldung bei Ihrem Konto bei {{ company_name }} für {{ minutes }} Minute(n) gesperrt (letzter Versuch am {{ time }} von der IP-Adresse {{ ip }}).</p><p>Falls Sie das waren, warten Sie kurz oder setzen Sie Ihr Passwort zurück. Falls nicht, hat jemand versucht, Ihr Passwort zu erraten: Ihr Konto ist sicher, solange das Passwort nicht richtig eingegeben wurde. Verwenden Sie ein starkes, nur hier genutztes Passwort und aktivieren Sie die Zwei-Faktor-Authentifizierung.</p><p><a class="button" href="{{ security_url }}">Sicherheitseinstellungen</a></p><p>Fragen? Schreiben Sie an {{ support_email }}.</p>',
+    ],
+    'two_factor_failed' => [
+        'subject' => 'Anmeldeversuch mit Ihrem Passwort',
+        'html' => '<p>Hallo {{ name }},</p><p>am {{ time }} hat sich jemand mit dem <strong>richtigen Passwort</strong> von der IP-Adresse {{ ip }} bei Ihrem Konto bei {{ company_name }} angemeldet, aber einen falschen Zwei-Faktor-Code eingegeben. Die Zwei-Faktor-Authentifizierung hat die Anmeldung verhindert.</p><p>Falls Sie das nicht waren, kennt jemand anderes Ihr Passwort: Ändern Sie es sofort (dabei werden auch alle Sitzungen abgemeldet und API-Tokens widerrufen).</p><p><a class="button" href="{{ security_url }}">Passwort ändern</a></p><p>Fragen? Schreiben Sie an {{ support_email }}.</p>',
+    ],
     'order_confirmation' => [
         'subject' => 'Bestellung {{ order_number }} eingegangen',
         'html' => '<p>Hallo {{ name }},</p><p>vielen Dank für Ihre Bestellung <strong>{{ order_number }}</strong> ({{ order_total }}).</p><p>Ihre Dienste werden automatisch eingerichtet, sobald die Zahlung bestätigt ist.</p><p><a class="button" href="{{ invoice_url }}">Rechnung ansehen und bezahlen</a></p>',

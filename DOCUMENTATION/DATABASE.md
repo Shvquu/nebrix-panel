@@ -39,6 +39,18 @@ php bin/nebrix migrate
 | `000004_add_two_factor_replay_protection` | `nx_users.two_factor_last_slice` |
 | `000005_create_sequences_table` | gap-free counters for invoice and order numbers |
 | `000006_create_infrastructure_tables` | IP pools and addresses, console sessions, registrar contacts, legacy import mapping and history |
+| `000007_create_api_tables` | API tokens (SHA-256 hashes) and idempotency records; permission `api_tokens.manage` |
+| `000008_add_auto_payment_and_reminders` | automatic payment from credit (per customer), payment reminder tracking on invoices |
+| `000009_localize_mail_templates` | e-mail template overrides per language |
+| `000010_create_cancellations` | cancellations and withdrawals, cancellation date of services |
+| `000011_add_tax_fields` | VAT ID check results on customers, tax treatment on invoices |
+| `000012_add_invoice_documents` | correction documents, archive record of PDF/XML documents |
+| `000013_add_portal_features` | support PIN, Discord links |
+| `000014_add_coupons_and_referrals` | coupons, redemptions, referrals |
+| `000015_add_service_changes` | upgrade groups, upgrades and downgrades |
+| `000016_create_status_page` | status page components, incidents, updates; permission `status.manage` |
+| `000017_create_hetzner_wipes` | queue of automatic Hetzner disk wipes |
+| `000018_add_cache_and_location_evidence` | encrypted cache (`nx_cache`), payment country and location conflict on invoices |
 
 ## Tables
 
@@ -52,6 +64,7 @@ php bin/nebrix migrate
 | `nx_user_tokens` | Hashed single-use tokens (password reset, e-mail verification) with expiry. |
 | `nx_sessions` | Server-side sessions (hashed ID, user, IP, user agent, payload, last activity). |
 | `nx_rate_limits` | Throttle counters (hashed key, hits, reset time). |
+| `nx_cache` | Short-lived shared values (e.g. the PayPal access token): hashed key, value encrypted with `APP_KEY` and bound to its key, expiry; pruned daily. |
 | `nx_login_history` | Successful and failed sign-ins (pruned after the retention period). |
 | `nx_audit_log` | Append-only record of administrative and security-relevant actions. |
 | `nx_api_tokens` | REST API personal access tokens: owner, name, SHA-256 hash (unique) and 8-character prefix of the token, scopes (JSON), optional IP allowlist, expiry, last use, revocation time. |
@@ -67,7 +80,7 @@ php bin/nebrix migrate
 | `nx_products` | Products with category, price and setup fee, billing cycle, tax rate, stock (`NULL` = unlimited), visibility, optional customer-group restriction, integration and provisioning configuration (JSON). |
 | `nx_orders`, `nx_order_items` | Orders with price snapshot (the product can change later without affecting existing orders). |
 | `nx_services` | One row per provisioned item: status (`pending`, `provisioning`, `active`, `suspended`, `terminated`, `cancelled`, `failed`), billing cycle, `next_due_at`, `cancel_at` (end date after a cancellation – no renewals after it), remote identifiers (`external_id`, `remote` JSON), encrypted `credentials`. `order_item_id` is unique → one service per order item even if fulfilment runs twice. |
-| `nx_invoices`, `nx_invoice_items` | Invoices of type `order`, `renewal` or `credit` (top-up) with status `unpaid`, `paid`, `cancelled` or `refunded`, and correction documents of type `credit_note` (status `issued`, `reference_invoice_id` → corrected invoice). Tax treatment per invoice (`tax_category` S/AE/E/O, `tax_note`, `tax_country`), billing snapshot, reminder tracking (`reminders_sent` = number of reminder levels sent, `last_reminder_at`) and the archive record (`archived_at`, `pdf_sha256`, `xml_sha256`). Partial refunds are tracked through the refund transactions. |
+| `nx_invoices`, `nx_invoice_items` | Invoices of type `order`, `renewal` or `credit` (top-up) with status `unpaid`, `paid`, `cancelled` or `refunded`, and correction documents of type `credit_note` (status `issued`, `reference_invoice_id` → corrected invoice). Tax treatment per invoice (`tax_category` S/AE/E/O, `tax_note`, `tax_country`), location evidence (`payment_country` reported by the payment provider; `location_conflict` 0 = none, 1 = contradicts `tax_country`, to be checked, 2 = checked by staff), billing snapshot, reminder tracking (`reminders_sent` = number of reminder levels sent, `last_reminder_at`) and the archive record (`archived_at`, `pdf_sha256`, `xml_sha256`). Partial refunds are tracked through the refund transactions. |
 | `nx_status_components`, `nx_status_incidents`, `nx_status_incident_components`, `nx_status_updates` | Status page: components (state, group, optional integration, visibility), incidents and maintenance (type, impact, status, window, published, notification time), affected components and the timeline of updates. |
 | `nx_service_changes` | Upgrades and downgrades: service, from/to product, direction, status (`pending_payment`, `scheduled`, `queued`, `completed`, `failed`, `cancelled`), renewal price before/after, prorated charge and its invoice (unique), date of a downgrade, error of a failed change. `nx_products.upgrade_group` groups the products a service can switch between; invoices of type `upgrade` carry the prorated difference. |
 | `nx_coupons` | Coupon codes (unique, upper case): `type` percent (value in basis points) or fixed (value in minor units + `currency`), `duration` once/forever, optional product list, validity, total and per-customer limits, new-customers-only flag, `uses` counter. |

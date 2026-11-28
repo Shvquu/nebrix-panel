@@ -311,6 +311,7 @@ return static function (Router $r): void {
             $r->get('/invoices/{id:\d+}/pdf', [Admin\InvoiceController::class, 'pdf']);
             $r->get('/invoices/{id:\d+}/xml', [Admin\InvoiceController::class, 'xml']);
             $r->post('/invoices/{id:\d+}/cancel', [Admin\InvoiceController::class, 'cancel']);
+            $r->post('/invoices/{id:\d+}/location-reviewed', [Admin\InvoiceController::class, 'locationReviewed']);
             $r->post('/invoices/{id:\d+}/payment', [Admin\InvoiceController::class, 'recordPayment']);
         });
         $r->group(['middleware' => ['permission:services.view']], static function (Router $r): void {

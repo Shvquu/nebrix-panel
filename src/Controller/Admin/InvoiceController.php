@@ -33,6 +33,7 @@ final class InvoiceController extends Controller
             'status' => in_array($request->string('status'), ['unpaid', 'paid', 'cancelled', 'refunded'], true) ? $request->string('status') : '',
             'type' => in_array($request->string('type'), ['order', 'renewal', 'upgrade', 'credit'], true) ? $request->string('type') : '',
             'search' => mb_substr($request->string('search'), 0, 100),
+            'location' => $request->string('location') === 'conflict' ? 'conflict' : '',
         ];
         $page = $this->page($request);
 
@@ -93,6 +94,24 @@ final class InvoiceController extends Controller
             throw $exception; // database errors: generic error page, details only in the log
         } catch (RuntimeException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
+        }
+
+        return $this->redirect('/admin/invoices/' . $id);
+    }
+
+    /**
+     * Staff checked an invoice whose payment country contradicts the billing
+     * country (OSS location evidence) – recorded with their note.
+     */
+    public function locationReviewed(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::INVOICES_MANAGE);
+        $this->invoices->find($id) ?? throw HttpException::notFound();
+        $data = $this->validate($request, ['note' => 'required|string|max:500']);
+        $changed = $this->db->run('UPDATE `nx_invoices` SET `location_conflict` = 2 WHERE `id` = ? AND `location_conflict` = 1', [$id])->rowCount() > 0;
+        if ($changed) {
+            $this->audit($request, 'invoice.location_reviewed', 'invoice', $id, ['note' => (string) $data['note']]);
+            $this->flash($request, 'success', 'The location evidence has been marked as checked.');
         }
 
         return $this->redirect('/admin/invoices/' . $id);

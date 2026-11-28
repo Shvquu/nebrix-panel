@@ -38,6 +38,7 @@ class PayPalGateway implements PaymentGateway
         private readonly WebhookEventRepository $webhooks,
         private readonly LoggerInterface $logger,
         private readonly \Nebrix\Security\RateLimiter $limiter,
+        private readonly \Nebrix\Cache\SecureCache $cache,
     ) {
     }
 
@@ -70,6 +71,7 @@ class PayPalGateway implements PaymentGateway
             $this->settings->string('payments.paypal.client_id'),
             (string) $this->settings->get('payments.paypal.client_secret'),
             $this->settings->string('payments.paypal.mode') !== 'live',
+            $this->cache,
         );
     }
 
@@ -150,13 +152,16 @@ class PayPalGateway implements PaymentGateway
             return PaymentOutcome::pending('The payment has not been captured yet.');
         }
 
-        return $this->settleCapture($capture, $expectedInvoiceId ?: $this->invoiceIdFromUnit($unit));
+        // Country of the payer's PayPal account: location evidence for OSS.
+        $country = $order['payer']['address']['country_code'] ?? null;
+
+        return $this->settleCapture($capture, $expectedInvoiceId ?: $this->invoiceIdFromUnit($unit), is_string($country) ? $country : null);
     }
 
     /**
      * @param array<string, mixed> $capture
      */
-    private function settleCapture(array $capture, ?int $invoiceId): PaymentOutcome
+    private function settleCapture(array $capture, ?int $invoiceId, ?string $payerCountry = null): PaymentOutcome
     {
         $captureId = (string) ($capture['id'] ?? '');
         $status = (string) ($capture['status'] ?? '');
@@ -184,7 +189,7 @@ class PayPalGateway implements PaymentGateway
             return PaymentOutcome::rejected('Invalid amount in PayPal capture.');
         }
 
-        return $this->payments->recordPayment('paypal', $captureId, $invoiceId, $amount, $currency, ['capture_status' => $status]);
+        return $this->payments->recordPayment('paypal', $captureId, $invoiceId, $amount, $currency, array_filter(['capture_status' => $status, 'payer_country' => $payerCountry], static fn (mixed $v): bool => $v !== null));
     }
 
     /**

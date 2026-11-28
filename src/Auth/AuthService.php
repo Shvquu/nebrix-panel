@@ -88,6 +88,9 @@ class AuthService
         if (!$withinAccountLimit || !$withinIpLimit) {
             $this->history->record(null, $login, $ip, $request->userAgent(), false, 'throttled');
             $minutes = (int) ceil(max($this->limiter->availableIn($accountKey), $this->limiter->availableIn($ipKey)) / 60);
+            if (!$withinAccountLimit && $user !== null) {
+                $this->securityAlert($user, 'account_locked', $request, ['attempts' => (string) $maxAttempts, 'minutes' => (string) max(1, (int) ceil($this->limiter->availableIn($accountKey) / 60))]);
+            }
 
             throw new AuthenticationException(sprintf('Too many failed sign-in attempts. Please try again in %d minute(s).', max(1, $minutes)));
         }
@@ -186,6 +189,8 @@ class AuthService
         if (!$this->twoFactor->verify($user, $code)) {
             $this->limiter->hit($dayKey, 86400);
             $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), false, 'two_factor_invalid');
+            // The password was correct: whoever this is knows it.
+            $this->securityAlert($user, 'two_factor_failed', $request, []);
 
             throw new AuthenticationException('The authentication code is invalid.');
         }
@@ -473,6 +478,26 @@ class AuthService
             'name' => $user->displayName(),
             'ip' => $request->clientIp(),
             'time' => $this->clock->now()->format('Y-m-d H:i') . ' UTC',
+        ]);
+    }
+
+    /**
+     * Warns the account owner about a lockout or a wrong two-factor code after a
+     * correct password – at most once per kind and account every 6 hours, so
+     * that nobody can flood a mailbox by triggering it.
+     *
+     * @param array<string, string> $variables
+     */
+    private function securityAlert(User $user, string $template, Request $request, array $variables): void
+    {
+        if ($user->status === User::STATUS_CLOSED || !$this->limiter->attempt('security_alert:' . $template . ':' . $user->id, 1, 21600)) {
+            return;
+        }
+        $this->mailer->queue($user->email, $user->displayName(), $template, $variables + [
+            'name' => $user->displayName(),
+            'ip' => $request->clientIp(),
+            'time' => $this->clock->now()->format('Y-m-d H:i') . ' UTC',
+            'security_url' => $this->url('/account/security'),
         ]);
     }
 

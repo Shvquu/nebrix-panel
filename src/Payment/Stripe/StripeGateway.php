@@ -109,7 +109,7 @@ class StripeGateway implements PaymentGateway
         }
 
         try {
-            $session = $this->client()->checkout->sessions->retrieve($sessionId);
+            $session = $this->client()->checkout->sessions->retrieve($sessionId, ['expand' => ['payment_intent.latest_charge']]);
         } catch (ApiErrorException $exception) {
             $this->logger->warning('Stripe session lookup failed', ['message' => $exception->getMessage()]);
 
@@ -142,14 +142,46 @@ class StripeGateway implements PaymentGateway
             return PaymentOutcome::pending('Stripe is still processing the payment. Your invoice will be updated automatically.');
         }
 
+        $country = self::paymentCountry(is_array($session['payment_intent'] ?? null) ? $session['payment_intent'] : null) ?? $this->lookupPaymentCountry($paymentIntent);
+
         return $this->payments->recordPayment(
             'stripe',
             $paymentIntent,
             $invoiceId,
             (int) ($session['amount_total'] ?? 0),
             strtoupper((string) ($session['currency'] ?? '')),
-            ['session' => (string) ($session['id'] ?? ''), 'livemode' => (bool) ($session['livemode'] ?? false)],
+            array_filter(['session' => (string) ($session['id'] ?? ''), 'livemode' => (bool) ($session['livemode'] ?? false), 'payer_country' => $country], static fn (mixed $v): bool => $v !== null),
         );
+    }
+
+    /**
+     * Country of the payment instrument (card issuer, bank account) from an
+     * expanded payment intent – location evidence for OSS.
+     *
+     * @param array<string, mixed>|null $intent
+     */
+    public static function paymentCountry(?array $intent): ?string
+    {
+        $details = $intent['latest_charge']['payment_method_details'] ?? null;
+        if (!is_array($details)) {
+            return null;
+        }
+        $type = (string) ($details['type'] ?? '');
+        $country = $details[$type]['country'] ?? null;
+
+        return is_string($country) && preg_match('/^[A-Z]{2}$/', strtoupper($country)) === 1 ? strtoupper($country) : null;
+    }
+
+    /** Webhooks carry no expanded charge: one lookup, never blocking the payment. */
+    private function lookupPaymentCountry(string $paymentIntent): ?string
+    {
+        try {
+            return self::paymentCountry($this->client()->paymentIntents->retrieve($paymentIntent, ['expand' => ['latest_charge']])->toArray());
+        } catch (\Throwable $exception) {
+            $this->logger->info('Stripe payment country not available', ['payment_intent' => $paymentIntent, 'message' => mb_substr($exception->getMessage(), 0, 200)]);
+
+            return null;
+        }
     }
 
     public function handleWebhook(Request $request): Response

@@ -6,12 +6,24 @@
     {% if can('invoices.manage') and invoice.status == 'unpaid' %}<form method="post" action="/admin/invoices/{{ invoice.id }}/cancel" data-confirm="{{ 'Cancel this invoice?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Cancel invoice'|t }}</button></form>{% endif %}
 </div>
 <p class="actions mb-2"><a class="btn btn-sm btn-outline" href="/admin/invoices/{{ invoice.id }}/pdf">{{ 'Download PDF'|t }}</a> <a class="btn btn-sm btn-outline" href="/admin/invoices/{{ invoice.id }}/xml">{{ 'E-invoice (XRechnung)'|t }}</a>{% if invoice.reference_invoice_id %} · {{ 'Refers to invoice'|t }} <a href="/admin/invoices/{{ invoice.reference_invoice_id }}">#{{ invoice.reference_invoice_id }}</a>{% endif %}</p>
+{% if invoice.location_conflict == 1 %}
+<div class="alert alert-warning">
+    <p><strong>{{ 'Location evidence conflict'|t }}:</strong> {{ 'The tax is based on the billing country %s, but the payment provider reports %s for the payment method. Check the customer\'s location (OSS: two non-contradictory pieces of evidence) and correct the invoice if necessary.'|t|format(invoice.tax_country, invoice.payment_country) }}</p>
+    {% if can('invoices.manage') %}
+    <form method="post" action="/admin/invoices/{{ invoice.id }}/location-reviewed">{{ csrf_field() }}
+        <div class="form-row"><label for="f-note">{{ 'Result of the check'|t }}</label><input id="f-note" name="note" maxlength="500" required placeholder="{{ 'e.g. customer lives in DE, card from AT bank'|t }}"></div>
+        <button class="btn btn-sm btn-outline" type="submit">{{ 'Mark as checked'|t }}</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
 <div class="grid grid-2">
     <div class="card">
         <div class="card-body"><dl class="details">
             <dt>{{ 'Customer'|t }}</dt><dd><a href="/admin/customers/{{ invoice.user_id }}">{{ billing.name|default('') }}</a> {{ billing.email|default('') }}<div class="small muted">{{ billing.company|default('') }} {{ billing.address_line1|default('') }} {{ billing.postcode|default('') }} {{ billing.city|default('') }} {{ billing.country|default('') }}</div></dd>
             <dt>{{ 'Due'|t }}</dt><dd>{{ invoice.due_at|d }}</dd>
             <dt>{{ 'Paid'|t }}</dt><dd>{{ invoice.paid_at|dt }}</dd>
+            {% if invoice.payment_country %}<dt>{{ 'Payment country'|t }}</dt><dd>{{ invoice.payment_country }}{% if invoice.location_conflict == 2 %} <span class="badge badge-sentence badge-info">{{ 'conflict checked'|t }}</span>{% elseif invoice.payment_country == invoice.tax_country %} <span class="small muted">{{ 'matches the billing country'|t }}</span>{% endif %}</dd>{% endif %}
             {% if invoice.order_id %}<dt>{{ 'Order'|t }}</dt><dd><a href="/admin/orders/{{ invoice.order_id }}">#{{ invoice.order_id }}</a></dd>{% endif %}
             {% if invoice.service_id %}<dt>{{ 'Service'|t }}</dt><dd><a href="/admin/services/{{ invoice.service_id }}">#{{ invoice.service_id }}</a></dd>{% endif %}
         </dl></div>

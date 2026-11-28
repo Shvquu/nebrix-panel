@@ -6,14 +6,22 @@ namespace Nebrix\Payment\PayPal;
 
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use Nebrix\Cache\SecureCache;
 use RuntimeException;
 
 /**
  * PayPal REST API (Orders v2, Payments v2, Notifications v1).
  * https://developer.paypal.com/docs/api/orders/v2/
+ *
+ * The OAuth access token (valid for hours) is shared between requests and
+ * processes through the encrypted cache until shortly before it expires, as
+ * PayPal recommends; a 401 discards it and fetches a new one once.
  */
 class PayPalClient
 {
+    /** Renew this long before PayPal's expiry. */
+    private const TOKEN_MARGIN_SECONDS = 600;
+
     private ?string $token = null;
 
     public function __construct(
@@ -21,7 +29,14 @@ class PayPalClient
         private readonly string $clientId,
         #[\SensitiveParameter] private readonly string $clientSecret,
         private readonly bool $sandbox,
+        private readonly ?SecureCache $cache = null,
     ) {
+    }
+
+    /** Cache key per account and mode; a new secret never reuses the old token. */
+    private function tokenCacheKey(): string
+    {
+        return 'paypal-token:' . hash('sha256', ($this->sandbox ? 'sandbox' : 'live') . "\0" . $this->clientId . "\0" . $this->clientSecret);
     }
 
     public function baseUrl(): string
@@ -37,6 +52,10 @@ class PayPalClient
         if ($this->clientId === '' || $this->clientSecret === '') {
             throw new PayPalException('PayPal credentials are not configured.');
         }
+        $cached = $this->cache?->get($this->tokenCacheKey());
+        if ($cached !== null && $cached !== '') {
+            return $this->token = $cached;
+        }
 
         $response = $this->send('POST', '/v1/oauth2/token', [
             'auth' => [$this->clientId, $this->clientSecret],
@@ -47,8 +66,19 @@ class PayPalClient
         if (!is_string($token) || $token === '') {
             throw new PayPalException('PayPal did not return an access token.');
         }
+        $lifetime = (int) ($response['expires_in'] ?? 0);
+        if ($this->cache !== null && $lifetime > self::TOKEN_MARGIN_SECONDS + 60) {
+            $this->cache->put($this->tokenCacheKey(), $token, $lifetime - self::TOKEN_MARGIN_SECONDS);
+        }
 
         return $this->token = $token;
+    }
+
+    /** Discards the token (e.g. after PayPal rejected it). */
+    public function forgetToken(): void
+    {
+        $this->token = null;
+        $this->cache?->forget($this->tokenCacheKey());
     }
 
     /**
@@ -136,8 +166,9 @@ class PayPalClient
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private function send(string $method, string $path, array $options = [], bool $authenticate = true): array
+    private function send(string $method, string $path, array $options = [], bool $authenticate = true, bool $retried = false): array
     {
+        $original = $options;
         $options['headers'] = ($options['headers'] ?? []) + ['Accept' => 'application/json'];
         if ($authenticate) {
             $options['headers']['Authorization'] = 'Bearer ' . $this->accessToken();
@@ -151,6 +182,13 @@ class PayPalClient
         }
 
         $status = $response->getStatusCode();
+        if ($status === 401 && $authenticate && !$retried) {
+            // Expired or revoked token (e.g. credentials rotated): one retry with a new one.
+            // Requests are safe to repeat: writes carry a PayPal-Request-Id.
+            $this->forgetToken();
+
+            return $this->send($method, $path, $original, true, true);
+        }
         $json = json_decode((string) $response->getBody(), true);
         $json = is_array($json) ? $json : [];
 
