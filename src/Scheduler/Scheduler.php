@@ -52,6 +52,7 @@ class Scheduler
         private readonly ConsoleSessions $consoleSessions,
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
         private readonly \Nebrix\Billing\AutoPayment $autoPayment,
+        private readonly \Nebrix\Billing\SavedMethodAutoPayment $savedAutoPayment,
         private readonly \Nebrix\Billing\PaymentReminders $reminders,
         private readonly \Nebrix\Contract\CancellationService $cancellations,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
@@ -75,6 +76,11 @@ class Scheduler
             'billing.renewal_invoices' => [15, $this->createRenewalInvoices(...)],
             // Before the overdue check: credit topped up in the meantime still pays the renewal.
             'billing.auto_pay_credit' => [15, fn (): string => sprintf('%d invoice(s) paid from credit', $this->autoPayment->run())],
+            'billing.auto_pay_saved' => [60, function (): string {
+                $result = $this->savedAutoPayment->run();
+
+                return sprintf('%d invoice(s) charged, %d SEPA pre-notification(s) sent', $result['charged'], $result['prenotified']);
+            }],
             'billing.payment_reminders' => [60, fn (): string => sprintf('%d reminder(s) sent', $this->reminders->send())],
             'billing.suspend_overdue' => [15, $this->suspendOverdue(...)],
             'billing.terminate_suspended' => [60, $this->terminateLongSuspended(...)],

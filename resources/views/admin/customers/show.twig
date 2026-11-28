@@ -116,6 +116,21 @@
             {% endif %}
         </div>
     </div>
+    {% if payment_methods is not empty or customer.attribute('auto_pay_saved') %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Payment methods'|t }}</h2>{% if customer.attribute('auto_pay_saved') %}<span class="badge badge-success">{{ 'Automatic payment'|t }}</span>{% endif %}</div>
+        <div class="card-body">
+            <ul class="plain">
+            {% for m in payment_methods %}
+                <li>{% if m.type == 'sepa_debit' %}{{ 'SEPA direct debit'|t }}{% else %}{{ (m.brand ?: 'card')|upper }}{% endif %} <span class="mono">•••• {{ m.last4 ?: '????' }}</span>{% if m.is_default %} <span class="badge badge-info">{{ 'Default'|t }}</span>{% endif %}{% if m.status != 'active' %} <span class="badge badge-warning">{{ 'inactive'|t }}</span>{% endif %}</li>
+            {% endfor %}
+            </ul>
+            {% for a in autopay_attempts %}
+                <div class="small muted">{{ a.created_at|dt }} · {{ a.invoice_number }} · {{ a.amount|money(a.currency) }} · {{ a.status }}{% if a.error %} ({{ a.error }}){% endif %}</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="card">

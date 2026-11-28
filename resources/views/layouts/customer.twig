@@ -21,6 +21,7 @@
             <a href="/account/security" class="{{ active('/account/security') }}"><span class="p-nav-icon">{{ i.icon('shield') }}</span>{{ 'Security'|t }}</a>
             <a href="/invoices#top-up" class=""><span class="p-nav-icon">{{ i.icon('wallet') }}</span>{{ 'Top up credit'|t }}</a>
             <a href="/invoices" class="{{ active('/invoices') }}"><span class="p-nav-icon">{{ i.icon('invoice') }}</span>{{ 'Invoices'|t }}</a>
+            {% if setting('payments.stripe.saved_methods') and setting('payments.stripe.enabled') %}<a href="/account/payment-methods" class="{{ active('/account/payment-methods') }}"><span class="p-nav-icon">{{ i.icon('wallet') }}</span>{{ 'Payment methods'|t }}</a>{% endif %}
             <a href="/orders" class="{{ active('/orders') }}"><span class="p-nav-icon">{{ i.icon('cart') }}</span>{{ 'Orders'|t }}</a>
             <a href="/transactions" class="{{ active('/transactions') }}"><span class="p-nav-icon">{{ i.icon('transactions') }}</span>{{ 'Transactions'|t }}</a>
             {% if setting('referral.enabled') %}<a href="/account/referrals" class="{{ active('/account/referrals') }}"><span class="p-nav-icon">{{ i.icon('gift') }}</span>{{ 'Refer a friend'|t }}</a>{% endif %}

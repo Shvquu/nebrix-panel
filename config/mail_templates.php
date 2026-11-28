@@ -160,4 +160,22 @@ return [
         'subject' => 'Test e-mail from {{ company_name }}',
         'html' => '<p>This is a test message. Your SMTP settings work.</p>',
     ],
+    'sepa_prenotification' => [
+        'name' => 'SEPA direct debit pre-notification',
+        'variables' => ['name', 'invoice_number', 'invoice_total', 'invoice_url', 'debit_date', 'mandate_reference', 'account_last4'],
+        'subject' => 'Direct debit announcement for invoice {{ invoice_number }}',
+        'html' => '<p>Hello {{ name }},</p><p>we will collect <strong>{{ invoice_total }}</strong> for invoice <strong>{{ invoice_number }}</strong> by SEPA direct debit from your account ending in {{ account_last4 }} on or shortly after <strong>{{ debit_date }}</strong>.</p><p>Mandate reference: {{ mandate_reference }}. The debit is processed by our payment provider Stripe.</p><p>Please make sure your account is sufficiently funded. You can change your payment method in your customer area at any time.</p><p><a class="button" href="{{ invoice_url }}">View invoice</a></p>',
+    ],
+    'autopay_failed' => [
+        'name' => 'Automatic payment failed',
+        'variables' => ['name', 'invoice_number', 'invoice_total', 'invoice_url', 'retry_note'],
+        'subject' => 'Automatic payment for invoice {{ invoice_number }} failed',
+        'html' => '<p>Hello {{ name }},</p><p>we could not collect <strong>{{ invoice_total }}</strong> for invoice <strong>{{ invoice_number }}</strong> with your saved payment method.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Pay invoice</a></p>',
+    ],
+    'autopay_action_required' => [
+        'name' => 'Automatic payment needs confirmation',
+        'variables' => ['name', 'invoice_number', 'invoice_total', 'invoice_url', 'retry_note'],
+        'subject' => 'Please confirm the payment for invoice {{ invoice_number }}',
+        'html' => '<p>Hello {{ name }},</p><p>your bank asks for an additional confirmation of the payment of <strong>{{ invoice_total }}</strong> for invoice <strong>{{ invoice_number }}</strong>, so it could not be collected automatically.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Pay invoice</a></p>',
+    ],
 ];

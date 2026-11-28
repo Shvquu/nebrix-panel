@@ -97,6 +97,8 @@ final class CustomerController extends Controller
             'logins' => $this->can($request, Permission::STAFF_VIEW) || $this->can($request, Permission::CUSTOMERS_MANAGE) ? $this->history->forUser($id, 10) : [],
             'active_sessions' => $this->container->get(\Nebrix\Session\SessionStore::class)->countForUser($id),
             'currency' => $this->settings->string('general.default_currency') ?: 'EUR',
+            'payment_methods' => $this->container->get(\Nebrix\Payment\PaymentMethodRepository::class)->forUser($id),
+            'autopay_attempts' => $this->container->get(\Nebrix\Payment\AutopayAttempts::class)->recentFor($id, 5),
         ]);
     }
 

@@ -108,4 +108,16 @@ return [
         'subject' => 'Test-E-Mail von {{ company_name }}',
         'html' => '<p>Dies ist eine Testnachricht. Ihre SMTP-Einstellungen funktionieren.</p>',
     ],
+    'sepa_prenotification' => [
+        'subject' => 'Ankündigung der Lastschrift für Rechnung {{ invoice_number }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir ziehen <strong>{{ invoice_total }}</strong> für die Rechnung <strong>{{ invoice_number }}</strong> per SEPA-Lastschrift von Ihrem Konto mit der Endung {{ account_last4 }} am oder kurz nach dem <strong>{{ debit_date }}</strong> ein.</p><p>Mandatsreferenz: {{ mandate_reference }}. Der Einzug erfolgt über unseren Zahlungsdienstleister Stripe.</p><p>Bitte sorgen Sie für ausreichende Deckung. Ihre Zahlungsart können Sie jederzeit im Kundenbereich ändern.</p><p><a class="button" href="{{ invoice_url }}">Rechnung ansehen</a></p>',
+    ],
+    'autopay_failed' => [
+        'subject' => 'Automatische Zahlung für Rechnung {{ invoice_number }} fehlgeschlagen',
+        'html' => '<p>Hallo {{ name }},</p><p>wir konnten <strong>{{ invoice_total }}</strong> für die Rechnung <strong>{{ invoice_number }}</strong> nicht mit Ihrer gespeicherten Zahlungsart einziehen.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Rechnung bezahlen</a></p>',
+    ],
+    'autopay_action_required' => [
+        'subject' => 'Bitte bestätigen Sie die Zahlung für Rechnung {{ invoice_number }}',
+        'html' => '<p>Hallo {{ name }},</p><p>Ihre Bank verlangt für die Zahlung von <strong>{{ invoice_total }}</strong> für die Rechnung <strong>{{ invoice_number }}</strong> eine zusätzliche Bestätigung. Deshalb konnte sie nicht automatisch eingezogen werden.</p><p>{{ retry_note }}</p><p><a class="button" href="{{ invoice_url }}">Rechnung bezahlen</a></p>',
+    ],
 ];

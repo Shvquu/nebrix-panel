@@ -1,0 +1,86 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Payment methods'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Payment methods'|t }}</h1><p class="muted">{{ 'Save a payment method to have renewal invoices paid automatically. Card details are stored by our payment provider Stripe, not by us.'|t }}</p></div></div>
+
+{% if app_query('cancelled') %}
+<div class="alert alert-info">{{ 'Saving the payment method was cancelled.'|t }}</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Automatic payment'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/account/payment-methods/autopay">
+            {{ csrf_field() }}
+            {{ f.checkbox('auto_pay_saved', 'Pay renewal invoices automatically with my default payment method', auto_pay_saved, {help: 'Charged at the earliest one day before the due date. Account credit is used first when it covers the invoice. You can switch this off at any time.'}) }}
+            <button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Saved payment methods'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Payment method'|t }}</th><th>{{ 'Details'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for m in methods %}
+                <tr>
+                    <td>{% if m.type == 'sepa_debit' %}{{ 'SEPA direct debit'|t }}{% else %}{{ (m.brand ?: 'card')|upper }}{% endif %}{% if m.is_default %} <span class="badge badge-info">{{ 'Default'|t }}</span>{% endif %}</td>
+                    <td class="mono">•••• {{ m.last4 ?: '????' }}{% if m.exp_month %} · {{ '%02d'|format(m.exp_month) }}/{{ m.exp_year }}{% endif %}{% if m.mandate_reference %}<div class="small muted">{{ 'Mandate reference'|t }}: {{ m.mandate_reference }}</div>{% endif %}</td>
+                    <td>{% if m.status == 'active' %}<span class="badge badge-success">{{ 'active'|t }}</span>{% else %}<span class="badge badge-warning">{{ 'inactive'|t }}</span>{% endif %}</td>
+                    <td class="actions">
+                        {% if m.status == 'active' and not m.is_default %}
+                        <form method="post" action="/account/payment-methods/{{ m.id }}/default" class="inline">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-outline" type="submit">{{ 'Make default'|t }}</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="/account/payment-methods/{{ m.id }}/remove" class="inline" data-confirm="{{ 'Remove this payment method?'|t }}">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-danger" type="submit">{{ 'Remove'|t }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="muted">{{ 'You have not saved a payment method yet.'|t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer">
+        <form method="post" action="/account/payment-methods/add">
+            {{ csrf_field() }}
+            <button class="btn btn-primary" type="submit">{{ (sepa ? 'Add card or SEPA direct debit' : 'Add card')|t }}</button>
+        </form>
+        {% if sepa %}<p class="small muted">{{ 'For SEPA direct debits you receive a pre-notification with amount and date before each debit.'|t }}</p>{% endif %}
+    </div>
+</div>
+
+{% if attempts is not empty %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Recent automatic payments'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Invoice'|t }}</th><th>{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for a in attempts %}
+                <tr>
+                    <td>{{ a.created_at|dt }}</td>
+                    <td><a href="/invoices/{{ a.invoice_id }}">{{ a.invoice_number }}</a></td>
+                    <td>{{ a.amount|money(a.currency) }}</td>
+                    <td>
+                        {% if a.status == 'succeeded' %}<span class="badge badge-success">{{ 'paid'|t }}</span>
+                        {% elseif a.status == 'processing' or a.status == 'retry' %}<span class="badge badge-info">{{ 'in progress'|t }}</span>
+                        {% elseif a.status == 'action_required' %}<span class="badge badge-warning">{{ 'confirmation required'|t }}</span>
+                        {% else %}<span class="badge badge-danger">{{ 'failed'|t }}</span>{% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
