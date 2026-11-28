@@ -24,6 +24,7 @@ final class JobRegistry
             \Nebrix\Discord\DiscordService::JOB_SYNC => \Nebrix\Discord\DiscordSyncJob::class,
             InvoiceService::JOB_APPLY_CHANGE => \Nebrix\Service\ServiceChangeJob::class,
             \Nebrix\Notification\NotificationRouter::JOB_DISCORD_DM => \Nebrix\Notification\DiscordDirectMessageJob::class,
+            \Nebrix\Notification\StaffNotifier::JOB => \Nebrix\Notification\StaffWebhookJob::class,
         ];
     }
 }

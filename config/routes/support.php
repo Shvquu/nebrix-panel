@@ -9,10 +9,11 @@ use Nebrix\Controller\Admin\TicketController as AdminTicketController;
 use Nebrix\Controller\Customer\TicketController;
 use Nebrix\Controller\HelpController;
 use Nebrix\Controller\InboundMailController;
+use Nebrix\Controller\StatusSubscriptionController;
 use Nebrix\Http\Router;
 
 /*
- * Support area: help center, ticket attachments and ratings, inbound e-mail replies, notification preferences.
+ * Support area: help center, ticket attachments and ratings, inbound e-mail replies, status subscriptions, notification preferences.
  */
 return static function (Router $r): void {
     // Help center (public). The fixed pages come before the category route.
@@ -25,6 +26,15 @@ return static function (Router $r): void {
 
     // Inbound e-mail replies: authenticated by the HMAC signature, therefore no CSRF token.
     $r->post('/webhooks/inbound-mail', [InboundMailController::class, 'receive'], ['csrf' => false]);
+
+    // Status page subscriptions (public). The one-click unsubscribe (RFC 8058) is
+    // authenticated by its signed token and comes from mail clients without a session.
+    $r->get('/status/subscribe', [StatusSubscriptionController::class, 'form']);
+    $r->post('/status/subscribe', [StatusSubscriptionController::class, 'subscribe']);
+    $r->get('/status/subscribe/confirm/{token:[a-f0-9]{64}}', [StatusSubscriptionController::class, 'confirmForm']);
+    $r->post('/status/subscribe/confirm', [StatusSubscriptionController::class, 'confirm']);
+    $r->get('/status/unsubscribe/{id:\d+}/{token:[a-f0-9]{64}}', [StatusSubscriptionController::class, 'unsubscribeForm']);
+    $r->post('/status/unsubscribe/{id:\d+}/{token:[a-f0-9]{64}}', [StatusSubscriptionController::class, 'unsubscribe'], ['csrf' => false]);
 
     // Customer area
     $r->group(['middleware' => ['auth', 'verified']], static function (Router $r): void {

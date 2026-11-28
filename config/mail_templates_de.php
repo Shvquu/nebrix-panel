@@ -112,6 +112,14 @@ return [
         'subject' => 'Ticket #{{ ticket_id }} wurde Ihnen zugewiesen',
         'html' => '<p>Hallo {{ name }},</p><p>{{ assigned_by }} hat Ihnen das Ticket <strong>#{{ ticket_id }} – {{ ticket_subject }}</strong> (Priorität: {{ priority }}) zugewiesen.</p><p><a class="button" href="{{ ticket_url }}">Ticket öffnen</a></p>',
     ],
+    'status_subscription_confirm' => [
+        'subject' => 'Bitte bestätigen Sie Ihr Abonnement der Statusseite von {{ company_name }}',
+        'html' => '<p>Hallo,</p><p>Sie (oder jemand mit Ihrer Adresse) möchten E-Mails zu Störungen und Wartungsarbeiten auf der Statusseite von {{ company_name }} erhalten. Bitte bestätigen Sie innerhalb von {{ expires_hours }} Stunden:</p><p><a class="button" href="{{ confirm_url }}">Abonnement bestätigen</a></p><p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach – Sie erhalten dann keine weiteren Nachrichten.</p>',
+    ],
+    'status_subscriber_update' => [
+        'subject' => '{{ kind }}: {{ title }}',
+        'html' => '<p>Hallo,</p><p>es gibt Neuigkeiten auf der Statusseite von {{ company_name }}:</p><p><strong>{{ title }}</strong><br>{{ window }}<br>Status: {{ status }}</p><p>{{ message }}</p><p><a class="button" href="{{ status_url }}">Statusseite öffnen</a></p><p>Sie erhalten diese E-Mail, weil Sie Status-Updates abonniert haben. <a href="{{ unsubscribe_url }}">Abmelden</a></p>',
+    ],
     'test' => [
         'subject' => 'Test-E-Mail von {{ company_name }}',
         'html' => '<p>Dies ist eine Testnachricht. Ihre SMTP-Einstellungen funktionieren.</p>',

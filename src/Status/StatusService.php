@@ -50,6 +50,7 @@ class StatusService
         private readonly Translator $translator,
         private readonly Config $config,
         private readonly \Nebrix\Settings\SettingsRepository $settings,
+        private readonly ?StatusSubscriptions $subscriptions = null,
     ) {
     }
 
@@ -280,6 +281,9 @@ class StatusService
         if ($notify && $data['is_published']) {
             $this->notify($id, $data['message']);
         }
+        if ($data['is_published']) {
+            $this->notifySubscribers($id, $data['message']);
+        }
 
         return $id;
     }
@@ -329,6 +333,19 @@ class StatusService
         $this->audit->log($actorId, 'status.update_posted', 'status_incident', $id, ['status' => $status], $ip);
         if ($notify && (bool) $incident['is_published']) {
             $this->notify($id, $message);
+        }
+        // Status page subscribers get every update staff post (not the automatic start/end of maintenance).
+        if ($actorId !== null && (bool) $incident['is_published']) {
+            $this->notifySubscribers($id, $message);
+        }
+    }
+
+    /** E-mails confirmed status page subscribers about a published entry. */
+    private function notifySubscribers(int $id, string $message): void
+    {
+        $incident = $this->findIncident($id);
+        if ($this->subscriptions !== null && $incident !== null) {
+            $this->subscriptions->notify($incident, $message, $this->localTime(...));
         }
     }
 

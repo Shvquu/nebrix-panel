@@ -145,6 +145,27 @@ return [
     'Maintenance announced: :title – :url' => 'Wartungsarbeiten angekündigt: :title – :url',
     'Incident: :title – :url' => 'Störung: :title – :url',
     'You have a new notification: :url' => 'Sie haben eine neue Benachrichtigung: :url',
+    'New order :number (:total): :url' => 'Neue Bestellung :number (:total): :url',
+    'New ticket #:id (priority :priority): :url' => 'Neues Ticket #:id (Priorität :priority): :url',
+    'Failed payment via :gateway (:amount) for invoice :number: :url' => 'Fehlgeschlagene Zahlung über :gateway (:amount) für Rechnung :number: :url',
+    'Provisioning failed for service #:id (:category): :url' => 'Einrichtung fehlgeschlagen für Dienst #:id (:category): :url',
+
+    // Status page subscriptions
+    'Subscribe to updates by e-mail' => 'Updates per E-Mail abonnieren',
+    'Subscribe to status updates' => 'Status-Updates abonnieren',
+    'Subscribe' => 'Abonnieren',
+    'Thank you. If the address can receive updates, you will get an e-mail with a confirmation link in a few minutes. The subscription only starts after you confirm it.' => 'Vielen Dank. Wenn die Adresse Updates erhalten kann, bekommen Sie in wenigen Minuten eine E-Mail mit einem Bestätigungslink. Das Abonnement beginnt erst nach Ihrer Bestätigung.',
+    'Get an e-mail when we report an incident or announce maintenance. You can unsubscribe with one click in every e-mail.' => 'Erhalten Sie eine E-Mail, wenn wir eine Störung melden oder Wartungsarbeiten ankündigen. In jeder E-Mail können Sie sich mit einem Klick abmelden.',
+    'We only use your address for status e-mails and delete it when you unsubscribe or do not confirm within 48 hours.' => 'Wir verwenden Ihre Adresse nur für Status-E-Mails und löschen sie, wenn Sie sich abmelden oder nicht innerhalb von 48 Stunden bestätigen.',
+    'Confirm subscription' => 'Abonnement bestätigen',
+    'Your subscription is active. You will receive an e-mail about new incidents and maintenance.' => 'Ihr Abonnement ist aktiv. Sie erhalten eine E-Mail zu neuen Störungen und Wartungsarbeiten.',
+    'Please confirm that you want to receive e-mails about incidents and maintenance.' => 'Bitte bestätigen Sie, dass Sie E-Mails zu Störungen und Wartungsarbeiten erhalten möchten.',
+    'This link is invalid or has expired. Please subscribe again.' => 'Dieser Link ist ungültig oder abgelaufen. Bitte abonnieren Sie erneut.',
+    'Unsubscribe' => 'Abmelden',
+    'Unsubscribe from status updates' => 'Status-Updates abbestellen',
+    'You have been unsubscribed. Your e-mail address has been deleted.' => 'Sie wurden abgemeldet. Ihre E-Mail-Adresse wurde gelöscht.',
+    'This link is invalid or the subscription no longer exists.' => 'Dieser Link ist ungültig oder das Abonnement besteht nicht mehr.',
+    'Back to the status page' => 'Zurück zur Statusseite',
 
     // Settings
     'Support & help center' => 'Support & Hilfe-Center',
@@ -164,10 +185,20 @@ return [
     'At least 32 characters. Used to verify the X-Nebrix-Signature header (HMAC-SHA256).' => 'Mindestens 32 Zeichen. Damit wird der Header X-Nebrix-Signature (HMAC-SHA256) geprüft.',
     'Offer Discord direct messages to customers with a linked Discord account' => 'Kundinnen und Kunden mit verknüpftem Discord-Konto Direktnachrichten anbieten',
     'Sent by the bot configured under Discord. Customers choose the events themselves; Discord only delivers them while the customer shares the server with the bot and allows direct messages.' => 'Gesendet vom unter Discord eingerichteten Bot. Die Ereignisse wählen Kundinnen und Kunden selbst; Discord stellt sie nur zu, solange sie mit dem Bot auf einem Server sind und Direktnachrichten erlauben.',
+    'Discord channel webhook for staff notifications' => 'Discord-Kanal-Webhook für Team-Benachrichtigungen',
+    'https://discord.com/api/webhooks/… – posts new orders, new tickets and failed payments or provisioning (numbers and links only, no customer data).' => 'https://discord.com/api/webhooks/… – meldet neue Bestellungen, neue Tickets sowie fehlgeschlagene Zahlungen und Einrichtungen (nur Nummern und Links, keine Kundendaten).',
+    'Events posted to the staff channel' => 'Ereignisse im Team-Kanal',
+    'New order' => 'Neue Bestellung',
+    'Failed payment' => 'Fehlgeschlagene Zahlung',
+    'Failed provisioning' => 'Fehlgeschlagene Einrichtung',
+    'Visitors can subscribe to status page updates by e-mail' => 'Besucherinnen und Besucher können Updates der Statusseite per E-Mail abonnieren',
+    'Double opt-in; every e-mail contains a one-click unsubscribe link.' => 'Double-Opt-in; jede E-Mail enthält einen Abmeldelink für die Abmeldung mit einem Klick.',
 
     // Permissions and e-mail templates
     'Manage help center categories and articles' => 'Kategorien und Artikel des Hilfe-Centers verwalten',
     'Manage canned responses for ticket replies' => 'Textbausteine für Ticket-Antworten verwalten',
     'Support ticket closed (with rating link)' => 'Support-Ticket geschlossen (mit Bewertungslink)',
     'Support ticket assigned (staff)' => 'Support-Ticket zugewiesen (Team)',
+    'Status page: confirm subscription' => 'Statusseite: Abonnement bestätigen',
+    'Status page: update for subscribers' => 'Statusseite: Update für Abonnenten',
 ];

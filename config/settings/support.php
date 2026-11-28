@@ -22,4 +22,7 @@ return [
 
     // ----------------------------------------------------------------- notifications
     'notifications.discord_dm' => ['group' => 'notifications', 'type' => 'bool', 'default' => false, 'label' => 'Offer Discord direct messages to customers with a linked Discord account', 'help' => 'Sent by the bot configured under Discord. Customers choose the events themselves; Discord only delivers them while the customer shares the server with the bot and allows direct messages.'],
+    'notifications.staff_webhook_url' => ['group' => 'notifications', 'type' => 'string', 'default' => null, 'label' => 'Discord channel webhook for staff notifications', 'secret' => true, 'help' => 'https://discord.com/api/webhooks/… – posts new orders, new tickets and failed payments or provisioning (numbers and links only, no customer data).', 'rules' => 'nullable|string|max:300|regex:#^https://discord\.com/api/webhooks/\d{17,20}/[A-Za-z0-9_-]{30,100}$#'],
+    'notifications.staff_events' => ['group' => 'notifications', 'type' => 'list', 'default' => ['order', 'ticket', 'payment_failed', 'provisioning_failed'], 'label' => 'Events posted to the staff channel', 'options' => ['order' => 'New order', 'ticket' => 'New ticket', 'payment_failed' => 'Failed payment', 'provisioning_failed' => 'Failed provisioning']],
+    'notifications.status_subscriptions' => ['group' => 'notifications', 'type' => 'bool', 'default' => true, 'label' => 'Visitors can subscribe to status page updates by e-mail', 'help' => 'Double opt-in; every e-mail contains a one-click unsubscribe link.'],
 ];
