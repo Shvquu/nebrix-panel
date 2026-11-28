@@ -1,0 +1,36 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Notifications'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Notifications'|t }}</h1><p class="muted">{{ 'Choose which messages you receive by e-mail.'|t }}</p></div></div>
+<form method="post" action="/account/notifications" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Event'|t }}</th><th>{{ 'E-mail'|t }}</th>{% if discord_available %}<th>{{ 'Discord direct message'|t }}</th>{% endif %}</tr></thead>
+            <tbody>
+            {% for key, event in events %}
+                <tr>
+                    <td><strong>{{ event.label|t }}</strong><div class="small muted">{{ event.help|t }}</div></td>
+                    <td>
+                        {% if event.mandatory %}
+                            <label class="checkbox"><input type="checkbox" checked disabled> <span class="badge badge-neutral">{{ 'always sent'|t }}</span></label>
+                        {% else %}
+                            <label class="checkbox"><input type="checkbox" name="email[]" value="{{ key }}"{% if choices[key].email %} checked{% endif %}> <span class="sr-only">{{ event.label|t }}</span></label>
+                        {% endif %}
+                    </td>
+                    {% if discord_available %}
+                    <td><label class="checkbox"><input type="checkbox" name="discord[]" value="{{ key }}"{% if choices[key].discord %} checked{% endif %}{% if not discord_linked %} disabled{% endif %}> <span class="sr-only">{{ event.label|t }}</span></label></td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+        <div class="card-body">
+            <p class="small muted">{{ 'Some e-mails are always sent because they are legally required or protect your account: invoices, payment reminders, security notices (e.g. password changes and sign-in alerts), account e-mails (verification, password reset) and confirmations of contract declarations such as cancellations.'|t }}</p>
+            {% if discord_available and not discord_linked %}<p class="small muted">{{ 'Link your Discord account on the dashboard to receive direct messages.'|t }}</p>{% endif %}
+            {% if discord_available and discord_linked %}<p class="small muted">{{ 'Discord only delivers direct messages while you are on our Discord server and accept direct messages from its members.'|t }}</p>{% endif %}
+        </div>
+        <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+    </div>
+</form>
+{% endblock %}
