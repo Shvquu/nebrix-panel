@@ -11,6 +11,7 @@ use Nebrix\Domain\Registrar;
 use Nebrix\Integration\Hetzner\RobotClient;
 use Nebrix\Integration\Http\ApiClient;
 use Nebrix\Integration\Inwx\InwxClient;
+use Nebrix\Integration\Skrime\SkrimeClient;
 use Nebrix\Integration\Plesk\PleskClient;
 use Nebrix\Integration\Nextcloud\NextcloudClient;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
@@ -122,10 +123,20 @@ class IntegrationManager
     }
 
     /**
-     * Domain registrar for an integration (currently INWX).
+     * Domain registrar for an integration (INWX or SKRIME).
      */
     public function registrar(Integration $integration, bool $allowDisabled = false): Registrar
     {
+        if ($integration->type === IntegrationType::SKRIME) {
+            $this->assertType($integration, IntegrationType::SKRIME, $allowDisabled);
+            $environment = (string) $integration->config('environment', 'sandbox');
+
+            return new SkrimeClient(
+                $this->api($integration, ['Authorization' => 'Bearer ' . $integration->secret('api_key')], SkrimeClient::ENDPOINTS[$environment] ?? SkrimeClient::ENDPOINTS['sandbox']),
+                (bool) $integration->config('accept_terms', false),
+                $environment !== 'live',
+            );
+        }
         $this->assertType($integration, IntegrationType::INWX, $allowDisabled);
         $endpoint = InwxClient::ENDPOINTS[(string) $integration->config('environment', 'ote')] ?? InwxClient::ENDPOINTS['ote'];
 
@@ -147,7 +158,7 @@ class IntegrationManager
                 IntegrationType::TEAMSPEAK => $this->teamspeak($integration, true)->healthCheck(),
                 IntegrationType::HETZNER_ROBOT => $this->hetznerRobot($integration, true)->healthCheck((string) $integration->config('pool_prefix', 'nebrix-free')),
                 IntegrationType::PLESK => $this->plesk($integration, true)->healthCheck(),
-                IntegrationType::INWX => $this->registrar($integration, true)->healthCheck(),
+                IntegrationType::INWX, IntegrationType::SKRIME => $this->registrar($integration, true)->healthCheck(),
                 default => HealthResult::down('Unsupported integration type.'),
             };
         } catch (Throwable $exception) {

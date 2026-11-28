@@ -81,6 +81,11 @@ class InwxClient implements Registrar
         ];
     }
 
+    public function authCode(string $domain): ?string
+    {
+        return $this->info($domain)['auth_code'] ?? null;
+    }
+
     public function createContact(array $contact): string
     {
         $params = [
@@ -104,7 +109,7 @@ class InwxClient implements Registrar
         return (string) $result['id'];
     }
 
-    public function register(string $domain, string $contactId, array $nameservers, int $years): void
+    public function register(string $domain, string $contactId, array $nameservers, int $years, array $registrant = []): void
     {
         $this->call('domain.create', [
             'domain' => $this->domain($domain),
@@ -118,7 +123,7 @@ class InwxClient implements Registrar
         ]);
     }
 
-    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers): void
+    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers, array $registrant = []): void
     {
         $this->call('domain.transfer', [
             'domain' => $this->domain($domain),

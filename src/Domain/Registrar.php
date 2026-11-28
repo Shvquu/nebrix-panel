@@ -8,8 +8,8 @@ use Nebrix\Integration\HealthResult;
 use Nebrix\Integration\IntegrationException;
 
 /**
- * Domain registrar abstraction (implemented by INWX; other registrars can be
- * added with the same contract).
+ * Domain registrar abstraction (implemented by INWX and SKRIME; other
+ * registrars can be added with the same contract).
  */
 interface Registrar
 {
@@ -32,6 +32,13 @@ interface Registrar
     public function info(string $domain): ?array;
 
     /**
+     * Auth code for a transfer to another provider (fetched only on request).
+     *
+     * @throws IntegrationException
+     */
+    public function authCode(string $domain): ?string;
+
+    /**
      * @param array{type: string, name: string, org: string, street: string, city: string, postcode: string, country: string, phone: string, email: string} $contact
      * @return string remote contact handle
      *
@@ -41,17 +48,20 @@ interface Registrar
 
     /**
      * @param list<string> $nameservers
+     * @param array<string, string> $registrant contact data with first and last name, for registrars
+     *                                          that take the registrant inline instead of a handle
      *
      * @throws IntegrationException
      */
-    public function register(string $domain, string $contactId, array $nameservers, int $years): void;
+    public function register(string $domain, string $contactId, array $nameservers, int $years, array $registrant = []): void;
 
     /**
      * @param list<string> $nameservers
+     * @param array<string, string> $registrant see register()
      *
      * @throws IntegrationException
      */
-    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers): void;
+    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers, array $registrant = []): void;
 
     /**
      * @param list<string> $nameservers

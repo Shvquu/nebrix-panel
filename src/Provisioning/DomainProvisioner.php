@@ -8,7 +8,9 @@ use InvalidArgumentException;
 use Nebrix\Auth\User;
 use Nebrix\Billing\OrderException;
 use Nebrix\Core\Clock;
+use Nebrix\Billing\Tax\EuVat;
 use Nebrix\Database\Connection;
+use Nebrix\Domain\PremiumDomainException;
 use Nebrix\Domain\Registrar;
 use Nebrix\Domain\RegistrarContacts;
 use Nebrix\Integration\Integration;
@@ -19,7 +21,7 @@ use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 
 /**
- * Domain registrations and transfers through a registrar (INWX).
+ * Domain registrations and transfers through a registrar (INWX or SKRIME).
  *
  * - Before the order: TLD, profile completeness (registrant data) and
  *   availability are checked; registered domains need an auth code.
@@ -58,13 +60,19 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             throw new OrderException(sprintf('%s is already managed in this panel.', $domain));
         }
         try {
-            RegistrarContacts::contactData($user);
+            $contact = RegistrarContacts::contactData($user);
         } catch (InvalidArgumentException $exception) {
             throw new OrderException($exception->getMessage() . ' (Account → Profile)');
+        }
+        // Registry rule: .eu domains need a registrant in the EU or the EEA.
+        if (str_ends_with($domain, '.eu') && !EuVat::isMember($contact['country']) && !in_array($contact['country'], ['IS', 'LI', 'NO'], true)) {
+            throw new OrderException('.eu domains can only be registered for customers in the EU or the EEA (Account → Profile).');
         }
 
         try {
             $available = $this->integrations->registrar($integration)->isAvailable($domain);
+        } catch (PremiumDomainException) {
+            throw new OrderException('This is a premium domain with a special price and cannot be ordered here. Please contact our support.');
         } catch (IntegrationException) {
             throw new OrderException('The availability of the domain could not be checked. Please try again later.');
         }
@@ -95,15 +103,16 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
                 $remote = $this->merge($service, ['submitted' => $remote['submitting'], 'submitting' => null, 'submitted_at' => $remote['submitted_at'] ?? $this->clock->now()->getTimestamp()]);
             }
 
-            return $this->completedOrWait($service, $remote, $info);
+            return $this->completedOrWait($service, $registrar, $remote, $info);
         }
         if (isset($remote['submitted'])) {
             // Accepted earlier; a transfer waits for the losing registrar.
-            return $this->completedOrWait($service, $remote, null);
+            return $this->completedOrWait($service, $registrar, $remote, null);
         }
 
         try {
             $contactId = $this->contacts->ensure($owner, $integration->id, $registrar);
+            $registrant = RegistrarContacts::registrantData($owner);
         } catch (InvalidArgumentException $exception) {
             throw new IntegrationException($exception->getMessage());
         }
@@ -114,9 +123,9 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
         // "submitting" lets a retry after a crash recognise its own domain (same registrant contact).
         $this->merge($service, ['domain' => $domain, 'contact_id' => $contactId, 'submitting' => $mode]);
         if ($authCode !== null) {
-            $registrar->transfer($domain, $authCode, $contactId, $nameservers);
+            $registrar->transfer($domain, $authCode, $contactId, $nameservers, $registrant);
         } else {
-            $registrar->register($domain, $contactId, $nameservers, 1);
+            $registrar->register($domain, $contactId, $nameservers, 1, $registrant);
         }
         // Only an accepted request counts as submitted.
         $remote = $this->merge($service, ['submitted' => $mode, 'submitting' => null, 'submitted_at' => $this->clock->now()->getTimestamp()]);
@@ -129,7 +138,7 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             throw new IntegrationException(sprintf('%s appeared in the registrar account with another registrant.', $domain));
         }
 
-        return $this->completedOrWait($service, $remote, $info);
+        return $this->completedOrWait($service, $registrar, $remote, $info);
     }
 
     public function suspend(Service $service): void
@@ -166,10 +175,17 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
      * @param array<string, mixed> $remote
      * @param array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null}|null $info
      */
-    private function completedOrWait(Service $service, array $remote, ?array $info): ProvisionResult
+    private function completedOrWait(Service $service, Registrar $registrar, array $remote, ?array $info): ProvisionResult
     {
         $domain = $this->domain($service);
         if ($info !== null && strtoupper($info['status']) === 'OK') {
+            // Renewal at the registry follows the panel's billing from now on (suspension
+            // stops it, termination lets the domain end with its term).
+            if (($remote['auto_renew'] ?? null) !== true) {
+                $registrar->setRenewalMode($domain, Registrar::RENEW);
+                $this->merge($service, ['auto_renew' => true]);
+            }
+
             return $this->result($service, $domain);
         }
 
@@ -274,7 +290,7 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
     {
         [, $registrar] = $this->client($service);
         $domain = $this->domain($service);
-        $info = $this->ownedInfo($service, $registrar);
+        $this->ownedInfo($service, $registrar); // the domain must still belong to this service
 
         if ($action === 'nameservers') {
             $nameservers = array_values(array_filter(array_map(static fn (mixed $v): string => mb_strtolower(trim((string) $v)), [$input['ns1'] ?? '', $input['ns2'] ?? '', $input['ns3'] ?? '', $input['ns4'] ?? '']), static fn (string $v): bool => $v !== ''));
@@ -283,7 +299,7 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             return 'The name servers have been updated. Changes can take up to 24 hours to propagate.';
         }
         if ($action === 'auth_code') {
-            $code = $info['auth_code'];
+            $code = $registrar->authCode($domain);
             if ($code === null) {
                 throw new IntegrationException('The registry did not provide an auth code for this domain.');
             }

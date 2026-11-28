@@ -118,7 +118,8 @@ final class ProductCategory
             ],
             self::DOMAIN => [
                 'label' => 'Domain',
-                'integration' => 'inwx',
+                'integration' => 'domain registrar',
+                'integration_types' => ['inwx', 'skrime'],
                 'config' => [
                     'tld' => ['label' => 'Top-level domain', 'rules' => 'required|string|max:63|regex:/^\.?[a-z0-9-]+(\.[a-z0-9-]+)*$/'],
                 ],
@@ -217,6 +218,21 @@ final class ProductCategory
         }
 
         return $all[$category];
+    }
+
+    /**
+     * Integration types a product of the category can use.
+     *
+     * @return list<string>
+     */
+    public static function integrationTypes(string $category): array
+    {
+        $definition = self::get($category);
+        if (isset($definition['integration_types']) && is_array($definition['integration_types'])) {
+            return array_values(array_map('strval', $definition['integration_types']));
+        }
+
+        return $definition['integration'] !== null ? [(string) $definition['integration']] : [];
     }
 
     public static function exists(string $category): bool

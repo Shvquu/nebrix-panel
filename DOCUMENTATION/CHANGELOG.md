@@ -65,6 +65,10 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (status page)
 - Public **status page** `/status` and `/status.json`: components with automatic state (incidents, maintenance, failed integration health checks), incidents with impact and timeline, **maintenance announcements** with automatic start/end, history of 14 days; notice on the customer dashboard; optional e-mail notification of affected customers (EN/DE); admin management with drafts, permission `status.manage`, scheduler task `status.maintenance`, migration `2026_11_29_000016`.
 
+### Added (SKRIME domains)
+- **SKRIME** as second domain registrar (sandbox or live, API key encrypted): availability check, registration and transfer with the customer as registrant, auto renewal after activation, name servers, auth code on request, suspension/termination through auto renewal; premium domains refused, `.eu` registrant rule checked before the order (all registrars). Domain products can use INWX or SKRIME.
+- Registrar interface: auth codes are fetched only on request; registrars that take the registrant inline receive the contact data.
+
 ### Added (security alerts, PayPal tokens, location evidence)
 - Security e-mails (EN/DE) when sign-in is locked after failed attempts and when the correct password was entered with a wrong two-factor code; at most one per kind and account every 6 hours.
 - PayPal access tokens are cached encrypted until shortly before they expire and renewed once after a 401 (new table `nx_cache`, pruned by `maintenance.cleanup`).
@@ -115,5 +119,6 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending. This includes Proxmox/Pterodactyl backups and the EU VIES service.
 - XRechnung files are validated against the CII XSD in the tests; the official EN 16931/XRechnung Schematron rules (KoSIT validator) have not been run yet.
 - Built-in EU VAT rates reflect the state of November 2026 and must be kept current (`tax.rate_overrides`). Tax and legal texts are technical defaults, not legal advice.
+- SKRIME was tested against a fake of its documented API and the public live endpoints only; no real order was placed.
 - The LXC password forced command was tested with a simulated `pct` and a local SSH server, not on a Proxmox node.
 - Hetzner: automatic disk wiping and server auction orders were tested against a simulated Robot API and a local SSH server, not on Hetzner hardware.

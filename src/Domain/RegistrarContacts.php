@@ -61,6 +61,22 @@ class RegistrarContacts
     }
 
     /**
+     * Contact data plus first and last name, for registrars that take the
+     * registrant with every order (SKRIME).
+     *
+     * @return array<string, string>
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function registrantData(User $user): array
+    {
+        return self::contactData($user) + [
+            'firstname' => mb_substr(trim((string) $user->firstName), 0, 100),
+            'lastname' => mb_substr(trim((string) $user->lastName), 0, 100),
+        ];
+    }
+
+    /**
      * @throws InvalidArgumentException|\Nebrix\Integration\IntegrationException
      */
     public function ensure(User $user, int $integrationId, Registrar $registrar): string

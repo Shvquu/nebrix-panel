@@ -151,7 +151,7 @@ Customers open tickets (optionally about one of their services). Staff reply, ch
 
 ## Integrations
 
-Add Proxmox clusters, Hetzner Robot accounts, Plesk servers, INWX accounts, Pterodactyl panels, Nextcloud instances and TeamSpeak servers; credentials are stored encrypted and never displayed again. The integration page shows health, the last check, the request log and available resources (Proxmox nodes, Pterodactyl nodes/eggs, TeamSpeak servers, Hetzner servers with their pool state). Disabled integrations are not used for provisioning.
+Add Proxmox clusters, Hetzner Robot accounts, Plesk servers, INWX or SKRIME accounts (domains), Pterodactyl panels, Nextcloud instances and TeamSpeak servers; credentials are stored encrypted and never displayed again. The integration page shows health, the last check, the request log and available resources (Proxmox nodes, Pterodactyl nodes/eggs, TeamSpeak servers, Hetzner servers with their pool state). Disabled integrations are not used for provisioning.
 
 **Proxmox LXC root passwords**: Proxmox has no API for this. To let customers reset the root password of a container without reinstalling, enter the nodes' SSH addresses and host keys on the Proxmox integration, install the script `resources/proxmox/nebrix-lxc-passwd` on every node and add the `authorized_keys` line shown on the integration page (details: [INTEGRATIONS.md](INTEGRATIONS.md#lxc-root-passwords)).
 

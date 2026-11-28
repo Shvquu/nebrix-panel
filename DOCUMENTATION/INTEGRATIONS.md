@@ -2,7 +2,7 @@
 
 Integrations connect Nebrix to the systems that run customers' services. They are managed in **Admin → Integrations** (permission `integrations.manage`); several connections per type are possible (e.g. one Proxmox entry per cluster). Each product is linked to one integration.
 
-> **Test status.** All integrations (Proxmox incl. backups, Pterodactyl incl. backups, Nextcloud, TeamSpeak, Hetzner Robot, Plesk, INWX, EU VIES) are covered by automated tests against **stateful fakes of their APIs** (mocked HTTP, a fake ServerQuery socket server and a fake console WebSocket server). They have **not** been tested against live systems because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → actions → suspension → unsuspension → termination on a staging system for every product type. Use the Hetzner order **test mode** and the INWX **OTE** system first.
+> **Test status.** All integrations (Proxmox incl. backups, Pterodactyl incl. backups, Nextcloud, TeamSpeak, Hetzner Robot, Plesk, INWX, SKRIME, EU VIES) are covered by automated tests against **stateful fakes of their APIs** (mocked HTTP, a fake ServerQuery socket server and a fake console WebSocket server). They have **not** been tested against live systems because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → actions → suspension → unsuspension → termination on a staging system for every product type. Use the Hetzner order **test mode**, the INWX **OTE** system and the SKRIME **sandbox** first.
 
 ## Common behaviour
 
@@ -25,7 +25,7 @@ A product is provisioned automatically when it has an integration and "Provision
 | VPS/KVM, LXC | Proxmox VE |
 | Dedicated server | Hetzner Robot |
 | Webhosting | Plesk |
-| Domain | INWX (registrar interface for further registrars) |
+| Domain | INWX or SKRIME (registrar interface for further registrars) |
 | Minecraft / game server | Pterodactyl |
 | Nextcloud storage | Nextcloud |
 | TeamSpeak 3 | TeamSpeak ServerQuery |
@@ -224,6 +224,35 @@ Top-level domain (e.g. `de`); product billing cycle *annually*. Customers enter 
 * A domain in the INWX account belongs to a service only if the service submitted it and INWX reports the service's registrant contact; other domains are never adopted, changed or deleted.
 * Suspend: renewal mode *AUTOEXPIRE*; unsuspend: *AUTORENEW*; terminate: *AUTODELETE* (deleted at the end of the term, never immediately).
 * Customer actions: change name servers, show the auth code (stored under access data).
+
+## SKRIME (domains)
+
+Domains through the SKRIME API ([OpenAPI document](https://skrime.eu/docs/openapi.json)). Orders are paid from the **SKRIME account balance**; keep it topped up.
+
+### Connection settings
+| Field | Notes |
+|---|---|
+| Environment | **Sandbox** (default; `https://skrime.eu/sandbox` validates like the live API, changes nothing, costs nothing) or **Live** (`https://skrime.eu/api`). |
+| SKRIME API key | Created in the SKRIME dashboard (API). Stored encrypted, sent only as bearer token to `skrime.eu`. Enter it in Admin → Integrations → SKRIME – never in tickets or chats. |
+| Default name servers | 2 to 6, one per line. Empty = the default name servers of the SKRIME account. |
+| Accept the SKRIME terms | SKRIME requires the acceptance of its terms and of the immediate start (no withdrawal) with every order. The panel sends it only when you tick this box; without it no order is placed and the connection test shows *degraded*. |
+
+The connection test signs in (`account/user`) and shows the account and its balance.
+
+### Product configuration
+Category *Domain*, integration of type SKRIME, top-level domain (e.g. `de`), billing cycle *annually*. Products can use INWX or SKRIME; the product form lists both.
+
+### Lifecycle
+* Before the order: as for INWX (TLD, complete profile, availability at SKRIME, auth code for registered domains, no duplicate in the panel). **Premium domains** (available only at a special price) are refused. `.eu` needs a registrant in the EU or the EEA (checked before the order, for every registrar).
+* Registration and transfer: `domain/order` with the customer's profile as registrant (first and last name, company, street and house number separately, postcode, city, country, e-mail, phone `+CC.NUMBER`), the name servers and, for transfers, the auth code (stored encrypted, removed after SKRIME accepted the order). SKRIME registers for one year.
+* The service becomes active when SKRIME reports the domain product as `active` (transfers: waits up to 10 days). Then auto renewal is switched on at SKRIME, so the domain renews from the balance as long as the customer pays.
+* SKRIME has no registrant handles: a domain belongs to a service only if the service submitted it; a domain that is already in the SKRIME account before the order is never adopted, changed or deleted.
+* Suspend: auto renewal off; unsuspend: on; terminate: off (the domain ends with its term, never an immediate deletion).
+* Customer actions: change name servers; show the auth code (fetched from SKRIME only on this request, stored under access data).
+* A product that SKRIME blocks (e.g. overdue payment) answers with HTTP 423; the panel shows SKRIME's message and changes nothing.
+* Not supported: `.it` domains (SKRIME needs a tax or ID number as `regCode`, which the panel does not collect), DNS zone management and contact changes after the registration (do them in the SKRIME interface).
+
+**Test status.** The client was tested against a stateful fake of the documented API; the public endpoints `domain/check` and `domain/pricelist` and the error answer for an invalid key were checked against the live API. Orders were **not** placed for real, and the sandbox could not be reached from the development environment (Cloudflare check). Before going live: run the connection test with your key, place a test order in the **sandbox**, then register one cheap domain live and check it in the SKRIME interface.
 
 ## Pterodactyl (Minecraft / game servers)
 

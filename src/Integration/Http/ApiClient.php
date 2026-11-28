@@ -144,6 +144,7 @@ class ApiClient
             $candidates[] = isset($json['error']['code'], $json['error']['message']) && is_string($json['error']['message'])
                 ? $json['error']['code'] . ': ' . $json['error']['message'] : null;  // Hetzner Robot
             $candidates[] = $json['message'] ?? null;                      // generic
+            $candidates[] = ($json['state'] ?? null) === 'error' ? ($json['response'] ?? null) : null; // SKRIME
             $candidates[] = is_array($json['errors'] ?? null) && !isset($json['errors'][0]) ? json_encode($json['errors']) : null; // Proxmox parameter errors
         } elseif ($body !== '' && strlen($body) < 300 && !str_contains($body, '<')) {
             $candidates[] = $body;

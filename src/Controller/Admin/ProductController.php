@@ -107,9 +107,11 @@ final class ProductController extends Controller
     {
         $definition = $this->withDynamicOptions(ProductCategory::get($category));
         $integrations = [];
-        if ($definition['integration'] !== null) {
-            foreach ($this->db->fetchAll('SELECT `id`, `name`, `is_enabled` FROM `nx_integrations` WHERE `type` = ? ORDER BY `name`', [$definition['integration']]) as $row) {
-                $integrations[(int) $row['id']] = $row['name'] . ((int) $row['is_enabled'] === 1 ? '' : ' (disabled)');
+        $types = ProductCategory::integrationTypes($category);
+        if ($types !== []) {
+            $placeholders = implode(', ', array_fill(0, count($types), '?'));
+            foreach ($this->db->fetchAll('SELECT `id`, `name`, `type`, `is_enabled` FROM `nx_integrations` WHERE `type` IN (' . $placeholders . ') ORDER BY `name`', $types) as $row) {
+                $integrations[(int) $row['id']] = $row['name'] . (count($types) > 1 ? ' (' . strtoupper((string) $row['type']) . ')' : '') . ((int) $row['is_enabled'] === 1 ? '' : ' (disabled)');
             }
         }
 
@@ -163,7 +165,7 @@ final class ProductController extends Controller
         $definition = ProductCategory::get($category);
         if ($data['integration_id'] !== null) {
             $type = $this->db->fetchValue('SELECT `type` FROM `nx_integrations` WHERE `id` = ?', [$data['integration_id']]);
-            if ($type === null || $type !== $definition['integration']) {
+            if (!is_string($type) || !in_array($type, ProductCategory::integrationTypes($category), true)) {
                 throw ValidationException::withMessages(['integration_id' => 'Choose an integration of the matching type.']);
             }
         }

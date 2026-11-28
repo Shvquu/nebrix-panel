@@ -18,6 +18,7 @@ final class IntegrationType
     public const HETZNER_ROBOT = 'hetzner_robot';
     public const PLESK = 'plesk';
     public const INWX = 'inwx';
+    public const SKRIME = 'skrime';
 
     /**
      * @return array<string, array{label: string, description: string, config: array<string, array{label: string, rules: string, default?: mixed, help?: string, type?: string}>, secrets: array<string, array{label: string, rules: string, help?: string, required?: bool}>}>
@@ -127,6 +128,19 @@ final class IntegrationType
                 'secrets' => [
                     'password' => ['label' => 'INWX password', 'rules' => 'string|max:255', 'required' => true],
                     'totp_secret' => ['label' => 'Two-factor secret (only if 2FA is enabled for the account)', 'rules' => 'regex:/^[A-Z2-7]{16,64}$/', 'help' => 'Base32 secret of the INWX two-factor authentication; codes are generated automatically.'],
+                ],
+            ],
+            self::SKRIME => [
+                'label' => 'SKRIME (domains)',
+                'description' => 'Domain registration and transfers through the SKRIME API (paid from the SKRIME account balance).',
+                'config' => [
+                    'environment' => ['label' => 'Environment', 'rules' => 'required|in:sandbox,live', 'default' => 'sandbox', 'type' => 'select', 'options' => ['sandbox' => 'Sandbox (validates, changes nothing, no costs)', 'live' => 'Live']],
+                    'nameservers' => ['label' => 'Default name servers (one per line, 2 to 6)', 'rules' => 'nullable|string|max:1000', 'type' => 'text', 'help' => 'Empty = the default name servers of the SKRIME account.'],
+                    'accept_terms' => ['label' => 'I accept the SKRIME terms of service for orders placed by the panel and agree that SKRIME starts them immediately (no withdrawal)', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'SKRIME requires this confirmation with every order; without it the panel places no orders.'],
+                    'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
+                ],
+                'secrets' => [
+                    'api_key' => ['label' => 'SKRIME API key', 'rules' => 'string|min:16|max:255|regex:/^[\x21-\x7E]+$/', 'required' => true, 'help' => 'Create the key in the SKRIME dashboard (API). It is stored encrypted and sent only to skrime.eu.'],
                 ],
             ],
         ];

@@ -132,6 +132,10 @@ Both features are off until you use them: coupons only apply when you create one
 * Integrations and SMTP: when you change the address or user of an integration or the SMTP server, enter its password/key again (stored credentials are never sent to a new address).
 * Customers can no longer change their country after their first paid invoice; change it for them on the customer page if they move.
 
+### Updating to SKRIME domains
+
+No migration. Add the integration under Admin → Integrations → *SKRIME (domains)* (start with the sandbox), enter the API key, tick the terms box when you are ready to order, and assign it to your domain products. Existing INWX products are unchanged.
+
 ### Updating to security alerts, PayPal token caching and location evidence
 
 Migration `2026_11_29_000018_add_cache_and_location_evidence` adds the table `nx_cache` and the columns `nx_invoices.payment_country` / `location_conflict` (additive; existing invoices keep `NULL`/`0`). Run `php bin/nebrix migrate` after pulling. The new e-mail templates *Sign-in locked after failed attempts* and *Correct password, wrong two-factor code* are active immediately and can be edited under E-mail templates.

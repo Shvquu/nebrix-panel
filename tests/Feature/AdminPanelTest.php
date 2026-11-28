@@ -190,6 +190,30 @@ final class AdminPanelTest extends FeatureTestCase
         self::assertSame(549, (int) $this->db->fetchValue('SELECT price FROM nx_products WHERE id = ?', [$product['id']]));
     }
 
+    public function testDomainProductsTakeInwxOrSkrime(): void
+    {
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $now = '2026-01-01 00:00:00';
+        $skrime = $this->db->insert('nx_integrations', ['type' => 'skrime', 'name' => 'SKRIME', 'is_enabled' => 1, 'created_at' => $now, 'updated_at' => $now]);
+        $inwx = $this->db->insert('nx_integrations', ['type' => 'inwx', 'name' => 'INWX', 'is_enabled' => 1, 'created_at' => $now, 'updated_at' => $now]);
+        $plesk = $this->db->insert('nx_integrations', ['type' => 'plesk', 'name' => 'Plesk', 'is_enabled' => 1, 'created_at' => $now, 'updated_at' => $now]);
+        $form = $this->get('/admin/products/create?category=domain')->body();
+        self::assertStringContainsString('SKRIME (SKRIME)', $form);
+        self::assertStringContainsString('INWX (INWX)', $form);
+        self::assertStringNotContainsString('>Plesk', $form);
+
+        $base = [
+            'category' => 'domain', 'name' => '.de Domain', 'slug' => 'de-domain', 'price' => '9,00', 'setup_fee' => '0', 'currency' => 'EUR',
+            'billing_cycle' => 'annually', 'tax_rate' => '19', 'is_active' => '1', 'is_visible' => '1', 'auto_provision' => '1', 'config_tld' => 'de',
+        ];
+        $this->post('/admin/products', ['integration_id' => (string) $plesk] + $base);
+        self::assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_products'));
+        $this->post('/admin/products', ['integration_id' => (string) $skrime] + $base);
+        self::assertSame($skrime, (int) $this->db->fetchValue("SELECT integration_id FROM nx_products WHERE slug = 'de-domain'"));
+        $this->post('/admin/products', ['integration_id' => (string) $inwx, 'slug' => 'de-inwx'] + $base);
+        self::assertSame($inwx, (int) $this->db->fetchValue("SELECT integration_id FROM nx_products WHERE slug = 'de-inwx'"));
+    }
+
     public function testCustomerManagement(): void
     {
         $this->actingAs($this->createUser(Role::ADMIN));
