@@ -104,6 +104,10 @@ return [
         'subject' => 'Ihr Gutschein über {{ value }}',
         'html' => '<p>Hallo {{ name }},</p><p>vielen Dank für Ihre Zahlung der Rechnung {{ invoice_number }}. Hier ist Ihr Gutschein für {{ company_name }}:</p><p><strong>{{ code }}</strong></p><p>Wert: {{ value }} · gültig bis: {{ valid_until }}</p><p>Der Code kann einmal im Kundenbereich unter „Gutscheine“ eingelöst werden; der Wert wird dem Guthaben des Kundenkontos gutgeschrieben. Bewahren Sie diese E-Mail sicher auf – der Code ist bei uns nicht gespeichert und kann nicht erneut angezeigt werden.</p><p><a class="button" href="{{ redeem_url }}">Gutschein einlösen</a></p>',
     ],
+    'partner_payout_paid' => [
+        'subject' => 'Ihre Partner-Auszahlung über {{ amount }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir haben Ihre Partnerprovision von <strong>{{ amount }}</strong> auf Ihr Konto {{ iban }} überwiesen (Referenz {{ reference }}). Sie ist in der Regel innerhalb von ein bis zwei Bankarbeitstagen gutgeschrieben.</p><p>Bitte denken Sie daran, die Provision gegenüber {{ company_name }} abzurechnen bzw. die Aufstellung für Ihre Steuerunterlagen aufzubewahren.</p><p><a class="button" href="{{ partner_url }}">Aufstellung ansehen</a></p>',
+    ],
     'ticket_reply' => [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',

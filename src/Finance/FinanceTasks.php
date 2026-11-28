@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Finance;
 
 use Nebrix\Finance\Accounting\AccountingSync;
+use Nebrix\Finance\Partner\PartnerService;
 use Nebrix\Settings\SettingsRepository;
 
 /**
@@ -15,6 +16,7 @@ class FinanceTasks
     public function __construct(
         private readonly SettingsRepository $settings,
         private readonly AccountingSync $accountingSync,
+        private readonly PartnerService $partners,
     ) {
     }
 
@@ -31,6 +33,11 @@ class FinanceTasks
                 $result = $this->accountingSync->run();
 
                 return sprintf('%d document(s) transferred to lexoffice, %d failed', $result['synced'], $result['failed']);
+            }],
+            'partner.commissions' => [60, function (): string {
+                $result = $this->partners->process();
+
+                return sprintf('%d commission(s) accrued, %d reversed, %d now payable', $result['accrued'], $result['reversed'], $result['payable']);
             }],
         ];
     }

@@ -392,11 +392,11 @@ class ReferralService
         $reward = $this->amount('referral.reward', $currency);
         $welcome = $this->amount('referral.welcome', $currency);
 
-        /** @var array{0: 'rewarded'|'reset'|'waiting', 1: int} $result */
+        /** @var array{0: 'rewarded'|'reset'|'waiting', 1: int, 2: int} $result */
         $result = $this->db->transaction(function () use ($referral, $currency, $reward, $welcome): array {
             $row = $this->db->fetchOne('SELECT * FROM `nx_referrals` WHERE `id` = ? FOR UPDATE', [$referral['id']]);
             if ($row === null || $row['status'] !== self::QUALIFIED) {
-                return ['waiting', 0];
+                return ['waiting', 0, 0];
             }
             // The qualifying payment must still stand; otherwise the referral waits for another one.
             $invoice = $this->db->fetchOne('SELECT `id`, `status`, `amount_refunded` FROM `nx_invoices` WHERE `id` = ?', [$row['invoice_id']]);
@@ -406,13 +406,13 @@ class ReferralService
                     [$row['id']],
                 );
 
-                return ['reset', 0];
+                return ['reset', 0, 0];
             }
             $accounts = $this->db->fetchAll('SELECT `id`, `status` FROM `nx_users` WHERE `id` IN (?, ?) FOR UPDATE', [$row['referrer_id'], $row['referred_id']]);
             $status = array_column($accounts, 'status', 'id');
             if (($status[$row['referrer_id']] ?? null) !== User::STATUS_ACTIVE || ($status[$row['referred_id']] ?? null) !== User::STATUS_ACTIVE) {
                 // A suspended account (either side) waits until staff decide; closing an account already rejected the referral.
-                return ['waiting', 0];
+                return ['waiting', 0, 0];
             }
             $monthStart = $this->clock->now()->format('Y-m-01 00:00:00');
             $thisMonth = (int) $this->db->fetchValue(
@@ -420,11 +420,15 @@ class ReferralService
                 [$row['referrer_id'], $monthStart],
             );
             if ($thisMonth >= max(1, $this->settings->int('referral.monthly_limit'))) {
-                return ['waiting', 0];
+                return ['waiting', 0, 0];
             }
 
-            if ($reward > 0) {
-                $this->credit->adjust((int) $row['referrer_id'], $reward, 'Referral reward', 'referral', (string) $row['id']);
+            // Partners in the partner program earn cash commissions instead of the credit reward.
+            $referrerReward = $this->settings->bool('partner.enabled') && $this->settings->bool('partner.replace_referral_reward')
+                && $this->db->fetchValue("SELECT `user_id` FROM `nx_partners` WHERE `user_id` = ? AND `status` = 'active'", [$row['referrer_id']]) !== null
+                ? 0 : $reward;
+            if ($referrerReward > 0) {
+                $this->credit->adjust((int) $row['referrer_id'], $referrerReward, 'Referral reward', 'referral', (string) $row['id']);
             }
             $welcomeGranted = $welcome;
             if ($welcomeGranted > 0) {
@@ -432,19 +436,19 @@ class ReferralService
             }
             $this->db->update('nx_referrals', [
                 'status' => self::REWARDED,
-                'reward' => $reward,
+                'reward' => $referrerReward,
                 'welcome' => $welcomeGranted,
                 'currency' => $currency,
                 'rewarded_at' => $this->clock->nowString(),
             ], ['id' => $row['id']]);
 
-            return ['rewarded', $welcomeGranted];
+            return ['rewarded', $welcomeGranted, $referrerReward];
         });
-        [$outcome, $welcomeGranted] = $result;
+        [$outcome, $welcomeGranted, $rewardGranted] = $result;
 
         if ($outcome === 'rewarded') {
-            $this->audit->log(null, 'referral.rewarded', 'referral', (int) $referral['id'], ['reward' => $reward, 'welcome' => $welcomeGranted, 'currency' => $currency]);
-            $this->notify((int) $referral['referrer_id'], 'referral_reward', $reward, $currency);
+            $this->audit->log(null, 'referral.rewarded', 'referral', (int) $referral['id'], ['reward' => $rewardGranted, 'welcome' => $welcomeGranted, 'currency' => $currency]);
+            $this->notify((int) $referral['referrer_id'], 'referral_reward', $rewardGranted, $currency);
             $this->notify((int) $referral['referred_id'], 'referral_welcome', $welcomeGranted, $currency);
         }
 

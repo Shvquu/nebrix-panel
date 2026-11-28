@@ -1,0 +1,96 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% import 'macros/icons.twig' as i %}
+{% block title %}{{ 'Partner program'|t }}{% endblock %}
+{% block content %}
+{% set statuses = {pending: 'In the holding period', payable: 'Payable', requested: 'Payout requested', paid: 'Paid out', reversed: 'Reversed'} %}
+{% set payout_statuses = {requested: 'Requested', approved: 'Approved', paid: 'Paid out', rejected: 'Rejected'} %}
+<div class="page-header"><div><h1>{{ 'Partner program'|t }}</h1><p class="muted">{{ 'Recommend us and receive :rate % of the net amount of every invoice your referred customers pay in the first :months months – paid out by bank transfer.'|t({rate: (rate / 100)|number_format(2, ',', '.'), months: months}) }}</p></div></div>
+
+{% if partner is null %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Become a partner'|t }}</h2></div>
+    <div class="card-body">
+        <ol class="p-steps">
+            <li>{{ 'Share your personal referral link. Customers who register through it are assigned to you.'|t }}</li>
+            <li>{{ 'For invoices they pay with real money (not account credit) you earn the commission. After :days days without a refund or chargeback it becomes payable.'|t({days: holding_days}) }}</li>
+            <li>{{ 'From :amount you can request a payout to your bank account.'|t({amount: minimum|money(currency)}) }}</li>
+        </ol>
+        <p class="small muted">{{ 'Commissions are a service you provide to us: you invoice them (or agree to a credit note procedure) and are responsible for VAT and income tax yourself. Refunded, cancelled or charged-back invoices reverse their commission.'|t }}</p>
+        <form method="post" action="/account/partner/join" novalidate>
+            {{ csrf_field() }}
+            <div class="form-row">
+                <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"><span>{% if terms_url %}{{ 'I accept the'|t }} <a href="{{ terms_url }}" target="_blank" rel="noopener">{{ 'partner terms'|t }}</a>.{% else %}{{ 'I accept the partner terms.'|t }}{% endif %}</span></label>
+                {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Join the partner program'|t }}</button></div>
+        </form>
+    </div>
+</div>
+{% else %}
+{% if partner.status != 'active' %}<div class="alert alert-warning">{{ 'Your partner account is suspended. No new commissions are earned and no payouts can be requested. Please contact us.'|t }}</div>{% endif %}
+<div class="p-stats p-stats-4">
+    <div class="p-card p-stat"><span class="p-stat-icon">{{ i.icon('clock') }}</span><div class="p-stat-body"><div class="p-stat-label">{{ 'In the holding period'|t }}</div><div class="p-stat-value">{{ balance.pending|money(currency) }}</div></div></div>
+    <div class="p-card p-stat"><span class="p-stat-icon">{{ i.icon('coins') }}</span><div class="p-stat-body"><div class="p-stat-label">{{ 'Payable'|t }}</div><div class="p-stat-value">{{ balance.payable|money(currency) }}</div><div class="p-stat-hint">{{ 'Minimum payout: :amount'|t({amount: minimum|money(currency)}) }}</div></div></div>
+    <div class="p-card p-stat"><span class="p-stat-icon">{{ i.icon('transactions') }}</span><div class="p-stat-body"><div class="p-stat-label">{{ 'Payout requested'|t }}</div><div class="p-stat-value">{{ balance.requested|money(currency) }}</div></div></div>
+    <div class="p-card p-stat"><span class="p-stat-icon">{{ i.icon('wallet') }}</span><div class="p-stat-body"><div class="p-stat-label">{{ 'Paid out'|t }}</div><div class="p-stat-value">{{ balance.paid|money(currency) }}</div></div></div>
+</div>
+
+<div class="grid grid-2 mt-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Your partner link'|t }}</h2></div>
+        <div class="card-body">
+            <p><span id="partner-link" class="mono p-ref-link">{{ link }}</span> <button type="button" class="p-mini-btn" data-copy="#partner-link" data-copied="{{ 'Copied'|t }}" aria-label="{{ 'Copy'|t }}">{{ i.icon('copy') }}</button></p>
+            <p class="small muted">{{ 'Consent given on :date (terms version :version).'|t({date: partner.consented_at|d, version: partner.terms_version}) }}</p>
+            {% if partner.status == 'active' %}
+            <form method="post" action="/account/partner/payout" data-confirm="{{ 'Request a payout of all payable commissions?'|t }}">
+                {{ csrf_field() }}
+                <button class="btn btn-primary" type="submit"{% if balance.payable < minimum or partner.iban_last4 is null %} disabled{% endif %}>{{ 'Request payout'|t }}</button>
+            </form>
+            {% endif %}
+            <p class="mt-1"><a href="/account/partner/statement?year={{ years|first }}">{{ 'Download statement'|t }} {{ years|first }}</a>{% for y in years|slice(1) %} · <a href="/account/partner/statement?year={{ y }}">{{ y }}</a>{% endfor %}</p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Payout details'|t }}</h2></div>
+        <div class="card-body">
+            {% if partner.iban_last4 %}<p>{{ 'Stored account'|t }}: <span class="mono">**** {{ partner.iban_last4 }}</span>{% if partner.details_updated_at %} <span class="small muted">({{ partner.details_updated_at|d }})</span>{% endif %}</p>{% endif %}
+            <form method="post" action="/account/partner/details" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('holder', 'Account holder', '', 'text', {required: true, maxlength: 70, autocomplete: 'name'}) }}
+                {{ f.input('iban', 'IBAN', '', 'text', {required: true, maxlength: 42, autocomplete: 'off', spellcheck: 'false'}) }}
+                {{ f.input('bic', 'BIC (optional)', '', 'text', {maxlength: 11, autocomplete: 'off'}) }}
+                <p class="small muted">{{ 'Stored encrypted and only shown as the last four characters. A payout always goes to the account stored when it was requested.'|t }}</p>
+                <div class="form-actions"><button class="btn btn-outline" type="submit">{{ 'Save payout details'|t }}</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Commissions'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Date'|t }}</th><th class="text-right">{{ 'Net invoice amount'|t }}</th><th class="text-right">{{ 'Rate'|t }}</th><th class="text-right">{{ 'Commission'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in commissions %}
+            <tr><td>{{ c.created_at|d }}</td><td class="text-right">{{ c.kind == 'accrual' ? c.basis|money(c.currency) : '–' }}</td><td class="text-right">{{ c.kind == 'accrual' ? c.rate_bp|percent : '–' }}</td><td class="text-right">{{ c.amount|money(c.currency) }}</td>
+                <td><span class="badge {{ c.status == 'payable' ? 'badge-success' : (c.status == 'reversed' ? 'badge-danger' : 'badge-neutral') }}">{{ statuses[c.status]|default(c.status)|t }}</span>{% if c.status == 'pending' %}<div class="small muted">{{ 'from'|t }} {{ c.payable_at|d }}</div>{% endif %}{% if c.note %}<div class="small muted">{{ c.note|t }}</div>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No commissions yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="card mt-2">
+    <div class="card-header"><h2>{{ 'Payouts'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Requested'|t }}</th><th>{{ 'Reference'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Account'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for p in payouts %}
+            <tr><td>{{ p.requested_at|d }}</td><td class="mono">{{ p.reference }}</td><td class="text-right">{{ p.amount|money(p.currency) }}</td><td class="mono">**** {{ p.iban_last4 }}</td>
+                <td><span class="badge {{ p.status == 'paid' ? 'badge-success' : (p.status == 'rejected' ? 'badge-danger' : 'badge-warning') }}">{{ payout_statuses[p.status]|default(p.status)|t }}</span>{% if p.paid_at %}<div class="small muted">{{ p.paid_at|d }}</div>{% endif %}{% if p.status == 'rejected' and p.note %}<div class="small muted">{{ p.note }}</div>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No payouts yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endblock %}

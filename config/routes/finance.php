@@ -17,6 +17,11 @@ return static function (Router $r): void {
         $r->post('/account/gift-cards/redeem', [Account\GiftCardController::class, 'redeem']);
         $r->post('/account/gift-cards/buy', [Account\GiftCardController::class, 'buy']);
 
+        $r->get('/account/partner', [Account\PartnerController::class, 'index']);
+        $r->post('/account/partner/join', [Account\PartnerController::class, 'join']);
+        $r->post('/account/partner/details', [Account\PartnerController::class, 'details']);
+        $r->post('/account/partner/payout', [Account\PartnerController::class, 'requestPayout']);
+        $r->get('/account/partner/statement', [Account\PartnerController::class, 'statement']);
     });
 
     // -------------------------------------------------------- administration
@@ -44,6 +49,16 @@ return static function (Router $r): void {
             $r->post('/gift-cards', [Admin\GiftCardController::class, 'store']);
             $r->post('/gift-cards/batch/{batch:[a-f0-9]{16}}/csv', [Admin\GiftCardController::class, 'csv']);
             $r->post('/gift-cards/{id:\d+}/void', [Admin\GiftCardController::class, 'void']);
+        });
+
+        $r->group(['middleware' => ['permission:partners.manage']], static function (Router $r): void {
+            $r->get('/partners', [Admin\PartnerController::class, 'index']);
+            $r->get('/partners/{id:\d+}', [Admin\PartnerController::class, 'show']);
+            $r->post('/partners/{id:\d+}/status', [Admin\PartnerController::class, 'status']);
+            $r->post('/partners/payouts/{id:\d+}/approve', [Admin\PartnerController::class, 'approve']);
+            $r->post('/partners/payouts/{id:\d+}/reject', [Admin\PartnerController::class, 'reject']);
+            $r->post('/partners/payouts/{id:\d+}/paid', [Admin\PartnerController::class, 'markPaid']);
+            $r->post('/partners/payouts/sepa', [Admin\PartnerController::class, 'sepa']);
         });
     });
 };
