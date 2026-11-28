@@ -61,6 +61,7 @@ class Scheduler
         private readonly \Nebrix\Status\StatusService $status,
         private readonly \Nebrix\Provisioning\HetznerWipeService $hetznerWipes,
         private readonly \Nebrix\Cache\SecureCache $cache,
+        private readonly \Nebrix\Provisioning\DomainRenewals $domainRenewals,
     ) {
     }
 
@@ -95,6 +96,11 @@ class Scheduler
                 $result = $this->serviceChanges->process();
 
                 return sprintf('%d downgrade(s) started, %d unpaid upgrade(s) cancelled', $result['started'], $result['expired']);
+            }],
+            'domains.renew' => [60, function (): string {
+                $result = $this->domainRenewals->process();
+
+                return sprintf('%d domain(s) checked, %d renewed, %d failed', $result['checked'], $result['renewed'], $result['failed']);
             }],
             'referrals.process' => [60, function (): string {
                 $result = $this->referrals->process();

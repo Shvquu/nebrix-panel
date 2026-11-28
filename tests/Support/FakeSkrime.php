@@ -30,6 +30,12 @@ final class FakeSkrime
 
     public string $balance = '25.00';
 
+    /** @var list<string> domains renewed through product/renew */
+    public array $renewals = [];
+
+    /** Simulates a lost answer: the order is carried out, then the connection fails. */
+    public bool $loseNextOrderAnswer = false;
+
     public function register(FakeHttp $http): void
     {
         $prefix = '/(?:sandbox|api)';
@@ -53,14 +59,18 @@ final class FakeSkrime
                 return $error('No product found or product is suspended', 404);
             }
             $d = $this->domains[$domain];
+            // Per the API description, 404 covers missing and inactive (suspended) products.
             if (($d['suspended'] ?? false) === true) {
+                return $error('No product found or product is suspended', 404);
+            }
+            if (($d['blocked'] ?? false) === true) {
                 return $error('Access blocked due to product suspension', 423, ['reason' => 'Payment overdue']);
             }
 
             return $ok('Successfully fetched product', [
                 'id' => $d['id'], 'type' => 'domain', 'state' => $d['state'], 'userRights' => [],
                 'productInfo' => ['domain' => $domain, 'handle' => $d['handle'], 'provider' => 'realtime', 'view' => ['reason' => ''], 'renew' => ['reason' => '']],
-                'price' => '2.99', 'duration' => '12', 'autoRenew' => $d['autoRenew'], 'expireAt' => $d['expireAt'], 'createdAt' => '2026-11-28 10:00:00',
+                'price' => '2.99', 'duration' => '12', 'autoRenew' => $d['autoRenew'], 'expireAt' => $d['expireAt'], 'createdAt' => $d['createdAt'] ?? '2026-01-01 00:00:00',
             ]);
         };
 
@@ -100,6 +110,24 @@ final class FakeSkrime
                 $domain = (string) ($query($r)['domain'] ?? '');
 
                 return isset($this->domains[$domain]) ? $ok('Successfully fetched authcode', ['domain' => $domain, 'authcode' => $this->domains[$domain]['authcode']]) : $error('No product found or product is suspended', 404);
+            }))
+            ->on('GET', $prefix . '/domain/contact', fn ($r) => $auth($r, function () use ($r, $query, $ok, $error): Response {
+                $domain = (string) ($query($r)['domain'] ?? '');
+
+                return isset($this->domains[$domain]) ? $ok('Successfully fetched contact', ['domain' => $domain, 'contact' => $this->domains[$domain]['contact']]) : $error('No product found or product is suspended', 404);
+            }))
+            ->on('POST', $prefix . '/product/renew', fn ($r) => $auth($r, function () use ($r, $body, $ok, $error): Response {
+                $domain = (string) ($body($r)['domain'] ?? '');
+                if (!isset($this->domains[$domain])) {
+                    return $error('No product found or product is suspended', 404);
+                }
+                if ((float) $this->balance < 2.99) {
+                    return $error('Insufficient balance', 400);
+                }
+                $this->renewals[] = $domain;
+                $this->domains[$domain]['expireAt'] = gmdate('Y-m-d H:i:s', (int) strtotime($this->domains[$domain]['expireAt'] . ' UTC +1 year'));
+
+                return $ok('Successfully renewed product', ['productId' => $this->domains[$domain]['id'], 'price' => '2.99', 'expireAt' => $this->domains[$domain]['expireAt']]);
             }))
             ->on('POST', $prefix . '/product/autorenew', fn ($r) => $auth($r, function () use ($r, $body, $ok, $error): Response {
                 $data = $body($r);
@@ -144,8 +172,13 @@ final class FakeSkrime
                 $id = sprintf('00000000-0000-4000-8000-%012d', count($this->domains) + 1);
                 $this->domains[$domain] = [
                     'id' => $id, 'handle' => 'H-' . $id, 'state' => $transfer ? 'pending' : 'active', 'autoRenew' => false,
-                    'expireAt' => '2027-11-28 10:00:00', 'nameserver' => array_values($ns), 'contact' => $contact, 'authcode' => 'Sk!rme-' . substr(md5($domain), 0, 10),
+                    'expireAt' => gmdate('Y-m-d H:i:s', time() + 365 * 86400), 'createdAt' => gmdate('Y-m-d H:i:s'), 'nameserver' => array_values($ns), 'contact' => $contact, 'authcode' => 'Sk!rme-' . substr(md5($domain), 0, 10),
                 ];
+                if ($this->loseNextOrderAnswer) {
+                    $this->loseNextOrderAnswer = false;
+
+                    return new Response(504, ['Content-Type' => 'text/html'], '<html>Gateway Timeout</html>');
+                }
 
                 return $ok('Successfully ordered product', ['id' => $id, 'type' => 'domain', 'state' => $this->domains[$domain]['state'], 'productInfo' => ['domain' => $domain, 'handle' => 'H-' . $id], 'autoRenew' => false, 'expireAt' => '2027-11-28 10:00:00']);
             }));

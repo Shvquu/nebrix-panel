@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nebrix\Integration\Inwx;
 
+use Nebrix\Domain\OrderRejectedException;
 use Nebrix\Domain\Registrar;
 use Nebrix\Integration\HealthResult;
 use Nebrix\Integration\Http\ApiClient;
@@ -36,6 +37,7 @@ class InwxClient implements Registrar
         private readonly string $username,
         #[\SensitiveParameter] private readonly string $password,
         #[\SensitiveParameter] private readonly ?string $totpSecret = null,
+        private readonly string $environment = 'live',
     ) {
     }
 
@@ -78,7 +80,60 @@ class InwxClient implements Registrar
             'nameservers' => array_values(array_map('strval', is_array($result['ns'] ?? null) ? $result['ns'] : [])),
             'auth_code' => isset($result['authCode']) && $result['authCode'] !== '' ? (string) $result['authCode'] : null,
             'registrant' => isset($result['registrant']) && $result['registrant'] !== '' ? (string) $result['registrant'] : null,
+            'reference' => null,
+            'created' => isset($result['crDate']) ? (string) $result['crDate'] : null,
         ];
+    }
+
+    public function environment(): string
+    {
+        return $this->environment;
+    }
+
+    /** OTE carries orders out in INWX's test registry, so the flow completes there. */
+    public function isSandbox(): bool
+    {
+        return false;
+    }
+
+    public function orderBlocker(string $domain, array $registrant, array $nameservers): ?string
+    {
+        return null;
+    }
+
+    /** Ownership is checked through the registrant contact handle (info()["registrant"]). */
+    public function registrantMatches(string $domain, array $registrant): bool
+    {
+        return false;
+    }
+
+    /** INWX renews by itself in the AUTORENEW mode. */
+    public function renewsExplicitly(): bool
+    {
+        return false;
+    }
+
+    public function renew(string $domain): ?string
+    {
+        throw new IntegrationException('INWX renews domains automatically (renewal mode).');
+    }
+
+    /**
+     * Runs an order command; definitive refusals (EPP result codes 2000–2399)
+     * become OrderRejectedException, server failures stay ambiguous.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function order(string $method, array $params): void
+    {
+        try {
+            $this->call($method, $params);
+        } catch (InwxException $exception) {
+            if ($exception->resultCode >= 2000 && $exception->resultCode < 2400) {
+                throw new OrderRejectedException($exception->getMessage(), null, $exception);
+            }
+            throw $exception;
+        }
     }
 
     public function authCode(string $domain): ?string
@@ -109,9 +164,9 @@ class InwxClient implements Registrar
         return (string) $result['id'];
     }
 
-    public function register(string $domain, string $contactId, array $nameservers, int $years, array $registrant = []): void
+    public function register(string $domain, string $contactId, array $nameservers, int $years, array $registrant = []): ?string
     {
-        $this->call('domain.create', [
+        $this->order('domain.create', [
             'domain' => $this->domain($domain),
             'period' => max(1, min(10, $years)) . 'Y',
             'registrant' => (int) $contactId,
@@ -121,11 +176,13 @@ class InwxClient implements Registrar
             'ns' => $this->nameservers($nameservers),
             'renewalMode' => 'AUTORENEW',
         ]);
+
+        return null;
     }
 
-    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers, array $registrant = []): void
+    public function transfer(string $domain, #[\SensitiveParameter] string $authCode, string $contactId, array $nameservers, array $registrant = []): ?string
     {
-        $this->call('domain.transfer', [
+        $this->order('domain.transfer', [
             'domain' => $this->domain($domain),
             'authCode' => $authCode,
             'registrant' => (int) $contactId,
@@ -134,6 +191,8 @@ class InwxClient implements Registrar
             'billing' => (int) $contactId,
             'ns' => $this->nameservers($nameservers),
         ]);
+
+        return null;
     }
 
     public function setNameservers(string $domain, array $nameservers): void

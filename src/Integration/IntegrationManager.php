@@ -143,22 +143,24 @@ class IntegrationManager
     {
         if ($integration->type === IntegrationType::SKRIME) {
             $this->assertType($integration, IntegrationType::SKRIME, $allowDisabled);
-            $environment = (string) $integration->config('environment', 'sandbox');
+            $environment = (string) $integration->config('environment', 'sandbox') === 'live' ? 'live' : 'sandbox';
 
+            // A public SaaS endpoint: TLS is always verified (the key can spend the account balance).
             return new SkrimeClient(
-                $this->api($integration, ['Authorization' => 'Bearer ' . $integration->secret('api_key')], SkrimeClient::ENDPOINTS[$environment] ?? SkrimeClient::ENDPOINTS['sandbox']),
+                $this->api($integration, ['Authorization' => 'Bearer ' . $integration->secret('api_key')], SkrimeClient::ENDPOINTS[$environment], true),
                 (bool) $integration->config('accept_terms', false),
-                $environment !== 'live',
+                $environment === 'sandbox',
             );
         }
         $this->assertType($integration, IntegrationType::INWX, $allowDisabled);
-        $endpoint = InwxClient::ENDPOINTS[(string) $integration->config('environment', 'ote')] ?? InwxClient::ENDPOINTS['ote'];
+        $environment = isset(InwxClient::ENDPOINTS[(string) $integration->config('environment', 'ote')]) ? (string) $integration->config('environment', 'ote') : 'ote';
 
         return new InwxClient(
-            $this->api($integration, [], $endpoint),
+            $this->api($integration, [], InwxClient::ENDPOINTS[$environment]),
             (string) $integration->config('username'),
             $integration->secret('password'),
             $integration->hasSecret('totp_secret') ? $integration->secret('totp_secret') : null,
+            $environment,
         );
     }
 
@@ -206,7 +208,7 @@ class IntegrationManager
     /**
      * @param array<string, string> $headers
      */
-    private function api(Integration $integration, array $headers, ?string $baseUrl = null): ApiClient
+    private function api(Integration $integration, array $headers, ?string $baseUrl = null, ?bool $verifyTls = null): ApiClient
     {
         return new ApiClient(
             $this->http,
@@ -215,7 +217,7 @@ class IntegrationManager
             $integration->id,
             $baseUrl ?? (string) $integration->config('base_url'),
             $headers,
-            (bool) $integration->config('verify_tls', true),
+            $verifyTls ?? (bool) $integration->config('verify_tls', true),
             $this->config->int('integrations.timeout', 20),
         );
     }

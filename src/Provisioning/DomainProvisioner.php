@@ -10,6 +10,7 @@ use Nebrix\Billing\OrderException;
 use Nebrix\Core\Clock;
 use Nebrix\Billing\Tax\EuVat;
 use Nebrix\Database\Connection;
+use Nebrix\Domain\OrderRejectedException;
 use Nebrix\Domain\PremiumDomainException;
 use Nebrix\Domain\Registrar;
 use Nebrix\Domain\RegistrarContacts;
@@ -32,7 +33,12 @@ use Nebrix\Service\ServiceRepository;
  *   accepted it; the service stays in provisioning until the registry
  *   reports the domain as active (transfers: up to 10 days). Every later
  *   action checks that the domain is still in the account with this
- *   service's registrant contact.
+ *   service's registrant contact (INWX) or the registrar's ID returned by
+ *   this service's order (SKRIME).
+ * - "submitting" is set right before the order request. A definitive
+ *   refusal clears it; an unknown outcome (lost answer) never leads to a
+ *   second order – the service waits for the domain and then fails for
+ *   staff to check.
  * - The transfer auth code is stored encrypted and removed after submission.
  * - Suspension stops automatic renewal at the registry, unsuspension enables
  *   it again; termination lets the domain be deleted at the end of its term
@@ -69,8 +75,22 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             throw new OrderException('.eu domains can only be registered for customers in the EU or the EEA (Account → Profile).');
         }
 
+        $registrar = $this->integrations->registrar($integration);
+        // Sandbox orders never complete: only staff can test them through the shop.
+        if ($registrar->isSandbox() && !$user->isStaff()) {
+            throw new OrderException('Domain orders are not available right now. Please contact our support.');
+        }
         try {
-            $available = $this->integrations->registrar($integration)->isAvailable($domain);
+            $blocker = $registrar->orderBlocker($domain, RegistrarContacts::registrantData($user), $this->defaultNameservers($integration));
+        } catch (InvalidArgumentException $exception) {
+            throw new OrderException($exception->getMessage() . ' (Account → Profile)');
+        }
+        if ($blocker !== null) {
+            throw new OrderException($blocker);
+        }
+
+        try {
+            $available = $registrar->isAvailable($domain);
         } catch (PremiumDomainException) {
             throw new OrderException('This is a premium domain with a special price and cannot be ordered here. Please contact our support.');
         } catch (IntegrationException) {
@@ -93,12 +113,16 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             throw new IntegrationException(sprintf('%s is already held by another service.', $domain));
         }
         $remote = $service->remote;
+        if (isset($remote['registry_env']) && $remote['registry_env'] !== $registrar->environment()) {
+            throw new IntegrationException(sprintf('This domain was ordered in the %s environment of the registrar; the integration now uses %s. Assign it manually.', (string) $remote['registry_env'], $registrar->environment()));
+        }
 
         $info = $registrar->info($domain);
         if ($info !== null) {
-            if (!$this->owns($remote, $info)) {
+            if (!$this->owns($remote, $info) && !$this->recogniseLostOrder($service, $registrar, $owner, $remote, $info)) {
                 throw new IntegrationException(sprintf('%s is already in the registrar account but was not registered by this service. Assign it manually.', $domain));
             }
+            $remote = $this->services->find($service->id)->remote ?? $remote;
             if (isset($remote['submitting'])) {
                 $remote = $this->merge($service, ['submitted' => $remote['submitting'], 'submitting' => null, 'submitted_at' => $remote['submitted_at'] ?? $this->clock->now()->getTimestamp()]);
             }
@@ -109,6 +133,16 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             // Accepted earlier; a transfer waits for the losing registrar.
             return $this->completedOrWait($service, $registrar, $remote, null);
         }
+        if (isset($remote['submitting'])) {
+            // The order was sent but its answer is unknown: never order a second time.
+            $transfer = $remote['submitting'] === 'transfer';
+            $since = (int) ($remote['submitting_at'] ?? 0);
+            if ($this->clock->now()->getTimestamp() > $since + ($transfer ? 10 * 86400 : 2 * 86400)) {
+                throw new IntegrationException(sprintf('The registrar did not confirm the %s of %s and the domain did not appear in the account. Check the order at the registrar before retrying.', $transfer ? 'transfer' : 'registration', $domain));
+            }
+
+            throw new RetryLaterException(sprintf('Waiting for the %s of %s to appear at the registrar (the answer to the order was lost).', $transfer ? 'transfer' : 'registration', $domain), $transfer ? 3600 : 300);
+        }
 
         try {
             $contactId = $this->contacts->ensure($owner, $integration->id, $registrar);
@@ -117,18 +151,26 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
             throw new IntegrationException($exception->getMessage());
         }
         $nameservers = $this->defaultNameservers($integration);
+        $blocker = $registrar->orderBlocker($domain, $registrant, $nameservers);
+        if ($blocker !== null) {
+            throw new IntegrationException('The registrar cannot take this order: ' . $blocker);
+        }
         $authCode = $this->authCode($service);
         $mode = $authCode !== null ? 'transfer' : 'register';
 
-        // "submitting" lets a retry after a crash recognise its own domain (same registrant contact).
-        $this->merge($service, ['domain' => $domain, 'contact_id' => $contactId, 'submitting' => $mode]);
-        if ($authCode !== null) {
-            $registrar->transfer($domain, $authCode, $contactId, $nameservers, $registrant);
-        } else {
-            $registrar->register($domain, $contactId, $nameservers, 1, $registrant);
+        // Set right before the request: a retry after a lost answer must not order again.
+        $this->merge($service, ['domain' => $domain, 'contact_id' => $contactId, 'submitting' => $mode, 'submitting_at' => $this->clock->now()->getTimestamp(), 'registry_env' => $registrar->environment(), 'registry_ref' => null]);
+        try {
+            $reference = $authCode !== null
+                ? $registrar->transfer($domain, $authCode, $contactId, $nameservers, $registrant)
+                : $registrar->register($domain, $contactId, $nameservers, 1, $registrant);
+        } catch (OrderRejectedException $exception) {
+            // Refused: nothing was ordered, a later retry may order again.
+            $this->merge($service, ['submitting' => null, 'submitting_at' => null]);
+            throw $exception;
         }
         // Only an accepted request counts as submitted.
-        $remote = $this->merge($service, ['submitted' => $mode, 'submitting' => null, 'submitted_at' => $this->clock->now()->getTimestamp()]);
+        $remote = $this->merge($service, ['submitted' => $mode, 'submitting' => null, 'submitted_at' => $this->clock->now()->getTimestamp(), 'registry_ref' => $reference]);
         if ($authCode !== null) {
             $this->forgetAuthCode($service);
         }
@@ -152,7 +194,10 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
     {
         [, $registrar] = $this->client($service);
         $this->ownedInfo($service, $registrar);
-        $registrar->setRenewalMode($this->domain($service), Registrar::RENEW);
+        if (!$registrar->renewsExplicitly()) {
+            $registrar->setRenewalMode($this->domain($service), Registrar::RENEW);
+        }
+        // Registrars without own renewal: the renewal task renews paid periods again.
     }
 
     public function terminate(Service $service): void
@@ -173,16 +218,17 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
 
     /**
      * @param array<string, mixed> $remote
-     * @param array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null}|null $info
+     * @param array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null, reference?: string|null, created?: string|null}|null $info
      */
     private function completedOrWait(Service $service, Registrar $registrar, array $remote, ?array $info): ProvisionResult
     {
         $domain = $this->domain($service);
         if ($info !== null && strtoupper($info['status']) === 'OK') {
             // Renewal at the registry follows the panel's billing from now on (suspension
-            // stops it, termination lets the domain end with its term).
+            // stops it, termination lets the domain end with its term). Registrars without
+            // own renewal keep it off; the panel renews each paid period (DomainRenewals).
             if (($remote['auto_renew'] ?? null) !== true) {
-                $registrar->setRenewalMode($domain, Registrar::RENEW);
+                $registrar->setRenewalMode($domain, $registrar->renewsExplicitly() ? Registrar::EXPIRE : Registrar::RENEW);
                 $this->merge($service, ['auto_renew' => true]);
             }
 
@@ -199,23 +245,60 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
     }
 
     /**
-     * The domain belongs to the service when the service submitted it and
-     * the registrar reports the service's registrant contact.
+     * The domain belongs to the service when the service submitted it and the
+     * registrar reports the service's registrant contact (INWX) or the ID its
+     * order returned (SKRIME).
      *
      * @param array<string, mixed> $remote
-     * @param array{registrant: string|null} $info
+     * @param array{registrant: string|null, reference?: string|null} $info
      */
     private function owns(array $remote, array $info): bool
     {
         if (($remote['submitted'] ?? $remote['submitting'] ?? null) === null) {
             return false;
         }
+        if (($info['reference'] ?? null) !== null) {
+            $reference = (string) ($remote['registry_ref'] ?? '');
+
+            return $reference !== '' && hash_equals($reference, (string) $info['reference']);
+        }
 
         return $info['registrant'] === null || $info['registrant'] === (string) ($remote['contact_id'] ?? '');
     }
 
     /**
-     * @return array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null}
+     * The order was sent, but its answer (with the registrar's ID) was lost.
+     * The domain is accepted as this service's only if it was created at the
+     * registrar right after this service submitted it and its registrant is
+     * this customer; the ID is then stored.
+     *
+     * @param array<string, mixed> $remote
+     * @param array{reference?: string|null, created?: string|null} $info
+     */
+    private function recogniseLostOrder(Service $service, Registrar $registrar, User $owner, array $remote, array $info): bool
+    {
+        $since = (int) ($remote['submitting_at'] ?? 0);
+        $created = isset($info['created']) ? strtotime((string) $info['created'] . ' UTC') : false;
+        if (!isset($remote['submitting']) || ($remote['registry_ref'] ?? null) !== null || ($info['reference'] ?? null) === null || $since === 0 || $created === false) {
+            return false;
+        }
+        if ($created < $since - 600 || $created > $since + 86400) {
+            return false;
+        }
+        try {
+            if (!$registrar->registrantMatches($this->domain($service), RegistrarContacts::registrantData($owner))) {
+                return false;
+            }
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+        $this->merge($service, ['registry_ref' => (string) $info['reference']]);
+
+        return true;
+    }
+
+    /**
+     * @return array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null, reference?: string|null, created?: string|null}
      */
     private function ownedInfo(Service $service, Registrar $registrar): array
     {
@@ -309,6 +392,52 @@ final class DomainProvisioner implements Provisioner, OrderPrecheck
         }
 
         throw new IntegrationException('Unsupported action.');
+    }
+
+    /**
+     * Registrars without own renewal (SKRIME): renews the domain while its
+     * registry term ends before the period the customer has paid for
+     * (next_due_at). At most one renewal request per expiry date – a lost
+     * answer never leads to a second, paid renewal.
+     *
+     * @return bool whether a renewal was requested
+     *
+     * @throws IntegrationException
+     */
+    public function renewPaidPeriod(Service $service): bool
+    {
+        [, $registrar] = $this->client($service);
+        if (!$registrar->renewsExplicitly() || $registrar->isSandbox() || !$service->isActive() || $service->nextDueAt === null) {
+            return false;
+        }
+        $info = $this->ownedInfo($service, $registrar);
+        $expires = $info['expires'] !== null ? strtotime($info['expires'] . ' UTC') : false;
+        $paidUntil = strtotime($service->nextDueAt . ' UTC');
+        if (strtoupper($info['status']) !== 'OK' || $expires === false || $paidUntil === false || $expires >= $paidUntil) {
+            return false;
+        }
+        $remote = $service->remote;
+        if (($remote['renewed_from'] ?? null) === $info['expires']) {
+            return false; // already requested from this expiry date
+        }
+        $now = $this->clock->now()->getTimestamp();
+        if (isset($remote['renewal_error_at']) && $now - (int) $remote['renewal_error_at'] < 21600) {
+            return false; // refused recently (e.g. balance): retried every 6 hours
+        }
+
+        try {
+            $newExpiry = $registrar->renew($this->domain($service));
+        } catch (IntegrationException $exception) {
+            $status = $exception->httpStatus();
+            $refused = $exception instanceof OrderRejectedException || ($status !== null && ($status < 300 || ($status >= 400 && $status < 500 && $status !== 408)));
+            $this->merge($service, $refused
+                ? ['renewal_error_at' => $now, 'renewal_error' => mb_substr($exception->getMessage(), 0, 200)]
+                : ['renewed_from' => $info['expires'], 'renewal_unconfirmed_at' => $now, 'renewal_error' => mb_substr($exception->getMessage(), 0, 200)]);
+            throw $exception;
+        }
+        $this->merge($service, ['renewed_from' => $info['expires'], 'renewed_at' => $now, 'renewed_until' => $newExpiry, 'renewal_error' => null, 'renewal_error_at' => null, 'renewal_unconfirmed_at' => null]);
+
+        return true;
     }
 
     public function prepareReinstall(Service $service, array $input): void

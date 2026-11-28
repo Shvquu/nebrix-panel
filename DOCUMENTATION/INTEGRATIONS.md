@@ -237,17 +237,20 @@ Domains through the SKRIME API ([OpenAPI document](https://skrime.eu/docs/openap
 | Default name servers | 2 to 6, one per line. Empty = the default name servers of the SKRIME account. |
 | Accept the SKRIME terms | SKRIME requires the acceptance of its terms and of the immediate start (no withdrawal) with every order. The panel sends it only when you tick this box; without it no order is placed and the connection test shows *degraded*. |
 
+TLS is always verified for SKRIME (no option to switch it off).
+
 The connection test signs in (`account/user`) and shows the account and its balance.
 
 ### Product configuration
 Category *Domain*, integration of type SKRIME, top-level domain (e.g. `de`), billing cycle *annually*. Products can use INWX or SKRIME; the product form lists both.
 
 ### Lifecycle
-* Before the order: as for INWX (TLD, complete profile, availability at SKRIME, auth code for registered domains, no duplicate in the panel). **Premium domains** (available only at a special price) are refused. `.eu` needs a registrant in the EU or the EEA (checked before the order, for every registrar).
+* Before the order (before payment): as for INWX (TLD, complete profile, availability at SKRIME, auth code for registered domains, no duplicate in the panel). Refused as well: **premium domains** (registration or transfer), `.it` domains, addresses without a house number, orders while the terms box is not ticked, and – for customers – orders on a **sandbox** integration (staff can test the sandbox through the shop). `.eu` needs a registrant in the EU or the EEA (checked for every registrar).
 * Registration and transfer: `domain/order` with the customer's profile as registrant (first and last name, company, street and house number separately, postcode, city, country, e-mail, phone `+CC.NUMBER`), the name servers and, for transfers, the auth code (stored encrypted, removed after SKRIME accepted the order). SKRIME registers for one year.
-* The service becomes active when SKRIME reports the domain product as `active` (transfers: waits up to 10 days). Then auto renewal is switched on at SKRIME, so the domain renews from the balance as long as the customer pays.
-* SKRIME has no registrant handles: a domain belongs to a service only if the service submitted it; a domain that is already in the SKRIME account before the order is never adopted, changed or deleted.
-* Suspend: auto renewal off; unsuspend: on; terminate: off (the domain ends with its term, never an immediate deletion).
+* The order answer contains SKRIME's product ID; it is stored with the service and **ownership is tied to it**: a domain belongs to a service only if SKRIME reports this product ID (and the order was placed in the same environment). A refused order (4xx, invalid data) leaves nothing pending. If the answer is lost (timeout), the panel never orders again: it waits for the domain, accepts it only if it was created right after this service's order and its registrant is this customer, and otherwise asks staff to check after 2 days (transfers: 10 days).
+* The service becomes active when SKRIME reports the domain product as `active` (transfers: waits up to 10 days).
+* **Renewal**: SKRIME's own auto renewal stays off. The scheduler task `domains.renew` (hourly) renews a domain (`product/renew`) while its expiry date at SKRIME lies before the date the customer has paid for (`next_due_at`) – so only paid periods are renewed, from the SKRIME balance. At most one renewal is requested per expiry date (a lost answer is never repeated; check such cases in the SKRIME interface); refused renewals (e.g. insufficient balance) are retried every 6 hours. Suspended or terminated services are not renewed, so the domain ends with its term.
+* Suspend, unsuspend and terminate keep SKRIME's auto renewal off (never an immediate deletion).
 * Customer actions: change name servers; show the auth code (fetched from SKRIME only on this request, stored under access data).
 * A product that SKRIME blocks (e.g. overdue payment) answers with HTTP 423; the panel shows SKRIME's message and changes nothing.
 * Not supported: `.it` domains (SKRIME needs a tax or ID number as `regCode`, which the panel does not collect), DNS zone management and contact changes after the registration (do them in the SKRIME interface).

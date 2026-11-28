@@ -1581,4 +1581,8 @@ return [
     'rate limits' => 'Rate-Limits',
     'connected' => 'verbunden',
     'unavailable' => 'nicht erreichbar',
+    'Domain orders are not available right now. Please contact our support.' => 'Domain-Bestellungen sind gerade nicht möglich. Bitte wenden Sie sich an unseren Support.',
+    '.it domains cannot be ordered here. Please contact our support.' => '.it-Domains können hier nicht bestellt werden. Bitte wenden Sie sich an unseren Support.',
+    'Please add the house number to the street of your address (Account → Profile).' => 'Bitte ergänzen Sie die Hausnummer in Ihrer Adresse (Konto → Profil).',
+    'Domain registrations need your first and last name (Account → Profile).' => 'Für Domain-Registrierungen brauchen wir Ihren Vor- und Nachnamen (Konto → Profil).',
 ];

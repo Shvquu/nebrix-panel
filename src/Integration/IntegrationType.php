@@ -139,7 +139,6 @@ final class IntegrationType
                     'environment' => ['label' => 'Environment', 'rules' => 'required|in:sandbox,live', 'default' => 'sandbox', 'type' => 'select', 'options' => ['sandbox' => 'Sandbox (validates, changes nothing, no costs)', 'live' => 'Live']],
                     'nameservers' => ['label' => 'Default name servers (one per line, 2 to 6)', 'rules' => 'nullable|string|max:1000', 'type' => 'text', 'help' => 'Empty = the default name servers of the SKRIME account.'],
                     'accept_terms' => ['label' => 'I accept the SKRIME terms of service for orders placed by the panel and agree that SKRIME starts them immediately (no withdrawal)', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'SKRIME requires this confirmation with every order; without it the panel places no orders.'],
-                    'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
                 ],
                 'secrets' => [
                     'api_key' => ['label' => 'SKRIME API key', 'rules' => 'string|min:16|max:255|regex:/^[\x21-\x7E]+$/', 'required' => true, 'help' => 'Create the key in the SKRIME dashboard (API). It is stored encrypted and sent only to skrime.eu.'],
