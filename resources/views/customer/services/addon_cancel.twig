@@ -1,0 +1,27 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Cancel add-on'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Cancel add-on'|t }}</h1><p class="muted"><a href="/services/{{ service.id }}">&larr; {{ service.name }}</a></p></div></div>
+<div class="card">
+    <div class="card-body">
+        <dl class="details">
+            <dt>{{ 'Add-on'|t }}</dt><dd>{{ addon.name }} × {{ addon.quantity }}</dd>
+            <dt>{{ 'Service'|t }}</dt><dd>{{ service.name }}</dd>
+            {% if addon.status == 'pending_payment' %}
+                <dt>{{ 'Effect'|t }}</dt><dd>{{ 'The booking is withdrawn and its unpaid invoice cancelled.'|t }}</dd>
+            {% else %}
+                <dt>{{ 'Ends on'|t }}</dt><dd>{{ service.nextDueAt|d }} <span class="small muted">({{ 'end of the paid term'|t }})</span></dd>
+            {% endif %}
+        </dl>
+        <form method="post" action="/services/{{ service.id }}/addons/{{ addon.id }}/cancel" class="mt-2" novalidate>
+            {{ csrf_field() }}
+            <div class="form-row">
+                <label class="checkbox"><input type="checkbox" name="confirm" value="1"> <span>{{ 'I want to cancel this add-on.'|t }}</span></label>
+                {% if error('confirm') %}<div class="field-error">{{ error('confirm')|t }}</div>{% endif %}
+            </div>
+            <button class="btn btn-danger" type="submit">{{ addon.status == 'pending_payment' ? 'Withdraw booking now'|t : 'Cancel now'|t }}</button>
+        </form>
+        <p class="small muted mt-1">{{ 'You receive a confirmation by e-mail immediately. Until the end date you can take the cancellation back on the service page.'|t }}</p>
+    </div>
+</div>
+{% endblock %}

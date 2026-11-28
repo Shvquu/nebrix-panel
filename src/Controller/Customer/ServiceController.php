@@ -80,6 +80,10 @@ final class ServiceController extends Controller
             'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
             'can_withdraw_cancellation' => $this->container->get(\Nebrix\Contract\CancellationService::class)->canWithdraw($service),
             'package_change' => $this->packageChange($service),
+            // Add-ons and the billing cycle for the next term (orders area).
+            'addons' => $this->container->get(\Nebrix\Service\Addon\AddonService::class)->overview($service, $this->user($request)),
+            'cycle_change' => $this->container->get(\Nebrix\Service\CycleChangeService::class)->options($service),
+            'may_manage' => $this->mayManage($request),
         ]);
     }
 

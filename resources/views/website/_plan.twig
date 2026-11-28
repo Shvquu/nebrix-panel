@@ -1,15 +1,23 @@
 {% import 'macros/icons.twig' as i %}
-<article class="site-plan{{ p.sold_out ? ' is-sold-out' : '' }}{{ p.promo ? ' has-promo' : '' }}">
+{% set multi = p.cycles|length > 1 %}
+{% set own = (p.cycles|filter(c => c.default)|first) %}
+<article class="site-plan{{ p.sold_out ? ' is-sold-out' : '' }}{{ p.promo ? ' has-promo' : '' }}"{% if multi %} data-cycle-scope{% endif %}>
     <h2 class="site-plan-title">{{ p.name }}</h2>
     {% if p.promo and p.promo.saving_gross > 0 %}<div class="site-saving">{{ i.icon('percent') }} {{ 'You save :amount'|t({amount: p.promo.saving_gross|money(p.currency)}) }} {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
     <div class="site-plan-head">
         {% if p.promo %}<div class="site-promo-label">{{ p.promo.name ? p.promo.name ~ ' · ' : '' }}{{ (p.promo.permanent ? 'For a short time, permanently' : 'For a short time, first billing period')|t }}</div>{% endif %}
-        <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong>{{ p.price_gross|money(p.currency) }}</strong> <span>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
-        {% if p.promo and p.promo.reference_gross %}<div class="site-was">{{ 'instead of'|t }} <s>{{ p.promo.reference_gross|money(p.currency) }}</s> {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
-        {% if p.promo and not p.promo.permanent %}<div class="site-small site-muted">{{ 'then :price'|t({price: p.promo.then_gross|money(p.currency)}) }} {{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</div>{% endif %}
+        <div class="site-price{{ p.promo ? ' is-promo' : '' }}"><strong data-cycle-price>{{ p.price_gross|money(p.currency) }}</strong> <span data-cycle-unit>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>
+        {% if multi %}<div class="site-small site-muted" data-cycle-month>{{ own and own.months > 1 ? ':price per month'|t({price: own.per_month_gross|money(p.currency)}) : '' }}</div><div class="site-small site-accent" data-cycle-saving></div>{% endif %}
+        {% if p.promo and p.promo.reference_gross %}<div class="site-was" data-cycle-was-box>{{ 'instead of'|t }} <s>{{ p.promo.reference_gross|money(p.currency) }}</s> <span data-cycle-unit>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>{% endif %}
+        {% if p.promo and not p.promo.permanent %}<div class="site-small site-muted"><span data-cycle-then>{{ 'then :price'|t({price: p.promo.then_gross|money(p.currency)}) }}</span> <span data-cycle-unit>{{ include('website/_cycle.twig', {cycle: p.billing_cycle}) }}</span></div>{% endif %}
         {% if p.setup_gross > 0 %}<div class="site-small site-muted">+ {{ p.setup_gross|money(p.currency) }} {{ 'setup fee'|t }}</div>{% endif %}
         {% if p.sold_out %}
             <span class="site-btn site-btn-disabled" aria-disabled="true">{{ i.icon('ban') }} {{ 'Sold out'|t }}</span>
+        {% elseif multi %}
+            <form class="site-cycle-form" method="get" action="/store/{{ p.slug }}">
+                {% include 'website/_cycle_select.twig' with {p: p} %}
+                <button class="site-btn site-btn-primary" type="submit">{{ i.icon('rocket') }} {{ 'Order now'|t }}</button>
+            </form>
         {% else %}
             <a class="site-btn site-btn-primary" href="/store/{{ p.slug }}">{{ i.icon('rocket') }} {{ 'Order now'|t }}</a>
         {% endif %}

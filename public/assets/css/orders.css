@@ -1,0 +1,21 @@
+/*
+ * Nebrix – orders area: billing cycle choice, add-ons and the cart in the
+ * customer portal; the billing cycle selector on the public website.
+ */
+
+/* Customer portal */
+.p-cycle-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+.p-cycle-option { position: relative; display: flex; flex-direction: column; gap: .25rem; padding: .85rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; }
+.p-cycle-option input { position: absolute; top: .9rem; right: .9rem; }
+.p-cycle-option.is-active, .p-cycle-option:has(input:checked) { border-color: var(--brand-primary); box-shadow: 0 0 0 1px var(--brand-primary) inset; }
+.p-cycle-name { font-weight: 600; padding-right: 1.5rem; }
+.p-cycle-price strong { font-size: 1.15rem; }
+.p-addon-option select { max-width: 100%; }
+.p-cart-item .card-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.p-cart-item .card-footer.filters { display: flex; gap: .5rem; align-items: center; }
+
+/* Public website */
+.site-cycle { display: flex; flex-direction: column; gap: .3rem; margin: .5rem 0 .75rem; text-align: left; }
+.site-cycle-select { width: 100%; padding: .55rem .7rem; border-radius: 8px; border: 1px solid var(--s-border, rgba(255, 255, 255, .08)); background: var(--s-surface-2, #212128); color: var(--s-text, #f4f4f5); font: inherit; }
+.site-cycle-form { display: flex; flex-direction: column; align-items: stretch; }
+.site-cycle-form .site-btn { width: 100%; }
